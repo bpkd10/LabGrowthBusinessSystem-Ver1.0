@@ -2,8 +2,8 @@
 <html lang="th">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="ระบบทดลองบริหารลูกค้า งานขาย สินค้า และเป้าหมายรายได้ สำหรับ Workshop Project 4">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="description" content="Business Growth CRM สำหรับธุรกิจ Online, Onsite, Wholesale และ Retail">
     <meta name="theme-color" content="#0c3b36">
     <title>Business Growth Command Center | Uncle Tung AI</title>
     <link rel="stylesheet" href="styles.css">
@@ -13,10 +13,10 @@
     <div class="app-shell">
       <aside class="sidebar">
         <div class="brand">
-          <span class="brand-mark">BG</span>
+          <span class="brand-mark pixel-brand" id="sidebarBusinessAvatar">BG</span>
           <div>
-            <strong>ระบบเติบโตธุรกิจ</strong>
-            <span>ลูกค้า + งานขาย + การตลาด</span>
+            <strong id="sidebarBusinessName">ระบบเติบโตธุรกิจ</strong>
+            <span id="sidebarBusinessMode">CRM สำหรับทุกธุรกิจ</span>
           </div>
         </div>
         <nav class="nav" aria-label="เมนูหลัก">
@@ -45,18 +45,37 @@
           <div class="topbar-actions">
             <button id="pageAction" class="page-action" type="button">เพิ่มลูกค้าใหม่</button>
             <div class="role-switch" aria-label="เลือกมุมมองตามหน้าที่">
-              <button class="role-button active" data-role="owner">เจ้าของ</button>
-              <button class="role-button" data-role="sales">ฝ่ายขาย</button>
-              <button class="role-button" data-role="ops">ทีมงาน</button>
+              <button class="role-button active" data-role="owner"><span class="role-pixel">OW</span> เจ้าของ</button>
+              <button class="role-button" data-role="sales"><span class="role-pixel">SL</span> ฝ่ายขาย</button>
+              <button class="role-button" data-role="marketing"><span class="role-pixel">MK</span> การตลาด</button>
+              <button class="role-button" data-role="ops"><span class="role-pixel">OP</span> ทีมงาน</button>
             </div>
           </div>
         </header>
 
         <section id="dashboardView" class="view active">
+          <section class="business-context" aria-labelledby="businessProfileTitle">
+            <div class="business-identity">
+              <div id="businessAvatarPreview" class="business-avatar-preview" aria-hidden="true"></div>
+              <div>
+                <p class="context-label">Business Profile</p>
+                <h2 id="businessProfileTitle">ตั้งค่าระบบให้ตรงกับธุรกิจ</h2>
+                <p id="businessProfileSummary" class="muted"></p>
+              </div>
+            </div>
+            <form id="businessProfileForm" class="business-profile-form">
+              <label>ชื่อธุรกิจ<input name="businessName" required maxlength="60"></label>
+              <label>รูปแบบการขาย<select name="businessMode" id="businessModeSelect"></select></label>
+              <label>หมวดธุรกิจ<select name="businessCategory" id="businessCategorySelect"></select></label>
+              <label>รูปโปรไฟล์<select name="businessAvatar" id="businessAvatarSelect"></select></label>
+              <label>เป้ารายได้ต่อรอบ<input name="revenueTarget" type="number" min="1000" step="1000" required></label>
+              <button type="submit">บันทึกโปรไฟล์</button>
+            </form>
+          </section>
           <section class="goal-banner" aria-labelledby="goalTitle">
             <div>
               <p class="eyebrow">เป้าหมายรายได้</p>
-              <h2 id="goalTitle">จากข้อมูล สู่รายได้ 100,000 บาท</h2>
+              <h2 id="goalTitle">เป้าหมายรายได้ของธุรกิจ</h2>
               <p id="goalMessage" class="muted"></p>
             </div>
             <div class="goal-meter-wrap">
@@ -77,7 +96,7 @@
               <div><p class="eyebrow">Customer journey</p><h2 id="journeyTitle">เส้นทางลูกค้าจาก Lead สู่รายได้</h2></div>
               <button class="small-button" data-jump="crm">เปิด CRM Board</button>
             </div>
-            <p class="panel-context">ดูจุดที่ลูกค้าหยุดอยู่ แล้วเลือก Follow-up ที่ควรทำก่อน</p>
+            <p id="journeyContext" class="panel-context">ดูจุดที่ลูกค้าหยุดอยู่ แล้วเลือกงานที่ควรทำก่อน</p>
             <div id="journeyFlow" class="journey-flow"></div>
           </section>
           <div class="dashboard-grid dashboard-grid--insight">
@@ -121,6 +140,11 @@
                 <option>Facebook</option>
                 <option>LINE OA</option>
                 <option>Website</option>
+                <option>Marketplace</option>
+                <option>Walk-in</option>
+                <option>หน้าร้าน / POS</option>
+                <option>โทรศัพท์</option>
+                <option>ตัวแทนจำหน่าย</option>
                 <option>Google Form</option>
                 <option>Event</option>
                 <option>Referral</option>
@@ -130,7 +154,8 @@
               <select name="solutionPackage" id="customerPackageSelect"></select>
             </label>
             <label>ความต้องการเพิ่มเติม<input name="interest" required placeholder="เช่น ต้องการเพิ่มยอดขายจาก Facebook"></label>
-            <label>รูปโปรไฟล์<input name="profilePhoto" type="file" accept="image/*"></label>
+            <label>Avatar ตามประเภทธุรกิจ<select name="avatarPreset" id="customerAvatarPreset"></select></label>
+            <label>หรืออัปโหลดรูปจริง<input name="profilePhoto" type="file" accept="image/*"></label>
             <button type="submit">บันทึกลูกค้าและสร้าง Lead</button>
           </form>
           <div class="toolbar">
@@ -209,7 +234,7 @@
                 <select id="analysisFocus">
                   <option value="growth">หาโอกาสเพิ่มรายได้</option>
                   <option value="crm">จัดลำดับ Lead ที่ควรติดตาม</option>
-                  <option value="marketing">วางแผนขาย Marketing Solution Package</option>
+                  <option value="marketing">วิเคราะห์ช่องทางและแพ็กเกจที่ควรขาย</option>
                   <option value="operations">หางานค้างและคอขวดของทีม</option>
                 </select>
               </label>

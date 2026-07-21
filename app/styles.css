@@ -1192,3 +1192,289 @@ tbody tr:hover {
     grid-column: 1 / -1;
   }
 }
+
+/* Adaptive business profile, channel language, and role dashboards */
+.business-context {
+  display: grid;
+  grid-template-columns: minmax(260px, .7fr) minmax(560px, 1.3fr);
+  gap: 22px;
+  align-items: center;
+  margin-bottom: 14px;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.business-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.business-identity h2 {
+  margin-bottom: 5px;
+}
+
+.business-identity .muted {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.context-label {
+  margin: 0 0 4px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.business-profile-form {
+  display: grid;
+  grid-template-columns: 1.2fr repeat(3, minmax(110px, .8fr)) 1fr auto;
+  gap: 9px;
+  align-items: end;
+}
+
+.business-profile-form label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: #52605d;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.business-profile-form input,
+.business-profile-form select {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.business-profile-form button {
+  min-height: 42px;
+  padding: 9px 13px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.business-profile-form button:hover {
+  background: var(--accent-dark);
+}
+
+.business-avatar-preview {
+  flex: 0 0 auto;
+}
+
+.customer-avatar.large {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+}
+
+.avatar-preset {
+  position: relative;
+  display: grid !important;
+  overflow: hidden;
+  place-items: center;
+  border: 2px solid rgba(255, 255, 255, .82);
+  background: #dcece8;
+  color: #123f38 !important;
+  box-shadow: 0 0 0 1px rgba(16, 37, 34, .12);
+}
+
+.avatar-preset b {
+  position: relative;
+  z-index: 1;
+  font-size: 10px;
+  letter-spacing: .04em;
+}
+
+.customer-avatar.large.avatar-preset b {
+  margin-top: 23px;
+  font-size: 12px;
+}
+
+.pixel-glyph,
+.journey-pixel {
+  position: absolute;
+  top: 9px;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  transform: translateX(-50%);
+  background: currentColor;
+  box-shadow: -8px 8px 0 currentColor, 8px 8px 0 currentColor, -8px 16px 0 currentColor, 0 16px 0 currentColor, 8px 16px 0 currentColor;
+  opacity: .7;
+}
+
+.avatar-preset[data-avatar-tone="violet"] { background: #eee7ff; color: #5b3da8 !important; }
+.avatar-preset[data-avatar-tone="teal"] { background: #dff3ed; color: #086c5d !important; }
+.avatar-preset[data-avatar-tone="orange"] { background: #fff0d7; color: #9a5700 !important; }
+.avatar-preset[data-avatar-tone="red"] { background: #ffe6e2; color: #a83b2e !important; }
+.avatar-preset[data-avatar-tone="blue"] { background: #e1efff; color: #175da6 !important; }
+.avatar-preset[data-avatar-tone="indigo"] { background: #e7e9ff; color: #3f49a7 !important; }
+.avatar-preset[data-avatar-tone="slate"] { background: #e7ecef; color: #3f515b !important; }
+.avatar-preset[data-avatar-tone="gold"] { background: #fff3ca; color: #836400 !important; }
+
+.pixel-brand {
+  image-rendering: pixelated;
+  letter-spacing: -.02em;
+}
+
+.role-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+}
+
+.role-pixel,
+.metric-pixel,
+.contact-icon {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 5px;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: .02em;
+}
+
+.role-pixel {
+  width: 24px;
+  height: 22px;
+  background: #edf1f0;
+  color: #53635f;
+}
+
+.role-button.active .role-pixel {
+  background: #f4b860;
+  color: var(--accent-dark);
+}
+
+.kpi-heading {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+}
+
+.metric-pixel {
+  width: 27px;
+  height: 27px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
+.contact-badge {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  color: #45534f !important;
+  font-size: 12px !important;
+}
+
+.contact-icon {
+  min-width: 30px;
+  height: 26px;
+  padding-inline: 5px;
+  background: #e8f2ef;
+  color: #075f53;
+}
+
+.contact-link {
+  color: var(--accent-dark);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.contact-link:hover,
+.contact-link:focus-visible {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.journey-icon {
+  position: relative;
+  display: block;
+  width: 38px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.journey-pixel {
+  top: 6px;
+  width: 7px;
+  height: 7px;
+  box-shadow: -6px 6px 0 currentColor, 6px 6px 0 currentColor, -6px 12px 0 currentColor, 0 12px 0 currentColor, 6px 12px 0 currentColor;
+}
+
+body[data-business-mode="online"] .journey-icon { background: #eee7ff; color: #6546ae; }
+body[data-business-mode="onsite"] .journey-icon { background: #e1efff; color: #1c66ad; }
+body[data-business-mode="wholesale"] .journey-icon { background: #e7ecef; color: #455b66; }
+body[data-business-mode="retail"] .journey-icon { background: #fff0d7; color: #9a5700; }
+
+@media (max-width: 1320px) {
+  .business-context {
+    grid-template-columns: 1fr;
+  }
+
+  .business-profile-form {
+    grid-template-columns: repeat(3, minmax(150px, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .business-profile-form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .business-profile-form label:first-child,
+  .business-profile-form button {
+    grid-column: 1 / -1;
+  }
+
+  .business-identity {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 460px) {
+  .business-profile-form {
+    grid-template-columns: 1fr;
+  }
+
+  .business-profile-form label:first-child,
+  .business-profile-form button {
+    grid-column: auto;
+  }
+
+  .customer-avatar.large {
+    width: 54px;
+    height: 54px;
+  }
+}
+
+@media (pointer: coarse) {
+  .nav-item,
+  .role-button,
+  .small-button,
+  .row-action,
+  .business-profile-form button {
+    min-height: 44px;
+  }
+}

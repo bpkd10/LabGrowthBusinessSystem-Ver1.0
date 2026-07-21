@@ -2,6 +2,82 @@ const STORAGE_KEY = "business-growth-dashboard-demo";
 const REVENUE_TARGET = 100000;
 const VALID_VIEWS = ["dashboard", "customers", "crm", "products", "deals", "tasks", "ai"];
 
+const businessModes = {
+  online: {
+    label: "Online",
+    description: "ขายผ่าน Social, Website และ Marketplace",
+    journey: [
+      ["New Lead", "เห็นสินค้า", "Reach / Visit"],
+      ["Contacted", "เริ่มสนทนา", "Chat / Inbox"],
+      ["Interested", "สนใจสินค้า", "Intent"],
+      ["Proposal Sent", "เช็กเอาต์", "Cart / Order"],
+      ["Won", "ชำระเงิน", "Paid"]
+    ]
+  },
+  onsite: {
+    label: "Onsite",
+    description: "บริการที่สาขา นัดหมาย หรือพบลูกค้านอกสถานที่",
+    journey: [
+      ["New Lead", "รู้จักบริการ", "Awareness"],
+      ["Contacted", "สอบถาม", "Inquiry"],
+      ["Interested", "นัดหมาย", "Booking"],
+      ["Proposal Sent", "รับบริการ", "Visit"],
+      ["Won", "ชำระเงิน", "Complete"]
+    ]
+  },
+  wholesale: {
+    label: "Wholesale",
+    description: "ขายส่ง ตัวแทนจำหน่าย และลูกค้าองค์กร",
+    journey: [
+      ["New Lead", "รับรายชื่อคู่ค้า", "Prospect"],
+      ["Contacted", "ตรวจคุณสมบัติ", "Qualify"],
+      ["Interested", "ขอราคา", "RFQ"],
+      ["Proposal Sent", "เจรจา PO", "Quote / PO"],
+      ["Won", "ส่งมอบสินค้า", "Fulfillment"]
+    ]
+  },
+  retail: {
+    label: "Retail",
+    description: "หน้าร้าน POS สมาชิก และการซื้อซ้ำ",
+    journey: [
+      ["New Lead", "เข้าร้าน", "Visit"],
+      ["Contacted", "เลือกสินค้า", "Browse"],
+      ["Interested", "รับคำแนะนำ", "Assist"],
+      ["Proposal Sent", "ชำระเงิน", "Checkout"],
+      ["Won", "สมาชิกซื้อซ้ำ", "Retention"]
+    ]
+  }
+};
+
+const businessCategories = {
+  creator: "Creator / ธุรกิจออนไลน์",
+  service: "บริการ / ที่ปรึกษา",
+  retail: "ร้านค้า / Retail",
+  restaurant: "ร้านอาหาร / คาเฟ่",
+  health: "สุขภาพ / คลินิก",
+  education: "การศึกษา / Training",
+  factory: "โรงงาน / Wholesale",
+  property: "อสังหาริมทรัพย์"
+};
+
+const avatarPresets = {
+  creator: { code: "ON", label: "Online Creator", tone: "violet" },
+  service: { code: "SV", label: "Professional Service", tone: "teal" },
+  retail: { code: "RT", label: "Retail Store", tone: "orange" },
+  restaurant: { code: "FD", label: "Food & Cafe", tone: "red" },
+  health: { code: "HC", label: "Health & Clinic", tone: "blue" },
+  education: { code: "ED", label: "Education", tone: "indigo" },
+  factory: { code: "WH", label: "Wholesale & Factory", tone: "slate" },
+  property: { code: "RE", label: "Real Estate", tone: "gold" }
+};
+
+const contactChannelCodes = {
+  Facebook: "FB", "LINE OA": "LN", Website: "WEB", Marketplace: "MP",
+  "Walk-in": "IN", "หน้าร้าน / POS": "POS", "โทรศัพท์": "TEL",
+  "ตัวแทนจำหน่าย": "B2B", "Google Form": "FORM", Event: "EV", Referral: "REF"
+};
+const contactSources = Object.keys(contactChannelCodes);
+
 const leadStatuses = ["New Lead", "Contacted", "Interested", "Proposal Sent"];
 const dealStages = ["New", "Qualified", "Proposal", "Negotiation", "Won", "Lost"];
 const taskStatuses = ["todo", "in_progress", "done", "overdue"];
@@ -28,11 +104,18 @@ const marketingPackages = [
 ];
 
 const seedData = {
+  businessProfile: {
+    businessName: "Uncle Tung Business Lab",
+    businessMode: "online",
+    businessCategory: "creator",
+    businessAvatar: "creator",
+    revenueTarget: 100000
+  },
   customers: [
-    { id: "c1", fullName: "สมชาย ใจดี", phone: "0811111111", source: "Facebook", solutionPackage: "Marketing Starter", interest: "ต้องการเริ่มทำ Content อย่างเป็นระบบ", avatar: "", createdAt: "2026-07-01" },
-    { id: "c2", fullName: "วราภรณ์ ดีมาก", phone: "0822222222", source: "LINE OA", solutionPackage: "Lead Generation", interest: "ต้องการเพิ่มจำนวนลูกค้าองค์กร", avatar: "", createdAt: "2026-07-01" },
-    { id: "c3", fullName: "บริษัท ABC จำกัด", phone: "0833333333", source: "Website", solutionPackage: "Full Funnel Solution", interest: "ต้องการเชื่อม Marketing กับ CRM", avatar: "", createdAt: "2026-07-02" },
-    { id: "c4", fullName: "คลินิก Bright Care", phone: "0844444444", source: "Referral", solutionPackage: "Content Growth", interest: "ต้องการ Content ที่สร้างความน่าเชื่อถือ", avatar: "", createdAt: "2026-07-02" }
+    { id: "c1", fullName: "สมชาย ใจดี", phone: "0811111111", source: "Facebook", solutionPackage: "Marketing Starter", interest: "ต้องการเริ่มทำ Content อย่างเป็นระบบ", avatar: "", avatarPreset: "creator", createdAt: "2026-07-01" },
+    { id: "c2", fullName: "วราภรณ์ ดีมาก", phone: "0822222222", source: "LINE OA", solutionPackage: "Lead Generation", interest: "ต้องการเพิ่มจำนวนลูกค้าองค์กร", avatar: "", avatarPreset: "service", createdAt: "2026-07-01" },
+    { id: "c3", fullName: "บริษัท ABC จำกัด", phone: "0833333333", source: "Website", solutionPackage: "Full Funnel Solution", interest: "ต้องการเชื่อม Marketing กับ CRM", avatar: "", avatarPreset: "factory", createdAt: "2026-07-02" },
+    { id: "c4", fullName: "คลินิก Bright Care", phone: "0844444444", source: "Referral", solutionPackage: "Content Growth", interest: "ต้องการ Content ที่สร้างความน่าเชื่อถือ", avatar: "", avatarPreset: "health", createdAt: "2026-07-02" }
   ],
   leads: [
     { id: "l1", customerId: "c1", status: "Interested", assignedTo: "Sales Team", leadScore: 72, nextFollowUp: "2026-07-05" },
@@ -85,10 +168,15 @@ function loadState() {
 }
 
 function normalizeState(data) {
+  data.businessProfile = {
+    ...clone(seedData.businessProfile),
+    ...(data.businessProfile || {})
+  };
   data.customers = data.customers.map((customer) => ({
     ...customer,
     solutionPackage: customer.solutionPackage || "Marketing Starter",
-    avatar: customer.avatar || ""
+    avatar: customer.avatar || "",
+    avatarPreset: customer.avatarPreset || data.businessProfile.businessCategory || "service"
   }));
   const existingNames = new Set(data.products.map((product) => product.name));
   seedData.products.filter((product) => product.id.startsWith("mp") && !existingNames.has(product.name))
@@ -144,11 +232,26 @@ function initials(name) {
   return String(name || "ลูกค้า").trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 }
 
+function revenueTarget() {
+  return Math.max(1000, Number(state.businessProfile?.revenueTarget) || REVENUE_TARGET);
+}
+
+function avatarPresetMarkup(presetKey, size = "normal", label = "โปรไฟล์ธุรกิจ") {
+  const preset = avatarPresets[presetKey] || avatarPresets.service;
+  return `<span class="customer-avatar avatar-preset ${size}" data-avatar-tone="${escapeHTML(preset.tone)}" aria-label="${escapeHTML(label)}"><span class="pixel-glyph" aria-hidden="true"></span><b>${escapeHTML(preset.code)}</b></span>`;
+}
+
+function contactBadge(source) {
+  const code = contactChannelCodes[source] || "CH";
+  return `<span class="contact-badge"><span class="contact-icon" aria-hidden="true">${escapeHTML(code)}</span>${escapeHTML(source || "ไม่ระบุช่องทาง")}</span>`;
+}
+
 function avatarMarkup(customer, size = "normal") {
   const label = escapeHTML(customer?.fullName || "ลูกค้า");
   if (customer?.avatar?.startsWith("data:image/")) {
     return `<img class="customer-avatar ${size}" src="${escapeHTML(customer.avatar)}" alt="รูปโปรไฟล์ ${label}">`;
   }
+  if (customer?.avatarPreset) return avatarPresetMarkup(customer.avatarPreset, size, `โปรไฟล์ ${label}`);
   const hue = [...String(customer?.id || label)].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 360;
   return `<span class="customer-avatar avatar-fallback ${size}" style="--avatar-hue:${hue}" aria-label="โปรไฟล์ ${label}">${escapeHTML(initials(label))}</span>`;
 }
@@ -198,16 +301,37 @@ function dealStageOptionMarkup(selectedStage) {
 
 function renderKpis() {
   const data = metrics();
-  const cards = [
-    ["รายได้ที่ปิดได้", currency(data.revenue), "คลิกเพื่อดูโอกาสขาย", data.revenue >= REVENUE_TARGET ? "success" : "", "deals"],
-    ["มูลค่าโอกาสขาย", currency(data.pipelineValue), `${data.openDeals} รายการที่กำลังติดตาม`, "", "deals"],
-    ["อัตราปิดการขาย", percent(data.conversionRate), `${data.totalLeads} Lead ในระบบ`, "", "crm"],
-    ["งานที่ต้องทำ", data.pendingTasks, data.overdueTasks ? `${data.overdueTasks} งานเลยกำหนด` : "ไม่มีงานเลยกำหนด", data.overdueTasks ? "warning" : "success", "tasks"]
-  ];
+  const roleCards = {
+    owner: [
+      ["รายได้ที่ปิดได้", currency(data.revenue), "เทียบเป้ารายได้รอบนี้", data.revenue >= revenueTarget() ? "success" : "", "deals", "THB"],
+      ["มูลค่า Pipeline", currency(data.pipelineValue), `${data.openDeals} ดีลที่กำลังพัฒนา`, "", "deals", "PL"],
+      ["อัตราปิดการขาย", percent(data.conversionRate), `${data.totalLeads} Lead ในระบบ`, "", "crm", "CV"],
+      ["งานที่ต้องตัดสินใจ", data.pendingTasks, data.overdueTasks ? `${data.overdueTasks} งานเลยกำหนด` : "ไม่มีงานเลยกำหนด", data.overdueTasks ? "warning" : "success", "tasks", "AC"]
+    ],
+    sales: [
+      ["Lead ที่ดูแล", data.totalLeads, "เปิด CRM เพื่อเริ่มติดตาม", "", "crm", "LD"],
+      ["ดีลที่กำลังพัฒนา", data.openDeals, currency(data.pipelineValue), "", "deals", "PL"],
+      ["อัตราชนะดีล", percent(data.conversionRate), "ดูจังหวะที่ลูกค้าหยุดอยู่", "", "crm", "WN"],
+      ["Follow-up ค้าง", data.pendingTasks, data.overdueTasks ? `${data.overdueTasks} งานต้องทำวันนี้` : "งานอยู่ในแผน", data.overdueTasks ? "warning" : "success", "tasks", "FU"]
+    ],
+    marketing: [
+      ["Lead ทั้งหมด", data.totalLeads, `ช่องทางหลัก ${data.topSource}`, "", "customers", "LD"],
+      ["ช่องทางที่ทำผลงาน", data.topSource, "ดูรายชื่อลูกค้าจากช่องทางนี้", "success", "customers", "CH"],
+      ["Lead เป็นลูกค้า", percent(data.conversionRate), "วัดผลตั้งแต่ช่องทางถึงรายได้", "", "crm", "CV"],
+      ["มูลค่าที่การตลาดสร้าง", currency(data.pipelineValue), `${data.openDeals} โอกาสขาย`, "", "deals", "THB"]
+    ],
+    ops: [
+      ["งานที่ต้องทำ", data.pendingTasks, "เรียงตามวันครบกำหนด", "", "tasks", "TK"],
+      ["งานเลยกำหนด", data.overdueTasks, data.overdueTasks ? "จัดการก่อนเกิดความล่าช้า" : "ไม่มีงานเสี่ยง", data.overdueTasks ? "warning" : "success", "tasks", "AL"],
+      ["งานส่งมอบใหม่", state.deals.filter((deal) => deal.stage === "Won").length, "ดีลที่ชนะและต้องเริ่มส่งมอบ", "", "deals", "DL"],
+      ["ลูกค้าที่ต้องดูแล", state.customers.length, "ดูข้อมูลและช่องทางติดต่อ", "", "customers", "CU"]
+    ]
+  };
+  const cards = roleCards[activeRole] || roleCards.owner;
 
-  document.querySelector("#kpiGrid").innerHTML = cards.map(([label, value, note, tone, target]) => `
+  document.querySelector("#kpiGrid").innerHTML = cards.map(([label, value, note, tone, target, icon]) => `
     <button class="kpi-card" data-jump="${target}" ${tone ? `data-tone="${tone}"` : ""}>
-      <span>${escapeHTML(label)}</span>
+      <span class="kpi-heading"><span class="metric-pixel" aria-hidden="true">${escapeHTML(icon)}</span>${escapeHTML(label)}</span>
       <strong>${escapeHTML(value)}</strong>
       <small>${escapeHTML(note)} <b>ดูรายละเอียด →</b></small>
     </button>
@@ -224,17 +348,42 @@ function renderBars(containerId, entries, color) {
   `).join("");
 }
 
+function renderBusinessProfile() {
+  const profile = state.businessProfile;
+  const mode = businessModes[profile.businessMode] || businessModes.online;
+  const categoryLabel = businessCategories[profile.businessCategory] || businessCategories.service;
+  const form = document.querySelector("#businessProfileForm");
+  document.body.dataset.businessMode = profile.businessMode;
+  document.querySelector("#sidebarBusinessName").textContent = profile.businessName;
+  document.querySelector("#sidebarBusinessMode").textContent = `${mode.label} · ${categoryLabel}`;
+  document.querySelector("#sidebarBusinessAvatar").textContent = (avatarPresets[profile.businessAvatar] || avatarPresets.service).code;
+  document.querySelector("#businessAvatarPreview").innerHTML = avatarPresetMarkup(profile.businessAvatar, "large", `โปรไฟล์ ${profile.businessName}`);
+  document.querySelector("#businessProfileSummary").textContent = `${mode.description} ระบบจะปรับ KPI, Customer Journey และคำแนะนำตามบริบทนี้`;
+
+  document.querySelector("#businessModeSelect").innerHTML = Object.entries(businessModes)
+    .map(([value, item]) => `<option value="${escapeHTML(value)}" ${profile.businessMode === value ? "selected" : ""}>${escapeHTML(item.label)}</option>`).join("");
+  document.querySelector("#businessCategorySelect").innerHTML = Object.entries(businessCategories)
+    .map(([value, label]) => `<option value="${escapeHTML(value)}" ${profile.businessCategory === value ? "selected" : ""}>${escapeHTML(label)}</option>`).join("");
+  document.querySelector("#businessAvatarSelect").innerHTML = Object.entries(avatarPresets)
+    .map(([value, item]) => `<option value="${escapeHTML(value)}" ${profile.businessAvatar === value ? "selected" : ""}>${escapeHTML(item.code)} · ${escapeHTML(item.label)}</option>`).join("");
+  form.elements.businessName.value = profile.businessName;
+  form.elements.revenueTarget.value = profile.revenueTarget;
+}
+
 function renderDashboard() {
   const data = metrics();
-  const progress = Math.min((data.revenue / REVENUE_TARGET) * 100, 100);
-  const remaining = Math.max(REVENUE_TARGET - data.revenue, 0);
+  const target = revenueTarget();
+  const progress = Math.min((data.revenue / target) * 100, 100);
+  const remaining = Math.max(target - data.revenue, 0);
   renderKpis();
+  renderBusinessProfile();
   document.querySelector("#pipelineBadge").textContent = currency(data.pipelineValue);
   renderJourneyFlow();
   renderPriorityLeads();
   renderSignals(data);
 
-  document.querySelector("#goalCurrent").textContent = `${currency(data.revenue)} / ${currency(REVENUE_TARGET)}`;
+  document.querySelector("#goalTitle").textContent = `${state.businessProfile.businessName}: เป้ารายได้ ${currency(target)}`;
+  document.querySelector("#goalCurrent").textContent = `${currency(data.revenue)} / ${currency(target)}`;
   document.querySelector("#goalPercent").textContent = percent(progress);
   document.querySelector("#goalProgress").style.width = `${progress}%`;
   document.querySelector(".goal-meter").setAttribute("aria-valuenow", String(Math.round(progress)));
@@ -254,16 +403,13 @@ function renderDashboard() {
 }
 
 function renderJourneyFlow() {
-  const steps = [
-    ["New Lead", "รู้จักเรา", "ลูกค้าใหม่"],
-    ["Contacted", "ติดต่อแล้ว", "เริ่มสนทนา"],
-    ["Interested", "สนใจ", "เห็นความต้องการ"],
-    ["Proposal Sent", "ส่งข้อเสนอ", "พร้อมตัดสินใจ"],
-    ["Won", "ปิดการขาย", "รายได้เกิดขึ้น"]
-  ];
+  const mode = businessModes[state.businessProfile.businessMode] || businessModes.online;
+  const steps = mode.journey;
+  document.querySelector("#journeyTitle").textContent = `Customer Journey สำหรับธุรกิจ ${mode.label}`;
+  document.querySelector("#journeyContext").textContent = `${mode.description} ดูจำนวนลูกค้าในแต่ละจุดแล้วเปิด CRM เพื่อทำขั้นตอนถัดไป`;
   document.querySelector("#journeyFlow").innerHTML = steps.map(([key, label, detail], index) => {
     const count = key === "Won" ? state.deals.filter((deal) => deal.stage === "Won").length : state.leads.filter((lead) => lead.status === key).length;
-    return `<button class="journey-step ${count ? "has-data" : ""}" data-jump="${key === "Won" ? "deals" : "crm"}"><span class="journey-number">0${index + 1}</span><strong>${escapeHTML(label)}</strong><b>${count}</b><small>${escapeHTML(detail)}</small></button>`;
+    return `<button class="journey-step ${count ? "has-data" : ""}" data-jump="${key === "Won" ? "deals" : "crm"}"><span class="journey-icon" aria-hidden="true"><span class="journey-pixel"></span></span><span class="journey-number">ขั้น ${index + 1}</span><strong>${escapeHTML(label)}</strong><b>${count}</b><small>${escapeHTML(detail)}</small></button>`;
   }).join("");
 }
 
@@ -327,7 +473,8 @@ function renderCustomers() {
     ["ลูกค้า", "เบอร์โทร", "ช่องทาง", "แพ็กเกจที่สนใจ", "สถานะ Lead", "จัดการ"],
     customers.map((customer) => {
       const lead = state.leads.find((item) => item.customerId === customer.id);
-      return `<tr><td><div class="customer-cell">${avatarMarkup(customer, "small")}<div><strong>${escapeHTML(customer.fullName)}</strong><span>${escapeHTML(customer.interest)}</span></div></div></td><td>${escapeHTML(customer.phone)}</td><td>${escapeHTML(customer.source)}</td><td><span class="package-pill">${escapeHTML(customer.solutionPackage)}</span></td><td>${escapeHTML(leadStatusLabels[lead?.status] || "-")}</td><td><div class="table-actions"><button class="row-action" data-edit-record="customer:${escapeHTML(customer.id)}">แก้ไข</button><button class="row-action danger" data-delete-record="customer:${escapeHTML(customer.id)}">ลบ</button></div></td></tr>`;
+      const phone = String(customer.phone || "-");
+      return `<tr><td><div class="customer-cell">${avatarMarkup(customer, "small")}<div><strong>${escapeHTML(customer.fullName)}</strong><span>${escapeHTML(customer.interest)}</span></div></div></td><td><a class="contact-link" href="tel:${escapeHTML(phone.replace(/[^0-9+]/g, ""))}" aria-label="โทรหา ${escapeHTML(customer.fullName)}">${escapeHTML(phone)}</a></td><td>${contactBadge(customer.source)}</td><td><span class="package-pill">${escapeHTML(customer.solutionPackage)}</span></td><td>${escapeHTML(leadStatusLabels[lead?.status] || "-")}</td><td><div class="table-actions"><button class="row-action" data-edit-record="customer:${escapeHTML(customer.id)}">แก้ไข</button><button class="row-action danger" data-delete-record="customer:${escapeHTML(customer.id)}">ลบ</button></div></td></tr>`;
     })
   );
 }
@@ -354,7 +501,7 @@ function leadCard(lead) {
         ${avatarMarkup(customer)}
         <div>
           <strong>${escapeHTML(customer?.fullName || "-")}</strong>
-          <span>${escapeHTML(customer?.source || "-")}</span>
+          ${contactBadge(customer?.source || "-")}
         </div>
       </div>
       <span class="package-pill">${escapeHTML(customer?.solutionPackage || "ยังไม่เลือกแพ็กเกจ")}</span>
@@ -431,6 +578,7 @@ function renderAll() {
   renderDeals();
   renderTasks();
   renderPackageOptions();
+  renderAvatarOptions();
 }
 
 function renderPackageOptions() {
@@ -439,10 +587,19 @@ function renderPackageOptions() {
   select.innerHTML = marketingPackages.map((item) => `<option value="${escapeHTML(item.name)}" ${selected === item.name ? "selected" : ""}>${escapeHTML(item.name)} · ${escapeHTML(currency(item.price))}</option>`).join("");
 }
 
+function renderAvatarOptions() {
+  const select = document.querySelector("#customerAvatarPreset");
+  const selected = select.value || state.businessProfile.businessCategory;
+  select.innerHTML = Object.entries(avatarPresets).map(([value, item]) =>
+    `<option value="${escapeHTML(value)}" ${selected === value ? "selected" : ""}>${escapeHTML(item.code)} · ${escapeHTML(item.label)}</option>`
+  ).join("");
+}
+
 function roleInsight(data) {
   if (activeRole === "sales") return `ฝ่ายขาย: มี ${data.openDeals} โอกาสขาย มูลค่ารวม ${currency(data.pipelineValue)}`;
+  if (activeRole === "marketing") return `การตลาด: ${data.topSource} สร้าง Lead สูงสุด ควรตรวจคุณภาพก่อนเพิ่มงบ`;
   if (activeRole === "ops") return `ทีมงาน: มี ${data.pendingTasks} งานค้าง และ ${data.overdueTasks} งานเลยกำหนด`;
-  return `เจ้าของ: ทำได้ ${percent((data.revenue / REVENUE_TARGET) * 100)} ของเป้ารายได้`;
+  return `เจ้าของ: ทำได้ ${percent((data.revenue / revenueTarget()) * 100)} ของเป้ารายได้`;
 }
 
 const viewConfig = {
@@ -481,9 +638,33 @@ document.querySelectorAll(".role-button").forEach((button) => {
     document.querySelectorAll(".role-button").forEach((item) => item.classList.remove("active"));
     button.classList.add("active");
     activeRole = button.dataset.role;
-    document.querySelector("#roleInsight").textContent = roleInsight(metrics());
+    renderDashboard();
     notify(`เปลี่ยนเป็นมุมมอง ${button.textContent}`);
   });
+});
+
+document.querySelector("#businessProfileForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  state.businessProfile = {
+    businessName: form.get("businessName").trim(),
+    businessMode: form.get("businessMode"),
+    businessCategory: form.get("businessCategory"),
+    businessAvatar: form.get("businessAvatar"),
+    revenueTarget: Math.max(1000, Number(form.get("revenueTarget")) || REVENUE_TARGET)
+  };
+  saveState();
+  renderAll();
+  notify("บันทึก Business Profile และปรับ Dashboard แล้ว");
+});
+
+document.querySelector("#businessCategorySelect").addEventListener("change", (event) => {
+  document.querySelector("#businessAvatarSelect").value = event.target.value;
+  document.querySelector("#businessAvatarPreview").innerHTML = avatarPresetMarkup(event.target.value, "large", "ตัวอย่างรูปโปรไฟล์ธุรกิจ");
+});
+
+document.querySelector("#businessAvatarSelect").addEventListener("change", (event) => {
+  document.querySelector("#businessAvatarPreview").innerHTML = avatarPresetMarkup(event.target.value, "large", "ตัวอย่างรูปโปรไฟล์ธุรกิจ");
 });
 
 function debounce(callback, delay = 140) {
@@ -526,7 +707,8 @@ const recordConfigs = {
     collection: "customers",
     fields: [
       ["fullName", "ชื่อลูกค้า", "text"], ["phone", "เบอร์โทร", "text"],
-      ["source", "ช่องทางที่มา", "select", ["Facebook", "LINE OA", "Website", "Google Form", "Event", "Referral"]],
+      ["source", "ช่องทางที่มา", "select", contactSources],
+      ["avatarPreset", "Avatar ตามประเภทธุรกิจ", "select", Object.keys(avatarPresets)],
       ["solutionPackage", "แพ็กเกจที่สนใจ", "select", marketingPackages.map((item) => item.name)], ["interest", "ความต้องการ", "text"]
     ]
   },
@@ -547,7 +729,7 @@ const recordConfigs = {
 function recordFieldMarkup([name, label, type, options], record) {
   const value = record[name] ?? "";
   if (type === "select") {
-    const labelMap = name === "stage" ? dealStageLabels : name === "status" ? { ...taskStatusLabels, active: "เปิดขาย", inactive: "ปิดขาย" } : name === "priority" ? priorityLabels : {};
+    const labelMap = name === "stage" ? dealStageLabels : name === "status" ? { ...taskStatusLabels, active: "เปิดขาย", inactive: "ปิดขาย" } : name === "priority" ? priorityLabels : name === "avatarPreset" ? Object.fromEntries(Object.entries(avatarPresets).map(([key, item]) => [key, `${item.code} · ${item.label}`])) : {};
     const optionMarkup = name === "stage"
       ? dealStageOptionMarkup(String(value))
       : options.map((option) => `<option value="${escapeHTML(option)}" ${String(value) === String(option) ? "selected" : ""}>${escapeHTML(labelMap[option] || option)}</option>`).join("");
@@ -622,6 +804,7 @@ document.querySelector("#customerForm").addEventListener("submit", async (event)
     solutionPackage: form.get("solutionPackage"),
     interest: form.get("interest").trim(),
     avatar,
+    avatarPreset: form.get("avatarPreset") || state.businessProfile.businessCategory,
     createdAt: new Date().toISOString().slice(0, 10)
   });
   state.leads.push({
@@ -774,7 +957,8 @@ document.addEventListener("click", (event) => {
 function analysisPayload() {
   return {
     focus: document.querySelector("#analysisFocus").value,
-    targetRevenue: REVENUE_TARGET,
+    businessProfile: state.businessProfile,
+    targetRevenue: revenueTarget(),
     metrics: metrics(),
     customers: state.customers.map(({ id, fullName, source, solutionPackage, interest, createdAt }) => ({ id, fullName, source, solutionPackage, interest, createdAt })),
     leads: state.leads,

@@ -1,6 +1,6 @@
-# Workshop Project 4: Business Growth Dashboard Web App
+# Business Growth CRM
 
-แพ็กนี้ใช้สำหรับสอน workshop สร้าง web app ระบบธุรกิจแบบ CDP + CRM + Mini ERP + Data Analysis
+ระบบบริหารลูกค้า งานขาย แพ็กเกจ และงานติดตามสำหรับธุรกิจ Online, Onsite, Wholesale และ Retail รองรับการใช้งานจริงแบบข้อมูลเฉพาะเครื่อง และใช้เป็น Workshop Demo ได้
 
 ## ไฟล์สำคัญ
 
@@ -26,8 +26,12 @@ http://localhost:4173/
 
 ระบบจะอ่าน `OPENAI_API_KEY` จาก `.env.local` เฉพาะฝั่ง server ห้ามนำ key ไปใส่ใน `app/index.html` หรือ `app/app.js` เพราะผู้เปิดเว็บจะมองเห็นได้
 
-## ฟังก์ชันที่เพิ่มในเวอร์ชัน 2
+## ฟังก์ชันหลัก
 
+- Business Profile ปรับ KPI, Customer Journey และบริบทตามรูปแบบธุรกิจ
+- Avatar แบบ Pixel เลือกตามหมวดธุรกิจ พร้อมอัปโหลดรูปจริงให้ลูกค้าได้
+- ไอคอนช่องทางติดต่อสำหรับ Social, Website, Marketplace, POS, โทรศัพท์ และตัวแทนจำหน่าย
+- Role Dashboard สำหรับเจ้าของ ฝ่ายขาย การตลาด และทีมปฏิบัติการ
 - เมนูภาษาไทยและการเปลี่ยนหน้าแบบชัดเจนผ่าน URL hash
 - Dashboard เหลือ 4 KPI หลัก แต่ละ KPI คลิกไปหน้ารายละเอียดได้
 - รูปโปรไฟล์ลูกค้า อัปโหลดแล้วลดขนาดก่อนบันทึกใน browser
@@ -35,16 +39,16 @@ http://localhost:4173/
 - AI Analysis วิเคราะห์โอกาสรายได้ ลำดับ Lead แผนขาย และงานค้างจากข้อมูลในระบบ
 - ไม่ส่งเบอร์โทรหรือรูปโปรไฟล์ไปที่ AI API
 
-## Flow ที่ใช้สอน
+## Flow การใช้งาน
 
-1. เปิด Dashboard เพื่อดู KPI เริ่มต้น
-2. ไปที่ Customers แล้วเพิ่มลูกค้าใหม่
-3. ไปที่ CRM แล้วตรวจว่า lead ใหม่เข้ามาใน pipeline
-4. กด Move next เพื่อเปลี่ยนสถานะ lead
-5. กด Create task เพื่อสร้าง follow-up task
-6. ไปที่ Deals แล้วเพิ่ม deal หรือเปลี่ยน stage เป็น Won
-7. กลับมาที่ Dashboard แล้วดูว่า revenue, conversion rate และ pending task เปลี่ยนอย่างไร
+1. ตั้งค่า Business Profile และเลือกรูปแบบ Online, Onsite, Wholesale หรือ Retail
+2. เปิด Dashboard เพื่อดู KPI ตามบทบาท
+3. ไปที่ Customers แล้วเพิ่มลูกค้าใหม่ เลือกช่องทางและ Avatar ตามประเภทธุรกิจ
+4. ไปที่ CRM แล้วตรวจว่า Lead ใหม่เข้ามาใน Pipeline
+5. เปลี่ยนสถานะ Lead สร้างโอกาสขาย หรือสร้างงานติดตาม
+6. ไปที่ Pipeline ธุรกิจ แล้วเพิ่มดีลหรือเปลี่ยนสถานะเป็นชนะดีล
+7. กลับมาที่ Dashboard แล้วดู Revenue, Conversion และงานค้างที่เปลี่ยนตามข้อมูล
 
-## จุดที่ตั้งใจให้เป็น MVP
+## ขอบเขตข้อมูล
 
-Demo นี้ยังไม่ใช้ backend จริง เพราะเป้าหมายคือให้ผู้เรียนเข้าใจ workflow และทดลองระบบได้เร็ว ข้อมูลถูกเก็บใน browser ด้วย localStorage ถ้าต้องการต่อยอดเป็นระบบจริง ให้ย้าย data layer ไปที่ Supabase, Google Sheets หรือ database ที่องค์กรใช้
+เวอร์ชันนี้เก็บข้อมูลใน browser ด้วย localStorage จึงเหมาะกับเจ้าของธุรกิจรายเดียว การทดลองใช้ และ Workshop หากต้องใช้ร่วมกันหลายคนควรย้าย data layer ไปยังฐานข้อมูลกลางและเพิ่มระบบสิทธิ์ผู้ใช้
