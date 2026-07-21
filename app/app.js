@@ -1246,9 +1246,27 @@ document.addEventListener("click", (event) => {
   }
 });
 
-function analysisPayload() {
+const analysisPrompts = {
+  executive: "สรุปภาพรวมธุรกิจสำหรับเจ้าของ โดยชี้ 3 ตัวเลขสำคัญ สถานการณ์ปัจจุบัน เรื่องที่ต้องตัดสินใจ และผู้รับผิดชอบสิ่งที่ควรทำต่อ",
+  revenue: "วิเคราะห์รายได้เทียบเป้าหมาย มูลค่าที่ปิดได้ ช่องว่างรายได้ และโอกาสที่มีหลักฐานรองรับ พร้อมระบุสิ่งที่ควรทำเพื่อเข้าใกล้เป้าหมาย",
+  pipeline: "วิเคราะห์สุขภาพ Pipeline จำนวนและมูลค่าในแต่ละขั้น อัตราปิดการขาย ดีลที่มีโอกาส และดีลที่เสี่ยงหยุดนิ่ง พร้อมลำดับการติดตาม",
+  journey: "วิเคราะห์ Customer Journey ตั้งแต่รู้จักจนปิดการขาย ระบุขั้นที่ลูกค้าติดค้างมากที่สุด เหตุผลจากข้อมูล และวิธีแก้คอขวด",
+  customer: "แบ่งกลุ่มลูกค้าจากประเภท รูปแบบธุรกิจ ความสนใจ และ Package ที่สนใจ ระบุกลุ่มมูลค่าสูง กลุ่มที่ควรรักษา และข้อมูลลูกค้าที่ควรเก็บเพิ่ม",
+  marketing: "วิเคราะห์ช่องทางที่สร้าง Lead คุณภาพและรายได้ เปรียบเทียบจำนวน Lead กับผลลัพธ์การขาย และแนะนำช่องทางหรือข้อความการตลาดที่ควรให้ความสำคัญ",
+  package: "วิเคราะห์ Package ที่ลูกค้าสนใจ ราคา ต้นทุน กำไรขั้นต้น และความเหมาะสมกับกลุ่มลูกค้า พร้อมหาโอกาส Cross-sell หรือ Upsell โดยไม่เดาข้อมูลเพิ่ม",
+  sales: "จัดลำดับ Lead ที่ควรติดตามก่อน โดยใช้คะแนน Lead ขั้นการขาย มูลค่าดีล และวันติดตาม พร้อมเสนอ Next Best Action และผู้รับผิดชอบ",
+  operations: "ตรวจงานติดตาม งานเกินกำหนด ภาระของผู้รับผิดชอบ และความเสี่ยงต่อการส่งมอบหรือปิดการขาย พร้อมจัดลำดับงาน 7 วัน",
+  forecast: "ประเมินแนวโน้มรายได้จากดีลและความน่าจะเป็นที่มีในระบบ ระบุสมมติฐาน ความเสี่ยง ข้อมูลที่ยังขาด และทำแผนลงมือทำ 7 วันสำหรับแต่ละทีม"
+};
+
+function selectedAnalysisPrompt() {
+  return analysisPrompts[document.querySelector("#analysisFocus").value] || analysisPrompts.executive;
+}
+
+function analysisPayload(userPrompt) {
   return {
     focus: document.querySelector("#analysisFocus").value,
+    userPrompt,
     businessProfile: state.businessProfile,
     targetRevenue: revenueTarget(),
     metrics: metrics(),
@@ -1261,38 +1279,72 @@ function analysisPayload() {
   };
 }
 
-document.querySelector("#analyzeBusiness").addEventListener("click", async () => {
+function renderPromptPreview() {
+  const preview = document.querySelector("#analysisPromptPreview");
+  const prompt = document.querySelector("#analysisPrompt");
+  const template = selectedAnalysisPrompt();
+  preview.innerHTML = `<strong>Prompt สำเร็จรูป</strong><p>${escapeHTML(template)}</p><button type="button" class="text-button" id="useAnalysisPrompt">ใช้ Prompt นี้</button>`;
+  if (!prompt.value.trim() || prompt.dataset.template === "true") {
+    prompt.value = template;
+    prompt.dataset.template = "true";
+  }
+  document.querySelector("#useAnalysisPrompt").addEventListener("click", () => {
+    prompt.value = template;
+    prompt.dataset.template = "true";
+    prompt.focus();
+  });
+}
+
+document.querySelector("#analysisFocus").addEventListener("change", renderPromptPreview);
+document.querySelector("#analysisPrompt").addEventListener("input", (event) => {
+  event.currentTarget.dataset.template = "false";
+});
+document.querySelector("#analysisPrompt").addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    document.querySelector("#analysisChatForm").requestSubmit();
+  }
+});
+
+document.querySelector("#analysisChatForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
   const button = document.querySelector("#analyzeBusiness");
   const result = document.querySelector("#analysisResult");
   const status = document.querySelector("#analysisStatus");
+  const prompt = document.querySelector("#analysisPrompt");
+  const userPrompt = prompt.value.trim();
+  if (!userPrompt) return prompt.focus();
   button.disabled = true;
-  button.textContent = "AI กำลังวิเคราะห์...";
+  button.textContent = "กำลังวิเคราะห์...";
   status.textContent = "กำลังประมวลผล";
   result.classList.remove("empty-analysis");
-  result.textContent = "กำลังอ่านข้อมูล Lead, โอกาสขาย, งานติดตาม และแพ็กเกจบริการ...";
+  result.innerHTML = `<article class="chat-message user-message"><span>คำถามของคุณ</span><p>${escapeHTML(userPrompt)}</p></article><article class="chat-message assistant-message loading-message"><span>AI Business Analyst</span><p>กำลังอ่านข้อมูลในระบบและตรวจตัวเลขที่เกี่ยวข้อง...</p></article>`;
 
   try {
     const response = await fetch("/api/analyze", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(analysisPayload())
+      body: JSON.stringify(analysisPayload(userPrompt))
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "วิเคราะห์ไม่สำเร็จ");
     document.querySelector("#analysisTitle").textContent = "ข้อเสนอจาก AI สำหรับธุรกิจนี้";
-    result.textContent = data.analysis;
+    result.innerHTML = `<article class="chat-message user-message"><span>คำถามของคุณ</span><p>${escapeHTML(userPrompt)}</p></article><article class="chat-message assistant-message"><span>AI Business Analyst</span><p>${escapeHTML(data.analysis)}</p></article>`;
     status.textContent = "วิเคราะห์แล้ว";
   } catch (error) {
     document.querySelector("#analysisTitle").textContent = "ยังเชื่อมต่อ AI ไม่สำเร็จ";
-    result.textContent = error.message === "Failed to fetch"
-      ? "กรุณาเปิด app ผ่าน server ด้วยคำสั่ง npm run dev แล้วลองอีกครั้ง"
+    const errorText = error.message === "Failed to fetch"
+      ? "ระบบยังเชื่อมต่อบริการวิเคราะห์ไม่ได้ กรุณาลองใหม่"
       : error.message;
+    result.innerHTML = `<article class="chat-message user-message"><span>คำถามของคุณ</span><p>${escapeHTML(userPrompt)}</p></article><article class="chat-message assistant-message error-message"><span>ระบบวิเคราะห์</span><p>${escapeHTML(errorText)}</p></article>`;
     status.textContent = "เกิดข้อผิดพลาด";
   } finally {
     button.disabled = false;
-    button.textContent = "วิเคราะห์อีกครั้ง";
+    button.textContent = "ส่งคำถามให้ AI";
   }
 });
+
+renderPromptPreview();
 
 document.querySelector("#resetDemo").addEventListener("click", () => {
   if (!window.confirm("ต้องการล้างข้อมูลที่เพิ่มทั้งหมดและกลับไปใช้ข้อมูลตัวอย่างหรือไม่?")) return;

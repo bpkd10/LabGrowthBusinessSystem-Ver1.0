@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#17171f">
     <title>Business Growth Command Center | Uncle Tung AI</title>
     <link rel="icon" href="/brand/icon-favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="styles.css?v=9">
+    <link rel="stylesheet" href="styles.css?v=10">
   </head>
   <body>
     <a class="skip-link" href="#mainContent">ข้ามไปยังเนื้อหาหลัก</a>
@@ -267,36 +267,60 @@
         </section>
 
         <section id="aiView" class="view">
-          <div class="ai-layout">
-            <section class="ai-control-card">
-              <img class="ai-brand-logo" src="/brand/logo-wordmark.svg" alt="Uncle Tung AI — AI ที่เข้าใจง่าย ใช้ได้จริง">
-              <p class="eyebrow">AI Business Analyst</p>
-              <h2>ให้ AI อ่านข้อมูลธุรกิจและเสนอสิ่งที่ควรทำต่อ</h2>
-              <p class="muted">AI จะใช้ข้อมูลรวมใน app เท่านั้น เช่น Lead, โอกาสขาย, งานติดตาม และแพ็กเกจบริการ โดยไม่ส่งรูปโปรไฟล์หรือเบอร์โทรลูกค้า</p>
-              <label>หัวข้อที่ต้องการวิเคราะห์
-                <select id="analysisFocus">
-                  <option value="growth">หาโอกาสเพิ่มรายได้</option>
-                  <option value="crm">จัดลำดับ Lead ที่ควรติดตาม</option>
-                  <option value="marketing">วิเคราะห์ช่องทางและแพ็กเกจที่ควรขาย</option>
-                  <option value="operations">หางานค้างและคอขวดของทีม</option>
-                </select>
-              </label>
-              <button id="analyzeBusiness" class="ai-button" type="button">เริ่มวิเคราะห์ด้วย AI</button>
-              <small id="analysisPrivacy">API key ถูกเก็บที่ server และไม่แสดงใน browser</small>
-            </section>
-            <section class="ai-result-card" aria-live="polite">
-              <div class="ai-result-head">
+          <section class="ai-workspace">
+            <header class="ai-workspace-head">
+              <div class="ai-heading">
+                <img class="ai-brand-logo" src="/brand/logo-wordmark.svg" alt="Uncle Tung AI — AI ที่เข้าใจง่าย ใช้ได้จริง">
+                <div><p class="eyebrow">AI Business Analyst</p><h2>ถามข้อมูลธุรกิจของคุณด้วยภาษาปกติ</h2></div>
+              </div>
+              <span class="ai-scope-note">AI สำหรับวิเคราะห์เฉพาะข้อมูลในระบบเท่านั้น</span>
+            </header>
+
+            <div class="ai-layout">
+              <aside class="ai-control-card" aria-label="ชุดคำถามวิเคราะห์">
                 <div>
-                  <p class="eyebrow">ผลวิเคราะห์</p>
-                  <h2 id="analysisTitle">พร้อมวิเคราะห์ข้อมูล</h2>
+                  <p class="ai-step">1. เลือกมิติที่ต้องการวิเคราะห์</p>
+                  <label class="sr-only" for="analysisFocus">Prompt วิเคราะห์ 10 มิติ</label>
+                  <select id="analysisFocus">
+                    <option value="executive">1. ภาพรวมสำหรับเจ้าของธุรกิจ</option>
+                    <option value="revenue">2. รายได้ เป้าหมาย และแนวโน้ม</option>
+                    <option value="pipeline">3. Pipeline และอัตราปิดการขาย</option>
+                    <option value="journey">4. Customer Journey และคอขวด</option>
+                    <option value="customer">5. กลุ่มลูกค้าและความต้องการ</option>
+                    <option value="marketing">6. ช่องทางการตลาดและคุณภาพ Lead</option>
+                    <option value="package">7. Package และโอกาสเสนอขาย</option>
+                    <option value="sales">8. Lead Priority และ Next Best Action</option>
+                    <option value="operations">9. งานติดตาม ภาระทีม และความเสี่ยง</option>
+                    <option value="forecast">10. คาดการณ์และแผนลงมือทำ</option>
+                  </select>
                 </div>
-                <span id="analysisStatus" class="badge">รอเริ่มต้น</span>
-              </div>
-              <div id="analysisResult" class="analysis-result empty-analysis">
-                เลือกหัวข้อด้านซ้าย แล้วกด “เริ่มวิเคราะห์ด้วย AI”
-              </div>
-            </section>
-          </div>
+                <div id="analysisPromptPreview" class="prompt-preview"></div>
+                <div class="ai-data-scope">
+                  <strong>ข้อมูลที่ AI อ่าน</strong>
+                  <span>Business Profile</span><span>ลูกค้าและ Lead</span><span>ดีลและ Pipeline</span><span>Package</span><span>งานติดตาม</span>
+                </div>
+                <small id="analysisPrivacy">ไม่ส่งรูปโปรไฟล์หรือเบอร์โทรลูกค้า และ API key ไม่แสดงใน browser</small>
+              </aside>
+
+              <section class="ai-chat-card" aria-label="สนทนากับ AI เกี่ยวกับข้อมูลธุรกิจ">
+                <div class="ai-result-head">
+                  <div><p class="eyebrow">Business data chat</p><h2 id="analysisTitle">พร้อมช่วยวิเคราะห์</h2></div>
+                  <span id="analysisStatus" class="badge">พร้อมใช้งาน</span>
+                </div>
+                <div id="analysisResult" class="analysis-result empty-analysis" role="log" aria-live="polite" aria-relevant="additions">
+                  <div class="chat-empty"><strong>เริ่มจาก Prompt สำเร็จรูป หรือถามด้วยคำของคุณเอง</strong><span>คำตอบจะอ้างอิงเฉพาะข้อมูลที่มีอยู่ใน Web App</span></div>
+                </div>
+                <form id="analysisChatForm" class="chat-composer">
+                  <label for="analysisPrompt">2. คำถามที่ต้องการให้ AI วิเคราะห์</label>
+                  <textarea id="analysisPrompt" rows="3" maxlength="2000" placeholder="เช่น ลูกค้ากลุ่มใดควรติดตามก่อน และควรเสนอ Package อะไร เพราะอะไร" required></textarea>
+                  <div class="chat-composer-actions">
+                    <span><kbd>Enter</kbd> ส่งคำถาม · <kbd>Shift</kbd> + <kbd>Enter</kbd> ขึ้นบรรทัดใหม่</span>
+                    <button id="analyzeBusiness" class="ai-button" type="submit">ส่งคำถามให้ AI</button>
+                  </div>
+                </form>
+              </section>
+            </div>
+          </section>
         </section>
       </main>
     </div>
@@ -308,6 +332,6 @@
         <div class="dialog-actions"><button class="small-button" type="button" data-close-dialog>ยกเลิก</button><button class="page-action" type="submit">บันทึกการแก้ไข</button></div>
       </form>
     </dialog>
-    <script src="app.js?v=9"></script>
+    <script src="app.js?v=10"></script>
   </body>
 </html>

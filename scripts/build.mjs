@@ -52,7 +52,7 @@ async function analyzeBusiness(request, env) {
       text: { verbosity: "medium" },
       max_output_tokens: 1800,
       instructions: analysisInstructions,
-      input: "หัวข้อที่ผู้ใช้เลือก: " + (payload.focus || "growth") + "\\nข้อมูลจากระบบ:\\n" + JSON.stringify(payload)
+      input: "มิติที่เลือก: " + (payload.focus || "executive") + "\\nคำถามของผู้ใช้: " + String(payload.userPrompt || "").slice(0, 2000) + "\\nข้อมูลจากระบบ:\\n" + JSON.stringify(payload)
     })
   });
   const data = await upstream.json();
