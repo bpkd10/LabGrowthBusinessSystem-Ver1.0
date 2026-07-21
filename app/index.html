@@ -4,17 +4,18 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="description" content="Business Growth CRM สำหรับธุรกิจ Online, Onsite, Wholesale และ Retail">
-    <meta name="theme-color" content="#0c3b36">
+    <meta name="theme-color" content="#17171f">
     <title>Business Growth Command Center | Uncle Tung AI</title>
-    <link rel="stylesheet" href="styles.css?v=8">
+    <link rel="icon" href="/brand/icon-favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="styles.css?v=9">
   </head>
   <body>
     <a class="skip-link" href="#mainContent">ข้ามไปยังเนื้อหาหลัก</a>
     <div class="app-shell">
       <aside class="sidebar">
         <div class="brand">
-          <span class="brand-mark pixel-brand" id="sidebarBusinessAvatar">BG</span>
-          <div>
+          <img class="brand-logo" src="/brand/logo-wordmark-dark.svg" alt="Uncle Tung AI — AI ที่เข้าใจง่าย ใช้ได้จริง">
+          <div class="brand-business">
             <strong id="sidebarBusinessName">ระบบเติบโตธุรกิจ</strong>
             <span id="sidebarBusinessMode">CRM สำหรับทุกธุรกิจ</span>
           </div>
@@ -38,7 +39,7 @@
       <main class="main" id="mainContent">
         <header class="topbar">
           <div>
-            <p class="eyebrow">Business Growth System</p>
+            <p class="eyebrow brand-kicker"><img src="/brand/icon-favicon.svg" alt="" aria-hidden="true"> Business Growth System</p>
             <h1 id="viewTitle">ภาพรวมธุรกิจ</h1>
             <p id="viewDescription" class="view-description">ภาพรวมรายได้ งานขาย และสิ่งที่ต้องทำวันนี้</p>
           </div>
@@ -121,12 +122,20 @@
             <span id="roleInsight" class="role-insight"></span>
           </div>
           <div id="kpiGrid" class="kpi-grid"></div>
-          <section class="journey-panel" aria-labelledby="journeyTitle">
+          <section class="journey-panel owner-journey" aria-labelledby="journeyTitle">
             <div class="panel-head">
-              <div><p class="eyebrow">Customer journey</p><h2 id="journeyTitle">เส้นทางลูกค้าจาก Lead สู่รายได้</h2></div>
-              <button class="small-button" data-jump="crm">เปิด CRM Board</button>
+              <div><p class="eyebrow">Owner customer journey</p><h2 id="journeyTitle">สรุปเส้นทางลูกค้าสำหรับ Owner</h2></div>
+              <div class="journey-head-actions"><img class="journey-brand-logo" src="/brand/logo-wordmark-light.svg" alt="Uncle Tung AI"><button class="small-button" data-jump="crm">เปิด CRM Board</button></div>
             </div>
-            <p id="journeyContext" class="panel-context">ดูจุดที่ลูกค้าหยุดอยู่ แล้วเลือกงานที่ควรทำก่อน</p>
+            <p id="journeyContext" class="panel-context">อ่าน Conversion, มูลค่า และคอขวดจากภาพเดียว</p>
+            <div class="journey-overview">
+              <div class="journey-donut-card">
+                <div id="journeyDonut" class="journey-donut" role="img" aria-label="อัตราปิดการขาย"><span><strong id="journeyDonutValue">0%</strong><small>Conversion</small></span></div>
+                <div class="journey-donut-copy"><strong id="journeyDonutTitle">จาก Lead สู่รายได้</strong><span id="journeyDonutNote">กำลังคำนวณจากข้อมูลปัจจุบัน</span></div>
+              </div>
+              <div id="journeySummary" class="journey-summary" aria-label="ตัวเลขสรุป Customer Journey"></div>
+              <div id="journeyDecision" class="journey-decision" aria-live="polite"></div>
+            </div>
             <div id="journeyFlow" class="journey-flow"></div>
           </section>
           <div class="dashboard-grid dashboard-grid--insight">
@@ -260,6 +269,7 @@
         <section id="aiView" class="view">
           <div class="ai-layout">
             <section class="ai-control-card">
+              <img class="ai-brand-logo" src="/brand/logo-wordmark.svg" alt="Uncle Tung AI — AI ที่เข้าใจง่าย ใช้ได้จริง">
               <p class="eyebrow">AI Business Analyst</p>
               <h2>ให้ AI อ่านข้อมูลธุรกิจและเสนอสิ่งที่ควรทำต่อ</h2>
               <p class="muted">AI จะใช้ข้อมูลรวมใน app เท่านั้น เช่น Lead, โอกาสขาย, งานติดตาม และแพ็กเกจบริการ โดยไม่ส่งรูปโปรไฟล์หรือเบอร์โทรลูกค้า</p>
@@ -298,6 +308,6 @@
         <div class="dialog-actions"><button class="small-button" type="button" data-close-dialog>ยกเลิก</button><button class="page-action" type="submit">บันทึกการแก้ไข</button></div>
       </form>
     </dialog>
-    <script src="app.js?v=8"></script>
+    <script src="app.js?v=9"></script>
   </body>
 </html>

@@ -9,7 +9,12 @@ const files = {
   "/": ["app/index.html", "text/html; charset=utf-8"],
   "/index.html": ["app/index.html", "text/html; charset=utf-8"],
   "/app.js": ["app/app.js", "text/javascript; charset=utf-8"],
-  "/styles.css": ["app/styles.css", "text/css; charset=utf-8"]
+  "/styles.css": ["app/styles.css", "text/css; charset=utf-8"],
+  "/icons.svg": ["app/icons.svg", "image/svg+xml"],
+  "/brand/logo-wordmark.svg": ["logo.svg/logo-wordmark.svg", "image/svg+xml"],
+  "/brand/logo-wordmark-dark.svg": ["logo.svg/logo-wordmark-dark.svg", "image/svg+xml"],
+  "/brand/logo-wordmark-light.svg": ["logo.svg/logo-wordmark-light.svg", "image/svg+xml"],
+  "/brand/icon-favicon.svg": ["logo.svg/icon-favicon.svg", "image/svg+xml"]
 };
 
 const assets = {};

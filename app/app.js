@@ -5,6 +5,7 @@ const VALID_VIEWS = ["dashboard", "customers", "crm", "products", "deals", "task
 const businessModes = {
   online: {
     code: "EC",
+    icon: "shopping-bag",
     label: "Online",
     description: "ขายผ่าน Social, Website และ Marketplace",
     customerTypeLabel: "กลุ่มลูกค้าออนไลน์",
@@ -19,6 +20,7 @@ const businessModes = {
   },
   onsite: {
     code: "SV",
+    icon: "map-pin",
     label: "Onsite",
     description: "บริการที่สาขา นัดหมาย หรือพบลูกค้านอกสถานที่",
     customerTypeLabel: "ประเภทผู้รับบริการ",
@@ -33,6 +35,7 @@ const businessModes = {
   },
   wholesale: {
     code: "B2B",
+    icon: "warehouse",
     label: "Wholesale",
     description: "ขายส่ง ตัวแทนจำหน่าย และลูกค้าองค์กร",
     customerTypeLabel: "ประเภทคู่ค้า",
@@ -47,6 +50,7 @@ const businessModes = {
   },
   retail: {
     code: "RT",
+    icon: "store",
     label: "Retail",
     description: "หน้าร้าน POS สมาชิก และการซื้อซ้ำ",
     customerTypeLabel: "กลุ่มลูกค้าหน้าร้าน",
@@ -100,22 +104,24 @@ const businessCategories = {
 };
 
 const avatarPresets = {
-  creator: { code: "ON", label: "Online Creator", tone: "violet" },
-  service: { code: "SV", label: "Professional Service", tone: "teal" },
-  retail: { code: "RT", label: "Retail Store", tone: "orange" },
-  restaurant: { code: "FD", label: "Food & Cafe", tone: "red" },
-  health: { code: "HC", label: "Health & Clinic", tone: "blue" },
-  education: { code: "ED", label: "Education", tone: "indigo" },
-  factory: { code: "WH", label: "Wholesale & Factory", tone: "slate" },
-  property: { code: "RE", label: "Real Estate", tone: "gold" }
+  creator: { code: "ON", label: "Online Creator", tone: "violet", icon: "globe" },
+  service: { code: "SV", label: "Professional Service", tone: "teal", icon: "handshake" },
+  retail: { code: "RT", label: "Retail Store", tone: "orange", icon: "store" },
+  restaurant: { code: "FD", label: "Food & Cafe", tone: "red", icon: "shopping-bag" },
+  health: { code: "HC", label: "Health & Clinic", tone: "blue", icon: "target" },
+  education: { code: "ED", label: "Education", tone: "indigo", icon: "users" },
+  factory: { code: "WH", label: "Wholesale & Factory", tone: "slate", icon: "warehouse" },
+  property: { code: "RE", label: "Real Estate", tone: "gold", icon: "map-pin" }
 };
 
-const contactChannelCodes = {
-  Facebook: "FB", "LINE OA": "LN", Website: "WEB", Marketplace: "MP",
-  "Walk-in": "IN", "หน้าร้าน / POS": "POS", "โทรศัพท์": "TEL",
-  "ตัวแทนจำหน่าย": "B2B", "Google Form": "FORM", Event: "EV", Referral: "REF"
+const contactChannelIcons = {
+  Facebook: "facebook", "LINE OA": "message", Website: "globe", Marketplace: "shopping-bag",
+  "Walk-in": "map-pin", "หน้าร้าน / POS": "store", "โทรศัพท์": "phone",
+  "ตัวแทนจำหน่าย": "warehouse", "Google Form": "clipboard", Event: "calendar", Referral: "users"
 };
-const contactSources = Object.keys(contactChannelCodes);
+const contactSources = Object.keys(contactChannelIcons);
+
+const roleIcons = { owner: "crown", sales: "handshake", marketing: "megaphone", ops: "settings" };
 
 const leadStatuses = ["New Lead", "Contacted", "Interested", "Proposal Sent"];
 const dealStages = ["New", "Qualified", "Proposal", "Negotiation", "Won", "Lost"];
@@ -359,14 +365,18 @@ function currentBusinessCatalog() {
   return businessCatalogs[state.businessProfile?.businessMode] || businessCatalogs.online;
 }
 
+function iconMarkup(name, className = "ui-icon") {
+  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg#${escapeHTML(name)}"></use></svg>`;
+}
+
 function avatarPresetMarkup(presetKey, size = "normal", label = "โปรไฟล์ธุรกิจ") {
   const preset = avatarPresets[presetKey] || avatarPresets.service;
-  return `<span class="customer-avatar avatar-preset ${size}" data-avatar-tone="${escapeHTML(preset.tone)}" aria-label="${escapeHTML(label)}"><span class="pixel-glyph" aria-hidden="true"></span><b>${escapeHTML(preset.code)}</b></span>`;
+  return `<span class="customer-avatar avatar-preset ${size}" data-avatar-tone="${escapeHTML(preset.tone)}" aria-label="${escapeHTML(label)}">${iconMarkup(preset.icon, "avatar-vector")}<b>${escapeHTML(preset.code)}</b></span>`;
 }
 
 function contactBadge(source) {
-  const code = contactChannelCodes[source] || "CH";
-  return `<span class="contact-badge"><span class="contact-icon" aria-hidden="true">${escapeHTML(code)}</span>${escapeHTML(source || "ไม่ระบุช่องทาง")}</span>`;
+  const icon = contactChannelIcons[source] || "message";
+  return `<span class="contact-badge"><span class="contact-icon">${iconMarkup(icon)}</span>${escapeHTML(source || "ไม่ระบุช่องทาง")}</span>`;
 }
 
 function avatarMarkup(customer, size = "normal") {
@@ -479,7 +489,6 @@ function renderBusinessProfile() {
   document.body.dataset.businessMode = profile.businessMode;
   document.querySelector("#sidebarBusinessName").textContent = profile.businessName;
   document.querySelector("#sidebarBusinessMode").textContent = `${mode.label} · ${categoryLabel}`;
-  document.querySelector("#sidebarBusinessAvatar").textContent = (avatarPresets[profile.businessAvatar] || avatarPresets.service).code;
   document.querySelector("#businessAvatarPreview").innerHTML = avatarPresetMarkup(profile.businessAvatar, "large", `โปรไฟล์ ${profile.businessName}`);
   document.querySelector("#businessProfileSummary").textContent = `${mode.description} ระบบจะปรับ KPI, Customer Journey และคำแนะนำตามบริบทนี้`;
   document.querySelector("#businessModeBadge").textContent = mode.label;
@@ -504,7 +513,7 @@ function renderBusinessViewSwitch() {
   document.querySelector("#businessViewDescription").textContent = `${mode.description} เมื่อเลือก ระบบจะเปลี่ยน Journey, ข้อเสนอ และคำเรียกของลูกค้าทันที`;
   document.querySelector("#businessViewSwitch").innerHTML = Object.entries(businessModes).map(([key, item]) => `
     <button type="button" class="business-view-button ${key === state.businessProfile.businessMode ? "active" : ""}" data-business-view="${escapeHTML(key)}" aria-pressed="${key === state.businessProfile.businessMode}">
-      <span>${escapeHTML(item.code)}</span>
+      <span class="business-vector">${iconMarkup(item.icon, "business-vector-icon")}</span>
       <strong>${escapeHTML(item.label)}</strong>
       <small>${escapeHTML(item.description)}</small>
     </button>
@@ -518,6 +527,8 @@ function renderRoleWorkspace(data) {
     const selected = button.dataset.role === activeRole;
     button.classList.toggle("active", selected);
     button.setAttribute("aria-pressed", String(selected));
+    const rolePixel = button.querySelector(".role-pixel");
+    if (rolePixel) rolePixel.innerHTML = iconMarkup(roleIcons[button.dataset.role] || "users");
   });
   document.querySelector("#roleKicker").textContent = role.kicker;
   document.querySelector("#roleDashboardTitle").textContent = role.title;
@@ -568,11 +579,53 @@ function renderDashboard() {
 function renderJourneyFlow() {
   const mode = businessModes[state.businessProfile.businessMode] || businessModes.online;
   const steps = mode.journey;
-  document.querySelector("#journeyTitle").textContent = `Customer Journey สำหรับธุรกิจ ${mode.label}`;
-  document.querySelector("#journeyContext").textContent = `${mode.description} ดูจำนวนลูกค้าในแต่ละจุดแล้วเปิด CRM เพื่อทำขั้นตอนถัดไป`;
-  document.querySelector("#journeyFlow").innerHTML = steps.map(([key, label, detail], index) => {
-    const count = key === "Won" ? state.deals.filter((deal) => deal.stage === "Won").length : state.leads.filter((lead) => lead.status === key).length;
-    return `<button class="journey-step ${count ? "has-data" : ""}" data-jump="${key === "Won" ? "deals" : "crm"}"><span class="journey-icon" aria-hidden="true"><span class="journey-pixel"></span></span><span class="journey-number">ขั้น ${index + 1}</span><strong>${escapeHTML(label)}</strong><b>${count}</b><small>${escapeHTML(detail)}</small></button>`;
+  const data = metrics();
+  const wonDeals = state.deals.filter((deal) => deal.stage === "Won");
+  const wonCount = wonDeals.length;
+  const journeyBase = Math.max(state.leads.length, wonCount, 1);
+  const conversion = Math.min(100, (wonCount / journeyBase) * 100);
+  const staleLeads = state.leads.filter((lead) => lead.nextFollowUp && lead.nextFollowUp < today()).length;
+  const stageData = steps.map(([key, label, detail]) => {
+    const stageLeads = key === "Won" ? [] : state.leads.filter((lead) => lead.status === key);
+    const count = key === "Won" ? wonCount : stageLeads.length;
+    const value = key === "Won"
+      ? wonDeals.reduce((sum, deal) => sum + Number(deal.value), 0)
+      : stageLeads.reduce((sum, lead) => {
+          const deal = state.deals.find((item) => item.customerId === lead.customerId && item.stage !== "Lost");
+          const customer = customerById(lead.customerId);
+          const offer = [...currentBusinessCatalog(), ...state.products].find((item) => item.name === customer?.solutionPackage);
+          return sum + Number(deal?.value || offer?.price || 0);
+        }, 0);
+    return { key, label, detail, count, value };
+  });
+  const maxCount = Math.max(...stageData.map((item) => item.count), 1);
+  const bottleneck = [...stageData.slice(0, -1)].sort((a, b) => b.count - a.count)[0];
+
+  document.querySelector("#journeyTitle").textContent = `Owner Customer Journey · ${mode.label}`;
+  document.querySelector("#journeyContext").textContent = `${mode.description} สรุปจำนวนลูกค้า มูลค่า Conversion และจุดที่ควรเร่งจัดการ`;
+  document.querySelector("#journeyDonut").style.setProperty("--donut-value", `${conversion * 3.6}deg`);
+  document.querySelector("#journeyDonut").setAttribute("aria-label", `อัตราปิดการขาย ${percent(conversion)}`);
+  document.querySelector("#journeyDonutValue").textContent = percent(conversion);
+  document.querySelector("#journeyDonutNote").textContent = `${wonCount} รายสร้างรายได้ จาก ${state.leads.length} Lead ในระบบ`;
+  document.querySelector("#journeySummary").innerHTML = [
+    ["ลูกค้าทั้งหมด", state.customers.length, "users"],
+    ["Pipeline", currency(data.pipelineValue), "chart"],
+    ["รายได้ปิดแล้ว", currency(data.revenue), "target"],
+    ["Follow-up เกินกำหนด", staleLeads, staleLeads ? "alert" : "clock"]
+  ].map(([label, value, icon]) => `<div class="journey-summary-item">${iconMarkup(icon)}<span>${escapeHTML(label)}</span><strong>${escapeHTML(String(value))}</strong></div>`).join("");
+  document.querySelector("#journeyDecision").innerHTML = `
+    <span class="decision-icon">${iconMarkup(staleLeads ? "alert" : "sparkles")}</span>
+    <div><small>Owner decision</small><strong>${staleLeads ? `มี ${staleLeads} Lead เกินกำหนดติดตาม` : `คอขวดอยู่ที่ “${escapeHTML(bottleneck?.label || "ยังไม่มีข้อมูล")}”`}</strong><p>${staleLeads ? "มอบหมายเจ้าของงานและกำหนดวันติดตามใหม่ก่อนดู Lead ชุดถัดไป" : `มี ${bottleneck?.count || 0} รายในช่วงนี้ เปิด CRM เพื่อกำหนดขั้นตอนถัดไป`}</p></div>
+    <button type="button" class="small-button" data-jump="${staleLeads ? "tasks" : "crm"}">${staleLeads ? "จัดการงานค้าง" : "เปิด CRM Board"}</button>`;
+  document.querySelector("#journeyFlow").innerHTML = stageData.map((item, index) => {
+    const width = Math.max(item.count ? 12 : 0, (item.count / maxCount) * 100);
+    return `<button class="journey-step ${item.count ? "has-data" : ""}" data-jump="${item.key === "Won" ? "deals" : "crm"}">
+      <span class="journey-stage-icon">${iconMarkup(index === 4 ? "target" : mode.icon)}</span>
+      <span class="journey-stage-copy"><span class="journey-number">ขั้น ${index + 1} · ${escapeHTML(item.detail)}</span><strong>${escapeHTML(item.label)}</strong></span>
+      <span class="journey-stage-metrics"><b>${item.count}</b><small>${percent((item.count / journeyBase) * 100)} ของ Journey</small></span>
+      <span class="journey-bar" aria-hidden="true"><i style="width:${width}%"></i></span>
+      <span class="journey-stage-value">${escapeHTML(currency(item.value))}</span>
+    </button>`;
   }).join("");
 }
 

@@ -22,7 +22,7 @@ async function loadLocalEnv() {
 
 await loadLocalEnv();
 
-const contentTypes = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8" };
+const contentTypes = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml" };
 
 createServer(async (request, response) => {
   try {
@@ -40,11 +40,21 @@ createServer(async (request, response) => {
     }
 
     const pathname = url.pathname === "/" ? "/index.html" : url.pathname;
-    if (!["/index.html", "/app.js", "/styles.css"].includes(pathname)) {
+    const assetFiles = {
+      "/index.html": resolve(appRoot, "index.html"),
+      "/app.js": resolve(appRoot, "app.js"),
+      "/styles.css": resolve(appRoot, "styles.css"),
+      "/icons.svg": resolve(appRoot, "icons.svg"),
+      "/brand/logo-wordmark.svg": resolve(root, "logo.svg/logo-wordmark.svg"),
+      "/brand/logo-wordmark-dark.svg": resolve(root, "logo.svg/logo-wordmark-dark.svg"),
+      "/brand/logo-wordmark-light.svg": resolve(root, "logo.svg/logo-wordmark-light.svg"),
+      "/brand/icon-favicon.svg": resolve(root, "logo.svg/icon-favicon.svg")
+    };
+    if (!assetFiles[pathname]) {
       response.writeHead(404).end("Not found");
       return;
     }
-    const file = resolve(appRoot, pathname.slice(1));
+    const file = assetFiles[pathname];
     const content = await readFile(file);
     response.writeHead(200, { "content-type": contentTypes[extname(file)], "x-content-type-options": "nosniff" });
     response.end(content);
