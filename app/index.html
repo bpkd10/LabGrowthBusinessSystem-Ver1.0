@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="ระบบทดลองบริหารลูกค้า งานขาย สินค้า และเป้าหมายรายได้ สำหรับ Workshop Project 4">
+    <meta name="theme-color" content="#0c3b36">
+    <title>Business Growth Command Center | Uncle Tung AI</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#mainContent">ข้ามไปยังเนื้อหาหลัก</a>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark">BG</span>
+          <div>
+            <strong>ระบบเติบโตธุรกิจ</strong>
+            <span>ลูกค้า + งานขาย + การตลาด</span>
+          </div>
+        </div>
+        <nav class="nav" aria-label="เมนูหลัก">
+          <button class="nav-item active" data-view="dashboard"><span>01</span> ภาพรวมธุรกิจ</button>
+          <button class="nav-item" data-view="customers"><span>02</span> ข้อมูลลูกค้า</button>
+          <button class="nav-item" data-view="crm"><span>03</span> CRM งานขาย</button>
+          <button class="nav-item" data-view="products"><span>04</span> แพ็กเกจบริการ</button>
+          <button class="nav-item" data-view="deals"><span>05</span> โอกาสการขาย</button>
+          <button class="nav-item" data-view="tasks"><span>06</span> งานติดตาม</button>
+          <button class="nav-item ai-nav" data-view="ai"><span>AI</span> วิเคราะห์ด้วย AI</button>
+        </nav>
+        <div class="sidebar-tools">
+          <button id="exportData" class="ghost-button">ส่งออกข้อมูล</button>
+          <label class="ghost-button file-button">นำเข้าข้อมูล<input id="importData" type="file" accept="application/json"></label>
+          <button id="resetDemo" class="ghost-button danger-button">คืนค่าข้อมูลตัวอย่าง</button>
+        </div>
+      </aside>
+
+      <main class="main" id="mainContent">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Business Growth System</p>
+            <h1 id="viewTitle">ภาพรวมธุรกิจ</h1>
+            <p id="viewDescription" class="view-description">ภาพรวมรายได้ งานขาย และสิ่งที่ต้องทำวันนี้</p>
+          </div>
+          <div class="topbar-actions">
+            <button id="pageAction" class="page-action" type="button">เพิ่มลูกค้าใหม่</button>
+            <div class="role-switch" aria-label="เลือกมุมมองตามหน้าที่">
+              <button class="role-button active" data-role="owner">เจ้าของ</button>
+              <button class="role-button" data-role="sales">ฝ่ายขาย</button>
+              <button class="role-button" data-role="ops">ทีมงาน</button>
+            </div>
+          </div>
+        </header>
+
+        <section id="dashboardView" class="view active">
+          <section class="goal-banner" aria-labelledby="goalTitle">
+            <div>
+              <p class="eyebrow">เป้าหมายรายได้</p>
+              <h2 id="goalTitle">จากข้อมูล สู่รายได้ 100,000 บาท</h2>
+              <p id="goalMessage" class="muted"></p>
+            </div>
+            <div class="goal-meter-wrap">
+              <div class="goal-meta"><strong id="goalCurrent"></strong><span id="goalPercent"></span></div>
+              <div class="goal-meter" role="progressbar" aria-label="ความคืบหน้าเป้ารายได้" aria-valuemin="0" aria-valuemax="100"><span id="goalProgress"></span></div>
+            </div>
+          </section>
+          <div class="quick-actions" aria-label="เมนูทำงานด่วน">
+            <span class="quick-label">ทำรายการด่วน</span>
+            <button data-jump="customers">+ เพิ่มลูกค้า</button>
+            <button data-jump="deals">+ เพิ่มโอกาสขาย</button>
+            <button data-jump="tasks">+ เพิ่มงานติดตาม</button>
+            <span id="roleInsight" class="role-insight"></span>
+          </div>
+          <div id="kpiGrid" class="kpi-grid"></div>
+          <div class="dashboard-grid">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>รายได้แยกตามช่องทาง</h2>
+                <span id="topSourceBadge" class="badge"></span>
+              </div>
+              <div id="sourceBars" class="bar-list"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-head">
+                <h2>โอกาสขายในแต่ละขั้น</h2>
+                <span id="pipelineBadge" class="badge"></span>
+              </div>
+              <div id="stageBars" class="bar-list"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-head">
+                <h2>ลูกค้าที่เข้ามาล่าสุด</h2>
+                <button class="small-button" data-jump="customers">เพิ่มลูกค้า</button>
+              </div>
+              <div id="latestLeads" class="compact-list"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-head">
+                <h2>งานที่ต้องติดตาม</h2>
+                <button class="small-button" data-jump="tasks">ดูงานทั้งหมด</button>
+              </div>
+              <div id="pendingTasks" class="compact-list"></div>
+            </section>
+          </div>
+        </section>
+
+        <section id="customersView" class="view">
+          <form id="customerForm" class="entry-form">
+            <label>ชื่อลูกค้า<input name="fullName" required placeholder="เช่น บริษัท ABC จำกัด"></label>
+            <label>เบอร์โทร<input name="phone" placeholder="08x-xxx-xxxx"></label>
+            <label>ช่องทางที่มา
+              <select name="source">
+                <option>Facebook</option>
+                <option>LINE OA</option>
+                <option>Website</option>
+                <option>Google Form</option>
+                <option>Event</option>
+                <option>Referral</option>
+              </select>
+            </label>
+            <label>แพ็กเกจที่สนใจ
+              <select name="solutionPackage" id="customerPackageSelect"></select>
+            </label>
+            <label>ความต้องการเพิ่มเติม<input name="interest" required placeholder="เช่น ต้องการเพิ่มยอดขายจาก Facebook"></label>
+            <label>รูปโปรไฟล์<input name="profilePhoto" type="file" accept="image/*"></label>
+            <button type="submit">บันทึกลูกค้าและสร้าง Lead</button>
+          </form>
+          <div class="toolbar">
+            <input id="customerSearch" class="search" type="search" aria-label="ค้นหาลูกค้า" placeholder="ค้นหาชื่อ เบอร์โทร หรือความสนใจ (กด /)">
+            <select id="customerSourceFilter" class="filter-select" aria-label="กรองตามช่องทาง"><option value="">ทุกช่องทาง</option></select>
+            <span id="customerCount" class="muted"></span>
+          </div>
+          <div id="customerTable" class="table-wrap"></div>
+        </section>
+
+        <section id="crmView" class="view">
+          <div id="crmBoard" class="pipeline"></div>
+        </section>
+
+        <section id="productsView" class="view">
+          <form id="productForm" class="entry-form">
+            <label>ชื่อแพ็กเกจ/บริการ<input name="name" required placeholder="เช่น Marketing Growth Package"></label>
+            <label>ประเภท<input name="category" required placeholder="การตลาด, อบรม, ที่ปรึกษา"></label>
+            <label>ราคาขาย<input name="price" type="number" min="0" step="100" required value="25000"></label>
+            <label>ต้นทุน<input name="cost" type="number" min="0" step="100" required value="5000"></label>
+            <button type="submit">เพิ่มแพ็กเกจ</button>
+          </form>
+          <div id="productTable" class="table-wrap"></div>
+        </section>
+
+        <section id="dealsView" class="view">
+          <form id="dealForm" class="entry-form">
+            <label>ลูกค้า
+              <select name="customerId" id="dealCustomerSelect"></select>
+            </label>
+            <label>ชื่อโอกาสขาย<input name="name" required placeholder="เช่น Marketing Solution Package"></label>
+            <label>มูลค่า<input name="value" type="number" min="0" step="1000" required value="35000"></label>
+            <label>ขั้นตอนการขาย
+              <select name="stage">
+                <option value="New">รายการใหม่</option>
+                <option value="Qualified">คัดกรองแล้ว</option>
+                <option value="Proposal">ส่งข้อเสนอ</option>
+                <option value="Negotiation">กำลังเจรจา</option>
+                <option value="Won">ปิดการขาย</option>
+                <option value="Lost">ไม่สำเร็จ</option>
+              </select>
+            </label>
+            <button type="submit">เพิ่มโอกาสขาย</button>
+          </form>
+          <div id="dealTable" class="table-wrap"></div>
+        </section>
+
+        <section id="tasksView" class="view">
+          <form id="taskForm" class="entry-form">
+            <label>งานที่ต้องทำ<input name="title" required placeholder="เช่น โทรติดตามข้อเสนอ"></label>
+            <label>ผู้รับผิดชอบ<input name="owner" required value="ทีมขาย"></label>
+            <label>กำหนดเสร็จ<input name="dueDate" type="date" required></label>
+            <label>ความสำคัญ
+              <select name="priority">
+                <option value="High">สูง</option>
+                <option value="Medium">ปานกลาง</option>
+                <option value="Low">ต่ำ</option>
+              </select>
+            </label>
+            <button type="submit">เพิ่มงานติดตาม</button>
+          </form>
+          <div id="taskTable" class="table-wrap"></div>
+        </section>
+
+        <section id="aiView" class="view">
+          <div class="ai-layout">
+            <section class="ai-control-card">
+              <p class="eyebrow">AI Business Analyst</p>
+              <h2>ให้ AI อ่านข้อมูลธุรกิจและเสนอสิ่งที่ควรทำต่อ</h2>
+              <p class="muted">AI จะใช้ข้อมูลรวมใน app เท่านั้น เช่น Lead, โอกาสขาย, งานติดตาม และแพ็กเกจบริการ โดยไม่ส่งรูปโปรไฟล์หรือเบอร์โทรลูกค้า</p>
+              <label>หัวข้อที่ต้องการวิเคราะห์
+                <select id="analysisFocus">
+                  <option value="growth">หาโอกาสเพิ่มรายได้</option>
+                  <option value="crm">จัดลำดับ Lead ที่ควรติดตาม</option>
+                  <option value="marketing">วางแผนขาย Marketing Solution Package</option>
+                  <option value="operations">หางานค้างและคอขวดของทีม</option>
+                </select>
+              </label>
+              <button id="analyzeBusiness" class="ai-button" type="button">เริ่มวิเคราะห์ด้วย AI</button>
+              <small id="analysisPrivacy">API key ถูกเก็บที่ server และไม่แสดงใน browser</small>
+            </section>
+            <section class="ai-result-card" aria-live="polite">
+              <div class="ai-result-head">
+                <div>
+                  <p class="eyebrow">ผลวิเคราะห์</p>
+                  <h2 id="analysisTitle">พร้อมวิเคราะห์ข้อมูล</h2>
+                </div>
+                <span id="analysisStatus" class="badge">รอเริ่มต้น</span>
+              </div>
+              <div id="analysisResult" class="analysis-result empty-analysis">
+                เลือกหัวข้อด้านซ้าย แล้วกด “เริ่มวิเคราะห์ด้วย AI”
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="app.js"></script>
+  </body>
+</html>

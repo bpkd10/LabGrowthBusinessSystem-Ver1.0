@@ -1,0 +1,5 @@
+.env
+.env.local
+dist/
+.DS_Store
+.netlify/
