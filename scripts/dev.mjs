@@ -1,10 +1,10 @@
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
-import { extname, resolve } from "node:path";
+import { resolve } from "node:path";
 import { analyzeWithOpenAI } from "./ai-analysis.mjs";
+import { ASSET_FILES } from "./assets.mjs";
 
 const root = resolve(import.meta.dirname, "..");
-const appRoot = resolve(root, "app");
 const port = Number(process.env.PORT || 4173);
 
 async function loadLocalEnv() {
@@ -22,8 +22,6 @@ async function loadLocalEnv() {
 
 await loadLocalEnv();
 
-const contentTypes = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml" };
-
 createServer(async (request, response) => {
   try {
     const url = new URL(request.url, `http://${request.headers.host}`);
@@ -40,23 +38,15 @@ createServer(async (request, response) => {
     }
 
     const pathname = url.pathname === "/" ? "/index.html" : url.pathname;
-    const assetFiles = {
-      "/index.html": resolve(appRoot, "index.html"),
-      "/app.js": resolve(appRoot, "app.js"),
-      "/styles.css": resolve(appRoot, "styles.css"),
-      "/icons.svg": resolve(appRoot, "icons.svg"),
-      "/brand/logo-wordmark.svg": resolve(root, "logo.svg/logo-wordmark.svg"),
-      "/brand/logo-wordmark-dark.svg": resolve(root, "logo.svg/logo-wordmark-dark.svg"),
-      "/brand/logo-wordmark-light.svg": resolve(root, "logo.svg/logo-wordmark-light.svg"),
-      "/brand/icon-favicon.svg": resolve(root, "logo.svg/icon-favicon.svg")
-    };
-    if (!assetFiles[pathname]) {
+    const asset = ASSET_FILES[pathname];
+    if (!asset) {
       response.writeHead(404).end("Not found");
       return;
     }
-    const file = assetFiles[pathname];
+    const [relativePath, contentType] = asset;
+    const file = resolve(root, relativePath);
     const content = await readFile(file);
-    response.writeHead(200, { "content-type": contentTypes[extname(file)], "x-content-type-options": "nosniff" });
+    response.writeHead(200, { "content-type": contentType, "cache-control": "no-store", "x-content-type-options": "nosniff" });
     response.end(content);
   } catch (error) {
     const status = Number(error.status) || 500;

@@ -9,6 +9,9 @@
 - `app/index.html`: ตัวอย่าง web app ที่เปิดใช้ได้ทันที
 - `app/styles.css`: หน้าตาและ responsive layout
 - `app/app.js`: sample data, KPI calculation, CRM workflow และ localStorage
+- `logo.svg/`: ชุด Logo CI ทั้ง Wordmark, Dark, Light และ Favicon
+- `app/icons.svg`: Vector Icon Sprite กลางของทุก Business, Role และช่องทางติดต่อ
+- `scripts/assets.mjs`: Asset Manifest กลางที่ Build และ Dev Server ใช้ร่วมกัน
 
 ## วิธีเปิด demo
 
@@ -36,8 +39,17 @@ http://localhost:4173/
 - Dashboard เหลือ 4 KPI หลัก แต่ละ KPI คลิกไปหน้ารายละเอียดได้
 - รูปโปรไฟล์ลูกค้า อัปโหลดแล้วลดขนาดก่อนบันทึกใน browser
 - Marketing Solution Package 4 ระดับ เชื่อมจากลูกค้าไป CRM และสร้างโอกาสขายได้
+- CRM แก้ไข Lead, เปลี่ยน Stage ย้อนกลับ, ทำ Bulk Action, ลบข้อมูล และ Undo ได้
 - AI Analysis วิเคราะห์โอกาสรายได้ ลำดับ Lead แผนขาย และงานค้างจากข้อมูลในระบบ
 - ไม่ส่งเบอร์โทรหรือรูปโปรไฟล์ไปที่ AI API
+
+## ตรวจระบบก่อน Deploy
+
+```bash
+npm run check
+```
+
+คำสั่งนี้ตรวจ Asset Manifest, Logo SVG ทั้ง 4 แบบ, Vector Icon ที่ถูกเรียกใช้, UI contract, JavaScript syntax และ Build route จริงทั้ง 9 เส้นทาง หากไฟล์ Logo/Icon หายหรือ Build ส่งไฟล์เก่าไม่ตรงกับ source ระบบจะหยุดก่อน Deploy
 
 ## Flow การใช้งาน
 

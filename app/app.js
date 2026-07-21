@@ -149,6 +149,7 @@ const marketingPackages = [
 ];
 
 const seedData = {
+  meta: { updatedAt: "2026-07-22T00:00:00.000Z" },
   businessProfile: {
     businessName: "Uncle Tung Business Lab",
     businessMode: "online",
@@ -251,6 +252,11 @@ const roleViews = {
 
 let activeRole = "owner";
 let toastTimer;
+let lastUndoAction = null;
+let toastReturnFocus = null;
+const selectedLeadIds = new Set();
+let persistedStateSnapshot = clone(state);
+let analysisInFlight = false;
 
 function clone(value) {
   return typeof structuredClone === "function"
@@ -265,18 +271,26 @@ function loadState() {
     const parsed = JSON.parse(saved);
     const isValid = ["customers", "leads", "products", "deals", "tasks"]
       .every((key) => Array.isArray(parsed[key]));
-    return isValid ? normalizeState(parsed) : clone(seedData);
+    return isValid ? normalizeState(parsed) : normalizeState(clone(seedData));
   } catch {
-    return clone(seedData);
+    return normalizeState(clone(seedData));
   }
 }
 
+function validIsoDate(value) {
+  if (typeof value !== "string") return new Date().toISOString();
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+}
+
 function normalizeState(data) {
+  data.meta = {
+    updatedAt: validIsoDate(data.meta?.updatedAt)
+  };
   data.businessProfile = {
     ...clone(seedData.businessProfile),
     ...(data.businessProfile || {})
   };
-  const mode = businessModes[data.businessProfile.businessMode] || businessModes.online;
   const catalog = businessCatalogs[data.businessProfile.businessMode] || businessCatalogs.online;
   const legacyPackageNames = marketingPackages.map((item) => item.name);
   const needsLegacyMapping = Number(data.schemaVersion || 0) < 4;
@@ -286,13 +300,17 @@ function normalizeState(data) {
       : customer.solutionPackage || catalog[0].name;
     const matchedMode = Object.entries(businessCatalogs)
       .find(([, offers]) => offers.some((offer) => offer.name === solutionPackage))?.[0];
+    const businessMode = businessModes[customer.businessMode]
+      ? customer.businessMode
+      : matchedMode || data.businessProfile.businessMode || "online";
+    const customerMode = businessModes[businessMode] || businessModes.online;
     return {
       ...customer,
       solutionPackage,
-      businessMode: customer.businessMode || matchedMode || "online",
+      businessMode,
       avatar: customer.avatar || "",
       avatarPreset: customer.avatarPreset || data.businessProfile.businessCategory || "service",
-      customerType: customer.customerType || mode.customerTypes[Math.min(index, mode.customerTypes.length - 1)]
+      customerType: customer.customerType || customerMode.customerTypes[Math.min(index, customerMode.customerTypes.length - 1)]
     };
   });
   const existingNames = new Set(data.products.map((product) => product.name));
@@ -307,9 +325,14 @@ function normalizeState(data) {
 
 function saveState() {
   try {
+    state.meta = { ...(state.meta || {}), updatedAt: new Date().toISOString() };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    persistedStateSnapshot = clone(state);
     return true;
   } catch {
+    state = normalizeState(clone(persistedStateSnapshot));
+    selectedLeadIds.clear();
+    renderAll();
     notify("บันทึกข้อมูลไม่สำเร็จ พื้นที่จัดเก็บของ browser อาจเต็ม");
     return false;
   }
@@ -325,12 +348,50 @@ function escapeHTML(value) {
   })[character]);
 }
 
-function notify(message) {
+function notify(message, action = null) {
   const toast = document.querySelector("#toast");
-  toast.textContent = message;
+  const messageNode = document.querySelector("#toastMessage");
+  const undoButton = document.querySelector("#toastUndo");
+  if (toast.hidden) toastReturnFocus = document.activeElement;
+  toast.hidden = false;
+  messageNode.textContent = message;
+  lastUndoAction = action;
+  undoButton.hidden = !action;
+  undoButton.textContent = action?.label || "เลิกทำ";
+  if (!action && document.activeElement === undoButton) document.querySelector("#toastDismiss").focus();
   toast.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove("show"), 2600);
+  if (!action) toastTimer = setTimeout(hideToast, 3600);
+}
+
+function hideToast() {
+  const toast = document.querySelector("#toast");
+  const shouldRestoreFocus = toast.contains(document.activeElement);
+  const restoreTarget = toastReturnFocus?.isConnected ? toastReturnFocus : document.querySelector("#viewTitle");
+  toast.classList.remove("show");
+  toast.hidden = true;
+  lastUndoAction = null;
+  document.querySelector("#toastUndo").hidden = true;
+  if (shouldRestoreFocus) restoreTarget?.focus({ preventScroll: true });
+  toastReturnFocus = null;
+}
+
+function registerUndo(message, restore) {
+  notify(message, { label: "เลิกทำ", restore });
+}
+
+function setLeadStatus(leadId, nextStatus) {
+  const lead = state.leads.find((item) => item.id === leadId);
+  if (!lead || !leadStatuses.includes(nextStatus) || lead.status === nextStatus) return false;
+  const previousStatus = lead.status;
+  lead.status = nextStatus;
+  if (!saveState()) return false;
+  renderAll();
+  registerUndo(`ย้าย Lead ไปขั้น ${leadStatusLabels[nextStatus]}`, () => {
+    const currentLead = state.leads.find((item) => item.id === leadId);
+    if (currentLead) currentLead.status = previousStatus;
+  });
+  return true;
 }
 
 function currency(value) {
@@ -366,8 +427,20 @@ function currentBusinessCatalog() {
 }
 
 function iconMarkup(name, className = "ui-icon") {
-  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=2#${escapeHTML(name)}"></use></svg>`;
+  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=14#${escapeHTML(name)}"></use></svg>`;
 }
+
+document.querySelector("#toastUndo").addEventListener("click", () => {
+  const action = lastUndoAction;
+  if (!action) return;
+  lastUndoAction = null;
+  action.restore();
+  if (!saveState()) return;
+  renderAll();
+  notify("คืนค่าการเปลี่ยนแปลงล่าสุดแล้ว");
+});
+
+document.querySelector("#toastDismiss").addEventListener("click", hideToast);
 
 function avatarPresetMarkup(presetKey, size = "normal", label = "โปรไฟล์ธุรกิจ") {
   const preset = avatarPresets[presetKey] || avatarPresets.service;
@@ -476,7 +549,7 @@ function renderBars(containerId, entries, color) {
   document.querySelector(containerId).innerHTML = entries.map(([label, value]) => `
     <div class="bar-row">
       <div class="bar-meta"><strong>${escapeHTML(label)}</strong><span>${escapeHTML(typeof value === "number" && value > 999 ? currency(value) : value)}</span></div>
-      <div class="bar-track"><div class="bar-fill" style="width:${(value / max) * 100}%; background:${color}"></div></div>
+      <div class="bar-track"><div class="bar-fill" style="--bar-scale:${Math.max(0, value / max)}; background:${color}"></div></div>
     </div>
   `).join("");
 }
@@ -518,6 +591,7 @@ function renderBusinessViewSwitch() {
       <small>${escapeHTML(item.description)}</small>
     </button>
   `).join("");
+  document.querySelector("#businessChangeSummary").innerHTML = `${iconMarkup(mode.icon)}<strong>ปรับตาม ${escapeHTML(mode.label)} แล้ว</strong><span>KPI, Customer Journey, กลุ่มลูกค้า และ Package ใช้บริบทเดียวกัน</span>`;
 }
 
 function renderRoleWorkspace(data) {
@@ -561,7 +635,7 @@ function renderDashboard() {
   document.querySelector("#goalTitle").textContent = `${state.businessProfile.businessName}: เป้ารายได้ ${currency(target)}`;
   document.querySelector("#goalCurrent").textContent = `${currency(data.revenue)} / ${currency(target)}`;
   document.querySelector("#goalPercent").textContent = percent(progress);
-  document.querySelector("#goalProgress").style.width = `${progress}%`;
+  document.querySelector("#goalProgress").style.setProperty("--progress-scale", String(Math.max(0, progress / 100)));
   document.querySelector(".goal-meter").setAttribute("aria-valuenow", String(Math.round(progress)));
   document.querySelector("#goalMessage").textContent = remaining
     ? `ต้องสร้างรายได้เพิ่มอีก ${currency(remaining)} เพื่อถึงเป้ารอบนี้`
@@ -601,7 +675,8 @@ function renderJourneyFlow() {
   const maxCount = Math.max(...stageData.map((item) => item.count), 1);
   const bottleneck = [...stageData.slice(0, -1)].sort((a, b) => b.count - a.count)[0];
 
-  document.querySelector("#journeyTitle").textContent = `Owner Customer Journey · ${mode.label}`;
+  const role = roleViews[activeRole] || roleViews.owner;
+  document.querySelector("#journeyTitle").textContent = `${role.label} Customer Journey · ${mode.label}`;
   document.querySelector("#journeyContext").textContent = `${mode.description} สรุปจำนวนลูกค้า มูลค่า Conversion และจุดที่ควรเร่งจัดการ`;
   document.querySelector("#journeyDonut").style.setProperty("--donut-value", `${conversion * 3.6}deg`);
   document.querySelector("#journeyDonut").setAttribute("aria-label", `อัตราปิดการขาย ${percent(conversion)}`);
@@ -615,7 +690,7 @@ function renderJourneyFlow() {
   ].map(([label, value, icon]) => `<div class="journey-summary-item">${iconMarkup(icon)}<span>${escapeHTML(label)}</span><strong>${escapeHTML(String(value))}</strong></div>`).join("");
   document.querySelector("#journeyDecision").innerHTML = `
     <span class="decision-icon">${iconMarkup(staleLeads ? "alert" : "sparkles")}</span>
-    <div><small>Owner decision</small><strong>${staleLeads ? `มี ${staleLeads} Lead เกินกำหนดติดตาม` : `คอขวดอยู่ที่ “${escapeHTML(bottleneck?.label || "ยังไม่มีข้อมูล")}”`}</strong><p>${staleLeads ? "มอบหมายเจ้าของงานและกำหนดวันติดตามใหม่ก่อนดู Lead ชุดถัดไป" : `มี ${bottleneck?.count || 0} รายในช่วงนี้ เปิด CRM เพื่อกำหนดขั้นตอนถัดไป`}</p></div>
+    <div><small>${escapeHTML(role.label)} decision</small><strong>${staleLeads ? `มี ${staleLeads} Lead เกินกำหนดติดตาม` : `คอขวดอยู่ที่ “${escapeHTML(bottleneck?.label || "ยังไม่มีข้อมูล")}”`}</strong><p>${staleLeads ? "มอบหมายเจ้าของงานและกำหนดวันติดตามใหม่ก่อนดู Lead ชุดถัดไป" : `มี ${bottleneck?.count || 0} รายในช่วงนี้ เปิด CRM เพื่อกำหนดขั้นตอนถัดไป`}</p></div>
     <button type="button" class="small-button" data-jump="${staleLeads ? "tasks" : "crm"}">${staleLeads ? "จัดการงานค้าง" : "เปิด CRM Board"}</button>`;
   document.querySelector("#journeyFlow").innerHTML = stageData.map((item, index) => {
     const width = Math.max(item.count ? 12 : 0, (item.count / maxCount) * 100);
@@ -623,16 +698,32 @@ function renderJourneyFlow() {
       <span class="journey-stage-icon">${iconMarkup(index === 4 ? "target" : mode.icon)}</span>
       <span class="journey-stage-copy"><span class="journey-number">ขั้น ${index + 1} · ${escapeHTML(item.detail)}</span><strong>${escapeHTML(item.label)}</strong></span>
       <span class="journey-stage-metrics"><b>${item.count}</b><small>${percent((item.count / journeyBase) * 100)} ของ Journey</small></span>
-      <span class="journey-bar" aria-hidden="true"><i style="width:${width}%"></i></span>
+      <span class="journey-bar" aria-hidden="true"><i style="--journey-scale:${width / 100}"></i></span>
       <span class="journey-stage-value">${escapeHTML(currency(item.value))}</span>
     </button>`;
   }).join("");
 }
 
 function renderPriorityLeads() {
-  const leads = [...state.leads]
+  if (activeRole === "ops") {
+    const priorityTasks = state.tasks
+      .filter((task) => task.status !== "done")
+      .sort((a, b) => (a.dueDate < today() ? -1 : 0) - (b.dueDate < today() ? -1 : 0) || a.dueDate.localeCompare(b.dueDate))
+      .slice(0, 3);
+    document.querySelector("#priorityLeadBadge").textContent = priorityTasks.length ? `${priorityTasks.length} งานสำคัญ` : "ไม่มีงานค้าง";
+    document.querySelector("#priorityLeads").innerHTML = priorityTasks.map((task) => {
+      const overdue = task.dueDate < today();
+      return `<article class="priority-item"><div class="lead-profile"><span class="decision-icon">${iconMarkup(overdue ? "alert" : "clipboard")}</span><div><strong>${escapeHTML(task.title)}</strong><span>${escapeHTML(task.owner)}</span></div></div><div class="priority-meta"><span class="score-tag">${escapeHTML(priorityLabels[task.priority] || task.priority)}</span><small class="${overdue ? "danger" : ""}">${overdue ? "เกินกำหนด" : `ครบกำหนด ${task.dueDate}`}</small></div><button class="small-button" data-jump="tasks">เปิดงาน</button></article>`;
+    }).join("") || `<div class="empty-state">งานทั้งหมดอยู่ในแผนแล้ว</div>`;
+    return;
+  }
+  const topSource = metrics().topSource;
+  const roleLeads = activeRole === "marketing"
+    ? state.leads.filter((lead) => customerById(lead.customerId)?.source === topSource)
+    : state.leads;
+  const leads = [...(roleLeads.length ? roleLeads : state.leads)]
     .filter((lead) => lead.status !== "Proposal Sent" || lead.nextFollowUp <= today())
-    .sort((a, b) => b.leadScore - a.leadScore || a.nextFollowUp.localeCompare(b.nextFollowUp))
+    .sort((a, b) => (a.nextFollowUp < today() ? -1 : 0) - (b.nextFollowUp < today() ? -1 : 0) || b.leadScore - a.leadScore)
     .slice(0, 3);
   document.querySelector("#priorityLeadBadge").textContent = leads.length ? `${leads.length} รายการสำคัญ` : "ไม่มีรายการเร่งด่วน";
   document.querySelector("#priorityLeads").innerHTML = leads.map((lead) => {
@@ -646,11 +737,29 @@ function renderSignals(data) {
   const proposalLeads = state.leads.filter((lead) => lead.status === "Proposal Sent").length;
   const sourceDeals = sumDealsBySource();
   const sourceValue = sourceDeals[data.topSource] || 0;
-  const signals = [
-    ["ช่องทางที่คุ้มสุด", data.topSource, sourceValue ? `${currency(sourceValue)} ใน pipeline` : "ยังไม่มีมูลค่า Deal", "customers"],
-    ["ข้อเสนอที่ต้องดู", proposalLeads, proposalLeads ? "Lead รอการตัดสินใจ" : "ยังไม่มีข้อเสนอค้าง", "crm"],
-    ["งานที่เสี่ยงหลุด", data.overdueTasks, data.overdueTasks ? "งานเกินกำหนด ควรจัดการวันนี้" : "ไม่มีงานเกินกำหนด", "tasks"]
-  ];
+  const roleSignals = {
+    owner: [
+      ["ช่องทางที่คุ้มสุด", data.topSource, sourceValue ? `${currency(sourceValue)} ใน pipeline` : "ยังไม่มีมูลค่า Deal", "customers"],
+      ["ข้อเสนอที่ต้องดู", proposalLeads, proposalLeads ? "Lead รอการตัดสินใจ" : "ยังไม่มีข้อเสนอค้าง", "crm"],
+      ["งานที่เสี่ยงหลุด", data.overdueTasks, data.overdueTasks ? "งานเกินกำหนด ควรจัดการวันนี้" : "ไม่มีงานเกินกำหนด", "tasks"]
+    ],
+    sales: [
+      ["มูลค่าที่กำลังปิด", currency(data.pipelineValue), `${data.openDeals} ดีลที่ยังเปิด`, "deals"],
+      ["ข้อเสนอรอตอบ", proposalLeads, proposalLeads ? "ติดตามคำตอบและ Next Step" : "ไม่มีข้อเสนอค้าง", "crm"],
+      ["Follow-up เกินกำหนด", state.leads.filter((lead) => lead.nextFollowUp < today()).length, "จัดลำดับโทรติดตามวันนี้", "crm"]
+    ],
+    marketing: [
+      ["ช่องทาง Lead สูงสุด", data.topSource, `${countBy(state.customers, "source")[data.topSource] || 0} ราย`, "customers"],
+      ["มูลค่าจากช่องทางหลัก", currency(sourceValue), "ตรวจคุณภาพก่อนเพิ่มงบ", "deals"],
+      ["Lead เป็นลูกค้า", percent(data.conversionRate), "ดู Journey ตั้งแต่ช่องทางถึงรายได้", "crm"]
+    ],
+    ops: [
+      ["งานเกินกำหนด", data.overdueTasks, "จัดการก่อนกระทบลูกค้า", "tasks"],
+      ["งานที่ยังไม่จบ", data.pendingTasks, "ตรวจเจ้าของงานและวันส่งมอบ", "tasks"],
+      ["ดีลเริ่มส่งมอบ", state.deals.filter((deal) => deal.stage === "Won").length, "เตรียมทีมและข้อมูลลูกค้า", "deals"]
+    ]
+  };
+  const signals = roleSignals[activeRole] || roleSignals.owner;
   document.querySelector("#signalGrid").innerHTML = signals.map(([label, value, note, target]) => `<button class="signal-card" data-jump="${target}"><span>${escapeHTML(label)}</span><strong>${escapeHTML(String(value))}</strong><small>${escapeHTML(note)} <b>ดู →</b></small></button>`).join("");
 }
 
@@ -690,7 +799,8 @@ function renderCustomers() {
     customers.map((customer) => {
       const lead = state.leads.find((item) => item.customerId === customer.id);
       const phone = String(customer.phone || "-");
-      const recommended = currentBusinessCatalog().some((item) => item.name === customer.solutionPackage);
+      const customerCatalog = businessCatalogs[customer.businessMode] || currentBusinessCatalog();
+      const recommended = customerCatalog.some((item) => item.name === customer.solutionPackage);
       const customerMode = businessModes[customer.businessMode] || businessModes.online;
       return `<tr><td><div class="customer-cell">${avatarMarkup(customer, "small")}<div><strong>${escapeHTML(customer.fullName)}</strong><span>${escapeHTML(customer.interest)}</span></div></div></td><td><span class="customer-type-pill">${escapeHTML(customerMode.label)} · ${escapeHTML(customer.customerType || "ยังไม่จัดกลุ่ม")}</span></td><td><a class="contact-link" href="tel:${escapeHTML(phone.replace(/[^0-9+]/g, ""))}" aria-label="โทรหา ${escapeHTML(customer.fullName)}">${escapeHTML(phone)}</a></td><td>${contactBadge(customer.source)}</td><td><span class="package-pill ${recommended ? "package-pill--fit" : ""}">${escapeHTML(customer.solutionPackage)}</span></td><td>${escapeHTML(leadStatusLabels[lead?.status] || "-")}</td><td><div class="table-actions"><button class="row-action" data-edit-record="customer:${escapeHTML(customer.id)}">แก้ไข</button><button class="row-action danger" data-delete-record="customer:${escapeHTML(customer.id)}">ลบ</button></div></td></tr>`;
     })
@@ -698,6 +808,10 @@ function renderCustomers() {
 }
 
 function renderCrm() {
+  const activeLeadIds = new Set(state.leads.map((lead) => lead.id));
+  [...selectedLeadIds].forEach((id) => {
+    if (!activeLeadIds.has(id)) selectedLeadIds.delete(id);
+  });
   document.querySelector("#crmBoard").innerHTML = leadStatuses.map((status) => {
     const leads = state.leads.filter((lead) => lead.status === status);
     return `
@@ -707,14 +821,17 @@ function renderCrm() {
       </section>
     `;
   }).join("");
+  updateCrmBulkToolbar();
 }
 
 function leadCard(lead) {
   const customer = customerById(lead.customerId);
-  const currentIndex = leadStatuses.indexOf(lead.status);
-  const nextStatus = leadStatuses[Math.min(currentIndex + 1, leadStatuses.length - 1)];
   return `
-    <article class="lead-card">
+    <article class="lead-card ${selectedLeadIds.has(lead.id) ? "selected" : ""}">
+      <div class="lead-card-toolbar">
+        <label class="lead-select"><input type="checkbox" data-lead-select="${escapeHTML(lead.id)}" ${selectedLeadIds.has(lead.id) ? "checked" : ""}> เลือก</label>
+        <label class="lead-stage-control"><span class="sr-only">สถานะของ ${escapeHTML(customer?.fullName || "Lead")}</span><select data-lead-status="${escapeHTML(lead.id)}" aria-label="เปลี่ยนสถานะ Lead ${escapeHTML(customer?.fullName || "")}">${leadStatuses.map((status) => `<option value="${escapeHTML(status)}" ${status === lead.status ? "selected" : ""}>${escapeHTML(leadStatusLabels[status])}</option>`).join("")}</select></label>
+      </div>
       <div class="lead-profile">
         ${avatarMarkup(customer)}
         <div>
@@ -726,12 +843,22 @@ function leadCard(lead) {
       <span>${escapeHTML(customer?.interest || "-")}</span>
       <span>คะแนน Lead ${escapeHTML(lead.leadScore)} · ติดตาม ${escapeHTML(lead.nextFollowUp)}</span>
       <div class="lead-actions">
-        <button class="row-action" data-advance-lead="${escapeHTML(lead.id)}" ${lead.status === nextStatus ? "disabled" : ""}>ขั้นถัดไป</button>
+        <button class="row-action" data-edit-record="lead:${escapeHTML(lead.id)}">แก้ไข Lead</button>
         <button class="row-action" data-deal-from-lead="${escapeHTML(lead.id)}">สร้างโอกาสขาย</button>
         <button class="row-action" data-task-from-lead="${escapeHTML(lead.id)}">สร้างงานติดตาม</button>
       </div>
     </article>
   `;
+}
+
+function updateCrmBulkToolbar() {
+  const count = selectedLeadIds.size;
+  document.querySelector("#selectedLeadCount").textContent = count ? `เลือกแล้ว ${count} Lead` : "ยังไม่ได้เลือก Lead";
+  document.querySelector("#applyBulkLeadStage").disabled = count === 0;
+  document.querySelector("#clearLeadSelection").disabled = count === 0;
+  const selectAll = document.querySelector("#selectAllLeads");
+  selectAll.checked = Boolean(state.leads.length) && count === state.leads.length;
+  selectAll.indeterminate = count > 0 && count < state.leads.length;
 }
 
 function renderProducts() {
@@ -799,6 +926,7 @@ function renderAll() {
   renderPackageOptions();
   renderCustomerTypeOptions();
   renderAvatarOptions();
+  renderAnalysisSnapshot();
 }
 
 function renderPackageOptions() {
@@ -813,6 +941,11 @@ function renderPackageOptions() {
     </optgroup>
     ${otherProducts.length ? `<optgroup label="สินค้าและบริการอื่นในระบบ">${otherProducts.map((item) => `<option value="${escapeHTML(item.name)}" ${selected === item.name ? "selected" : ""}>${escapeHTML(item.name)} · ${escapeHTML(currency(item.price))}</option>`).join("")}</optgroup>` : ""}
   `;
+  const selectedOffer = [...recommended, ...otherProducts].find((item) => item.name === select.value) || recommended[0];
+  const hint = document.querySelector("#customerPackageHint");
+  if (hint && selectedOffer) {
+    hint.textContent = `แนะนำสำหรับ ${currentBusinessMode().label}: ${selectedOffer.description || `${selectedOffer.category} ที่สัมพันธ์กับรูปแบบการขายนี้`}`;
+  }
 }
 
 function renderCustomerTypeOptions() {
@@ -831,6 +964,13 @@ function renderAvatarOptions() {
   select.innerHTML = Object.entries(avatarPresets).map(([value, item]) =>
     `<option value="${escapeHTML(value)}" ${selected === value ? "selected" : ""}>${escapeHTML(item.code)} · ${escapeHTML(item.label)}</option>`
   ).join("");
+}
+
+function resetCustomerFormDefaults() {
+  document.querySelector("#customerPackageSelect").value = currentBusinessCatalog()[0].name;
+  document.querySelector("#customerTypeSelect").value = currentBusinessMode().customerTypes[0];
+  document.querySelector("#customerAvatarPreset").value = state.businessProfile.businessCategory;
+  renderPackageOptions();
 }
 
 function roleInsight(data) {
@@ -858,7 +998,12 @@ function showView(route, options = {}) {
     renderDashboard();
   }
   document.querySelectorAll(".view").forEach((item) => item.classList.remove("active"));
-  document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item.dataset.view === view));
+  document.querySelectorAll(".nav-item").forEach((item) => {
+    const selected = item.dataset.view === view;
+    item.classList.toggle("active", selected);
+    if (selected) item.setAttribute("aria-current", "page");
+    else item.removeAttribute("aria-current");
+  });
   document.querySelector(`#${view}View`).classList.add("active");
   const [defaultTitle, defaultDescription, defaultActionLabel, defaultActionTarget] = viewConfig[view];
   const role = roleViews[activeRole] || roleViews.owner;
@@ -876,14 +1021,18 @@ function showView(route, options = {}) {
     history[method](null, "", `#${nextRoute}`);
   }
   document.title = `${document.querySelector("#viewTitle").textContent} | Business Growth`;
-  if (options.scroll !== false) window.scrollTo({ top: 0, behavior: "smooth" });
+  if (options.scroll !== false) {
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+  }
+  if (options.focusHeading) requestAnimationFrame(() => document.querySelector("#viewTitle").focus({ preventScroll: true }));
 }
 
 document.querySelectorAll(".nav-item").forEach((button) => {
-  button.addEventListener("click", () => showView(button.dataset.view));
+  button.addEventListener("click", () => showView(button.dataset.view, { focusHeading: true }));
 });
 
-document.querySelector("#pageAction").addEventListener("click", (event) => showView(event.currentTarget.dataset.target));
+document.querySelector("#pageAction").addEventListener("click", (event) => showView(event.currentTarget.dataset.target, { focusHeading: true }));
 
 document.querySelectorAll(".role-button").forEach((button) => {
   button.addEventListener("click", () => {
@@ -898,12 +1047,12 @@ document.querySelector("#businessViewSwitch").addEventListener("click", (event) 
   const button = event.target.closest("[data-business-view]");
   if (!button || !businessModes[button.dataset.businessView]) return;
   state.businessProfile.businessMode = button.dataset.businessView;
-  saveState();
+  if (!saveState()) return;
   renderAll();
-  document.querySelector("#customerPackageSelect").value = currentBusinessCatalog()[0].name;
-  document.querySelector("#customerTypeSelect").value = currentBusinessMode().customerTypes[0];
+  resetCustomerFormDefaults();
   showView(`dashboard/${activeRole}`, { scroll: false });
-  notify(`เปลี่ยน Dashboard เป็นธุรกิจ ${currentBusinessMode().label} แล้ว`);
+  document.querySelector(`[data-business-view="${state.businessProfile.businessMode}"]`)?.focus();
+  notify(`ปรับ KPI, Journey, กลุ่มลูกค้า และ Package เป็น ${currentBusinessMode().label} แล้ว`);
 });
 
 document.querySelector("#businessProfileForm").addEventListener("submit", (event) => {
@@ -916,10 +1065,9 @@ document.querySelector("#businessProfileForm").addEventListener("submit", (event
     businessAvatar: form.get("businessAvatar"),
     revenueTarget: Math.max(1000, Number(form.get("revenueTarget")) || REVENUE_TARGET)
   };
-  saveState();
+  if (!saveState()) return;
   renderAll();
-  document.querySelector("#customerPackageSelect").value = currentBusinessCatalog()[0].name;
-  document.querySelector("#customerTypeSelect").value = currentBusinessMode().customerTypes[0];
+  resetCustomerFormDefaults();
   document.querySelector(".business-context").open = false;
   notify("บันทึก Business Profile และปรับ Dashboard แล้ว");
 });
@@ -936,7 +1084,7 @@ document.querySelector("#installBusinessCatalog").addEventListener("click", () =
     status: "active",
     businessMode: state.businessProfile.businessMode
   }));
-  saveState();
+  if (!saveState()) return;
   renderAll();
   notify(additions.length ? `เพิ่มข้อเสนอแนะนำ ${additions.length} รายการแล้ว` : "ชุดข้อเสนอแนะนำอยู่ในระบบแล้ว");
 });
@@ -960,6 +1108,7 @@ function debounce(callback, delay = 140) {
 
 document.querySelector("#customerSearch").addEventListener("input", debounce(renderCustomers));
 document.querySelector("#customerSourceFilter").addEventListener("change", renderCustomers);
+document.querySelector("#customerPackageSelect").addEventListener("change", renderPackageOptions);
 
 function resizeProfilePhoto(file) {
   if (!file) return Promise.resolve("");
@@ -996,6 +1145,16 @@ const recordConfigs = {
       ["solutionPackage", "ข้อเสนอที่สนใจ", "select", []], ["interest", "ความต้องการ", "text"]
     ]
   },
+  lead: {
+    title: "แก้ไข Lead และงานติดตาม",
+    collection: "leads",
+    fields: [
+      ["status", "สถานะ Lead", "select", leadStatuses],
+      ["assignedTo", "ผู้รับผิดชอบ", "text"],
+      ["leadScore", "คะแนน Lead", "number"],
+      ["nextFollowUp", "วันติดตามครั้งถัดไป", "date"]
+    ]
+  },
   product: {
     title: "แก้ไขแพ็กเกจ/บริการ", collection: "products",
     fields: [["name", "ชื่อแพ็กเกจ/บริการ", "text"], ["category", "ประเภท", "text"], ["price", "ราคาขาย", "number"], ["cost", "ต้นทุน", "number"], ["status", "สถานะ", "select", ["active", "inactive"]]]
@@ -1013,7 +1172,7 @@ const recordConfigs = {
 function recordFieldMarkup([name, label, type, options], record) {
   const value = record[name] ?? "";
   if (type === "select") {
-    const labelMap = name === "stage" ? dealStageLabels : name === "status" ? { ...taskStatusLabels, active: "เปิดขาย", inactive: "ปิดขาย" } : name === "priority" ? priorityLabels : name === "avatarPreset" ? Object.fromEntries(Object.entries(avatarPresets).map(([key, item]) => [key, `${item.code} · ${item.label}`])) : {};
+    const labelMap = name === "stage" ? dealStageLabels : name === "status" ? { ...taskStatusLabels, ...leadStatusLabels, active: "เปิดขาย", inactive: "ปิดขาย" } : name === "priority" ? priorityLabels : name === "avatarPreset" ? Object.fromEntries(Object.entries(avatarPresets).map(([key, item]) => [key, `${item.code} · ${item.label}`])) : {};
     const optionMarkup = name === "stage"
       ? dealStageOptionMarkup(String(value))
       : options.map((option) => `<option value="${escapeHTML(option)}" ${String(value) === String(option) ? "selected" : ""}>${escapeHTML(labelMap[option] || option)}</option>`).join("");
@@ -1030,8 +1189,10 @@ function openRecordDialog(type, id) {
   const form = document.querySelector("#recordForm");
   document.querySelector("#recordDialogTitle").textContent = config.title;
   const fields = type === "customer" ? config.fields.map((field) => {
-    if (field[0] === "customerType") return [field[0], currentBusinessMode().customerTypeLabel, field[2], currentBusinessMode().customerTypes];
-    if (field[0] === "solutionPackage") return [field[0], field[1], field[2], [...new Set([...currentBusinessCatalog().map((item) => item.name), ...state.products.map((item) => item.name), record.solutionPackage])]];
+    const recordMode = businessModes[record.businessMode] || currentBusinessMode();
+    const recordCatalog = businessCatalogs[record.businessMode] || currentBusinessCatalog();
+    if (field[0] === "customerType") return [field[0], recordMode.customerTypeLabel, field[2], recordMode.customerTypes];
+    if (field[0] === "solutionPackage") return [field[0], field[1], field[2], [...new Set([...recordCatalog.map((item) => item.name), ...state.products.map((item) => item.name), record.solutionPackage])]];
     return field;
   }) : config.fields;
   document.querySelector("#recordFields").innerHTML = fields.map((field) => recordFieldMarkup(field, record)).join("");
@@ -1046,14 +1207,17 @@ function deleteRecord(type, id) {
   if (!record) return;
   const related = type === "customer" ? " Lead และ Deal ที่เชื่อมกับลูกค้ารายนี้จะถูกลบด้วย" : "";
   if (!window.confirm(`ยืนยันลบรายการนี้หรือไม่?${related}`)) return;
+  const previousState = clone(state);
   state[config.collection] = state[config.collection].filter((item) => item.id !== id);
   if (type === "customer") {
     state.leads = state.leads.filter((lead) => lead.customerId !== id);
     state.deals = state.deals.filter((deal) => deal.customerId !== id);
   }
-  saveState();
+  if (!saveState()) return;
   renderAll();
-  notify("ลบรายการเรียบร้อยแล้ว");
+  registerUndo("ลบรายการเรียบร้อยแล้ว", () => {
+    state = normalizeState(clone(previousState));
+  });
 }
 
 document.querySelector("#recordForm").addEventListener("submit", (event) => {
@@ -1067,7 +1231,8 @@ document.querySelector("#recordForm").addEventListener("submit", (event) => {
     record[name] = type === "number" ? Number(values.get(name)) : values.get(name).trim();
   });
   if (config.collection === "deals") record.probability = record.stage === "Won" ? 100 : record.stage === "Lost" ? 0 : Math.min(100, Math.max(0, Number(record.probability)));
-  saveState();
+  if (config.collection === "leads") record.leadScore = Math.min(100, Math.max(0, Number(record.leadScore)));
+  if (!saveState()) return;
   renderAll();
   document.querySelector("#recordDialog").close();
   notify("บันทึกการแก้ไขแล้ว");
@@ -1106,9 +1271,11 @@ document.querySelector("#customerForm").addEventListener("submit", async (event)
     leadScore: 50,
     nextFollowUp: new Date(Date.now() + 86400000 * 2).toISOString().slice(0, 10)
   });
+  if (!saveState()) return;
   event.currentTarget.reset();
-  saveState();
   renderAll();
+  document.querySelector("#customerAdvancedFields").open = false;
+  resetCustomerFormDefaults();
   notify("เพิ่มลูกค้าและสร้าง Lead แล้ว");
 });
 
@@ -1124,8 +1291,8 @@ document.querySelector("#productForm").addEventListener("submit", (event) => {
     status: "active",
     businessMode: state.businessProfile.businessMode
   });
+  if (!saveState()) return;
   event.currentTarget.reset();
-  saveState();
   renderAll();
   notify("เพิ่มสินค้า/บริการแล้ว");
 });
@@ -1142,8 +1309,8 @@ document.querySelector("#dealForm").addEventListener("submit", (event) => {
     stage,
     probability: stage === "Won" ? 100 : 50
   });
+  if (!saveState()) return;
   event.currentTarget.reset();
-  saveState();
   renderAll();
   notify("เพิ่ม Deal แล้ว");
 });
@@ -1159,9 +1326,9 @@ document.querySelector("#taskForm").addEventListener("submit", (event) => {
     priority: form.get("priority"),
     status: "todo"
   });
+  if (!saveState()) return;
   event.currentTarget.reset();
   setDefaultDueDate();
-  saveState();
   renderAll();
   notify("เพิ่ม Task แล้ว");
 });
@@ -1169,34 +1336,90 @@ document.querySelector("#taskForm").addEventListener("submit", (event) => {
 document.addEventListener("change", (event) => {
   const dealId = event.target.dataset.dealStage;
   const taskId = event.target.dataset.taskStatus;
+  const leadId = event.target.dataset.leadStatus;
+  const selectedLeadId = event.target.dataset.leadSelect;
+
+  if (selectedLeadId) {
+    if (event.target.checked) selectedLeadIds.add(selectedLeadId);
+    else selectedLeadIds.delete(selectedLeadId);
+    event.target.closest(".lead-card")?.classList.toggle("selected", event.target.checked);
+    updateCrmBulkToolbar();
+  }
+
+  if (leadId) setLeadStatus(leadId, event.target.value);
 
   if (dealId) {
     const deal = state.deals.find((item) => item.id === dealId);
+    const previousStage = deal.stage;
+    const previousProbability = deal.probability;
     deal.stage = event.target.value;
     deal.probability = deal.stage === "Won" ? 100 : deal.stage === "Lost" ? 0 : deal.probability;
-    saveState();
+    if (!saveState()) return;
     renderAll();
-    notify(`อัปเดต Deal เป็น ${deal.stage}`);
+    registerUndo(`อัปเดต Deal เป็น ${dealStageLabels[deal.stage]}`, () => {
+      const currentDeal = state.deals.find((item) => item.id === dealId);
+      if (currentDeal) {
+        currentDeal.stage = previousStage;
+        currentDeal.probability = previousProbability;
+      }
+    });
   }
 
   if (taskId) {
     const task = state.tasks.find((item) => item.id === taskId);
+    const previousStatus = task.status;
     task.status = event.target.value;
-    saveState();
+    if (!saveState()) return;
     renderAll();
-    notify("อัปเดตสถานะ Task แล้ว");
+    registerUndo("อัปเดตสถานะ Task แล้ว", () => {
+      const currentTask = state.tasks.find((item) => item.id === taskId);
+      if (currentTask) currentTask.status = previousStatus;
+    });
   }
+});
+
+document.querySelector("#selectAllLeads").addEventListener("change", (event) => {
+  selectedLeadIds.clear();
+  if (event.currentTarget.checked) state.leads.forEach((lead) => selectedLeadIds.add(lead.id));
+  renderCrm();
+});
+
+document.querySelector("#clearLeadSelection").addEventListener("click", () => {
+  selectedLeadIds.clear();
+  renderCrm();
+});
+
+document.querySelector("#applyBulkLeadStage").addEventListener("click", () => {
+  const nextStatus = document.querySelector("#bulkLeadStage").value;
+  const previousStatuses = [];
+  state.leads.forEach((lead) => {
+    if (!selectedLeadIds.has(lead.id) || lead.status === nextStatus) return;
+    previousStatuses.push([lead.id, lead.status]);
+    lead.status = nextStatus;
+  });
+  if (!previousStatuses.length) {
+    notify("Lead ที่เลือกอยู่ในขั้นนี้แล้ว");
+    return;
+  }
+  if (!saveState()) return;
+  selectedLeadIds.clear();
+  renderAll();
+  registerUndo(`ย้าย ${previousStatuses.length} Lead ไปขั้น ${leadStatusLabels[nextStatus]}`, () => {
+    previousStatuses.forEach(([id, status]) => {
+      const lead = state.leads.find((item) => item.id === id);
+      if (lead) lead.status = status;
+    });
+  });
 });
 
 document.addEventListener("click", (event) => {
   const jumpTarget = event.target.closest("[data-jump]")?.dataset.jump;
-  const leadId = event.target.dataset.advanceLead;
   const taskLeadId = event.target.dataset.taskFromLead;
   const dealLeadId = event.target.dataset.dealFromLead;
   const editRecord = event.target.dataset.editRecord;
   const deleteRecordRef = event.target.dataset.deleteRecord;
 
-  if (jumpTarget) showView(jumpTarget);
+  if (jumpTarget) showView(jumpTarget, { focusHeading: true });
 
   if (editRecord) {
     const [type, id] = editRecord.split(":");
@@ -1206,15 +1429,6 @@ document.addEventListener("click", (event) => {
   if (deleteRecordRef) {
     const [type, id] = deleteRecordRef.split(":");
     deleteRecord(type, id);
-  }
-
-  if (leadId) {
-    const lead = state.leads.find((item) => item.id === leadId);
-    const currentIndex = leadStatuses.indexOf(lead.status);
-    lead.status = leadStatuses[Math.min(currentIndex + 1, leadStatuses.length - 1)];
-    saveState();
-    renderAll();
-    notify(`ย้าย Lead ไปขั้น ${lead.status}`);
   }
 
   if (taskLeadId) {
@@ -1228,9 +1442,9 @@ document.addEventListener("click", (event) => {
       priority: lead.leadScore > 70 ? "High" : "Medium",
       status: "todo"
     });
-    saveState();
+    if (!saveState()) return;
     renderAll();
-    showView("tasks");
+    showView("tasks", { focusHeading: true });
     notify("สร้าง Follow-up task แล้ว");
   }
 
@@ -1238,7 +1452,7 @@ document.addEventListener("click", (event) => {
     const lead = state.leads.find((item) => item.id === dealLeadId);
     const customer = customerById(lead.customerId);
     const solution = [...currentBusinessCatalog(), ...state.products].find((item) => item.name === customer?.solutionPackage);
-    showView("deals");
+    showView("deals", { focusHeading: true });
     document.querySelector("#dealCustomerSelect").value = customer.id;
     document.querySelector('#dealForm input[name="name"]').value = customer.solutionPackage || "Marketing Solution Package";
     document.querySelector('#dealForm input[name="value"]').value = solution?.price || 25000;
@@ -1258,6 +1472,13 @@ const analysisPrompts = {
   operations: "ตรวจงานติดตาม งานเกินกำหนด ภาระของผู้รับผิดชอบ และความเสี่ยงต่อการส่งมอบหรือปิดการขาย พร้อมจัดลำดับงาน 7 วัน",
   forecast: "ประเมินแนวโน้มรายได้จากดีลและความน่าจะเป็นที่มีในระบบ ระบุสมมติฐาน ความเสี่ยง ข้อมูลที่ยังขาด และทำแผนลงมือทำ 7 วันสำหรับแต่ละทีม"
 };
+
+const analysisQuickQuestions = [
+  "วันนี้ควรติดตามลูกค้ารายใดก่อน เพราะอะไร",
+  "Package ใดสร้างรายได้และกำไรได้ดีที่สุด",
+  "ลูกค้ากลุ่มใดมีโอกาสซื้อซ้ำหรือ Upsell",
+  "Lead ใดเสี่ยงหลุดจาก Pipeline และควรทำอะไรต่อ"
+];
 
 function selectedAnalysisPrompt() {
   return analysisPrompts[document.querySelector("#analysisFocus").value] || analysisPrompts.executive;
@@ -1279,15 +1500,33 @@ function analysisPayload(userPrompt) {
   };
 }
 
+function analysisEvidenceMarkup() {
+  const data = metrics();
+  const updatedAt = new Date(state.meta?.updatedAt || Date.now());
+  return `<div class="analysis-evidence"><strong>ข้อมูลอ้างอิง</strong><span>${state.customers.length} ลูกค้า</span><span>${state.leads.length} Lead</span><span>${data.openDeals} ดีลเปิด</span><span>${data.pendingTasks} งานค้าง</span><time datetime="${escapeHTML(updatedAt.toISOString())}">${escapeHTML(updatedAt.toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" }))}</time></div>`;
+}
+
+function renderAnalysisSnapshot() {
+  const data = metrics();
+  const updatedAt = new Date(state.meta?.updatedAt || Date.now());
+  document.querySelector("#analysisFreshness").innerHTML = `${iconMarkup("clock")} ข้อมูลล่าสุด <time datetime="${escapeHTML(updatedAt.toISOString())}">${escapeHTML(updatedAt.toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" }))}</time>`;
+  document.querySelector("#analysisMetricsSummary").innerHTML = [
+    ["ลูกค้า", state.customers.length],
+    ["Lead", state.leads.length],
+    ["ดีลเปิด", data.openDeals],
+    ["งานค้าง", data.pendingTasks]
+  ].map(([label, value]) => `<span><b>${escapeHTML(value)}</b>${escapeHTML(label)}</span>`).join("");
+  const quickQuestions = document.querySelector("#analysisQuickQuestions");
+  if (quickQuestions) {
+    quickQuestions.innerHTML = analysisQuickQuestions.map((question) => `<button type="button" data-analysis-question="${escapeHTML(question)}">${escapeHTML(question)}</button>`).join("");
+  }
+}
+
 function renderPromptPreview() {
   const preview = document.querySelector("#analysisPromptPreview");
   const prompt = document.querySelector("#analysisPrompt");
   const template = selectedAnalysisPrompt();
-  preview.innerHTML = `<strong>Prompt สำเร็จรูป</strong><p>${escapeHTML(template)}</p><button type="button" class="text-button" id="useAnalysisPrompt">ใช้ Prompt นี้</button>`;
-  if (!prompt.value.trim() || prompt.dataset.template === "true") {
-    prompt.value = template;
-    prompt.dataset.template = "true";
-  }
+  preview.innerHTML = `<strong>กรอบวิเคราะห์ที่เลือก</strong><p>${escapeHTML(template)}</p><button type="button" class="text-button" id="useAnalysisPrompt">ใช้ Prompt นี้ในช่องถาม</button>`;
   document.querySelector("#useAnalysisPrompt").addEventListener("click", () => {
     prompt.value = template;
     prompt.dataset.template = "true";
@@ -1300,25 +1539,42 @@ document.querySelector("#analysisPrompt").addEventListener("input", (event) => {
   event.currentTarget.dataset.template = "false";
 });
 document.querySelector("#analysisPrompt").addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && !event.shiftKey) {
+  if (event.key === "Enter" && !event.shiftKey && !analysisInFlight) {
     event.preventDefault();
     document.querySelector("#analysisChatForm").requestSubmit();
   }
 });
+document.querySelector("#analysisQuickQuestions").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-analysis-question]");
+  if (!button) return;
+  const prompt = document.querySelector("#analysisPrompt");
+  prompt.value = button.dataset.analysisQuestion;
+  prompt.dataset.template = "false";
+  prompt.focus();
+});
 
 document.querySelector("#analysisChatForm").addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (analysisInFlight) return;
   const button = document.querySelector("#analyzeBusiness");
   const result = document.querySelector("#analysisResult");
   const status = document.querySelector("#analysisStatus");
   const prompt = document.querySelector("#analysisPrompt");
+  const focusSelect = document.querySelector("#analysisFocus");
+  const quickButtons = [...document.querySelectorAll("#analysisQuickQuestions button")];
   const userPrompt = prompt.value.trim();
   if (!userPrompt) return prompt.focus();
+  const evidenceMarkup = analysisEvidenceMarkup();
+  analysisInFlight = true;
   button.disabled = true;
+  prompt.readOnly = true;
+  focusSelect.disabled = true;
+  quickButtons.forEach((quickButton) => { quickButton.disabled = true; });
+  event.currentTarget.setAttribute("aria-busy", "true");
   button.textContent = "กำลังวิเคราะห์...";
   status.textContent = "กำลังประมวลผล";
   result.classList.remove("empty-analysis");
-  result.innerHTML = `<article class="chat-message user-message"><span>คำถามของคุณ</span><p>${escapeHTML(userPrompt)}</p></article><article class="chat-message assistant-message loading-message"><span>AI Business Analyst</span><p>กำลังอ่านข้อมูลในระบบและตรวจตัวเลขที่เกี่ยวข้อง...</p></article>`;
+  result.innerHTML = `${evidenceMarkup}<article class="chat-message user-message"><span>คำถามของคุณ</span><p>${escapeHTML(userPrompt)}</p></article><article class="chat-message assistant-message loading-message"><span>AI Business Analyst</span><p>กำลังอ่านข้อมูลในระบบและตรวจตัวเลขที่เกี่ยวข้อง...</p></article>`;
 
   try {
     const response = await fetch("/api/analyze", {
@@ -1329,17 +1585,22 @@ document.querySelector("#analysisChatForm").addEventListener("submit", async (ev
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "วิเคราะห์ไม่สำเร็จ");
     document.querySelector("#analysisTitle").textContent = "ข้อเสนอจาก AI สำหรับธุรกิจนี้";
-    result.innerHTML = `<article class="chat-message user-message"><span>คำถามของคุณ</span><p>${escapeHTML(userPrompt)}</p></article><article class="chat-message assistant-message"><span>AI Business Analyst</span><p>${escapeHTML(data.analysis)}</p></article>`;
+    result.innerHTML = `${evidenceMarkup}<article class="chat-message user-message"><span>คำถามของคุณ</span><p>${escapeHTML(userPrompt)}</p></article><article class="chat-message assistant-message"><span>AI Business Analyst</span><p>${escapeHTML(data.analysis)}</p></article>`;
     status.textContent = "วิเคราะห์แล้ว";
   } catch (error) {
     document.querySelector("#analysisTitle").textContent = "ยังเชื่อมต่อ AI ไม่สำเร็จ";
     const errorText = error.message === "Failed to fetch"
       ? "ระบบยังเชื่อมต่อบริการวิเคราะห์ไม่ได้ กรุณาลองใหม่"
       : error.message;
-    result.innerHTML = `<article class="chat-message user-message"><span>คำถามของคุณ</span><p>${escapeHTML(userPrompt)}</p></article><article class="chat-message assistant-message error-message"><span>ระบบวิเคราะห์</span><p>${escapeHTML(errorText)}</p></article>`;
+    result.innerHTML = `${evidenceMarkup}<article class="chat-message user-message"><span>คำถามของคุณ</span><p>${escapeHTML(userPrompt)}</p></article><article class="chat-message assistant-message error-message"><span>ระบบวิเคราะห์</span><p>${escapeHTML(errorText)} ข้อมูล Snapshot ด้านบนยังอยู่ครบ คุณสามารถแก้คำถามแล้วลองอีกครั้ง</p></article>`;
     status.textContent = "เกิดข้อผิดพลาด";
   } finally {
+    analysisInFlight = false;
     button.disabled = false;
+    prompt.readOnly = false;
+    focusSelect.disabled = false;
+    quickButtons.forEach((quickButton) => { quickButton.disabled = false; });
+    event.currentTarget.removeAttribute("aria-busy");
     button.textContent = "ส่งคำถามให้ AI";
   }
 });
@@ -1349,9 +1610,11 @@ renderPromptPreview();
 document.querySelector("#resetDemo").addEventListener("click", () => {
   if (!window.confirm("ต้องการล้างข้อมูลที่เพิ่มทั้งหมดและกลับไปใช้ข้อมูลตัวอย่างหรือไม่?")) return;
   state = normalizeState(clone(seedData));
-  saveState();
+  if (!saveState()) return;
+  selectedLeadIds.clear();
   renderAll();
-  showView("dashboard");
+  resetCustomerFormDefaults();
+  showView("dashboard", { focusHeading: true });
   notify("รีเซ็ตข้อมูลตัวอย่างแล้ว");
 });
 
@@ -1376,9 +1639,11 @@ document.querySelector("#importData").addEventListener("change", async (event) =
       .every((key) => Array.isArray(imported[key]));
     if (!valid) throw new Error("invalid schema");
     state = normalizeState(imported);
-    saveState();
+    if (!saveState()) return;
+    selectedLeadIds.clear();
     renderAll();
-    showView("dashboard");
+    resetCustomerFormDefaults();
+    showView("dashboard", { focusHeading: true });
     notify("นำเข้าข้อมูลเรียบร้อยแล้ว");
   } catch {
     notify("นำเข้าไม่สำเร็จ กรุณาใช้ไฟล์ JSON ที่ Export จาก app นี้");
@@ -1388,7 +1653,13 @@ document.querySelector("#importData").addEventListener("change", async (event) =
 });
 
 document.addEventListener("keydown", (event) => {
-  if (event.key === "/" && !["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName)) {
+  const isFormControl = ["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName) || document.activeElement.isContentEditable;
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z" && lastUndoAction && !isFormControl) {
+    event.preventDefault();
+    document.querySelector("#toastUndo").click();
+    return;
+  }
+  if (event.key === "/" && !isFormControl) {
     event.preventDefault();
     showView("customers");
     document.querySelector("#customerSearch").focus();

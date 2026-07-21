@@ -6,28 +6,28 @@
     <meta name="description" content="Business Growth CRM สำหรับธุรกิจ Online, Onsite, Wholesale และ Retail">
     <meta name="theme-color" content="#17171f">
     <title>Business Growth Command Center | Uncle Tung AI</title>
-    <link rel="icon" href="/brand/icon-favicon.svg?v=2" type="image/svg+xml">
-    <link rel="stylesheet" href="styles.css?v=11">
+    <link rel="icon" href="/brand/icon-favicon.svg?v=14" type="image/svg+xml">
+    <link rel="stylesheet" href="styles.css?v=14">
   </head>
   <body>
     <a class="skip-link" href="#mainContent">ข้ามไปยังเนื้อหาหลัก</a>
     <div class="app-shell">
       <aside class="sidebar">
         <div class="brand">
-          <img class="brand-logo" src="/brand/logo-wordmark-dark.svg?v=2" alt="Uncle Tung AI — AI ที่เข้าใจง่าย ใช้ได้จริง">
+          <img class="brand-logo" src="/brand/logo-wordmark.svg?v=14" alt="Uncle Tung AI — AI ที่เข้าใจง่าย ใช้ได้จริง">
           <div class="brand-business">
             <strong id="sidebarBusinessName">ระบบเติบโตธุรกิจ</strong>
             <span id="sidebarBusinessMode">CRM สำหรับทุกธุรกิจ</span>
           </div>
         </div>
         <nav class="nav" aria-label="เมนูหลัก">
-          <button class="nav-item active" data-view="dashboard"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=2#chart"></use></svg><span>ภาพรวมธุรกิจ</span></button>
-          <button class="nav-item" data-view="customers"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=2#users"></use></svg><span>ข้อมูลลูกค้า</span></button>
-          <button class="nav-item" data-view="crm"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=2#handshake"></use></svg><span>CRM งานขาย</span></button>
-          <button class="nav-item" data-view="products"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=2#shopping-bag"></use></svg><span>สินค้าและข้อเสนอ</span></button>
-          <button class="nav-item" data-view="deals"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=2#target"></use></svg><span>Pipeline ธุรกิจ</span></button>
-          <button class="nav-item" data-view="tasks"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=2#clipboard"></use></svg><span>งานติดตาม</span></button>
-          <button class="nav-item ai-nav" data-view="ai"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=2#sparkles"></use></svg><span>วิเคราะห์ด้วย AI</span></button>
+          <button class="nav-item active" data-view="dashboard"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=14#chart"></use></svg><span>ภาพรวมธุรกิจ</span></button>
+          <button class="nav-item" data-view="customers"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=14#users"></use></svg><span>ข้อมูลลูกค้า</span></button>
+          <button class="nav-item" data-view="crm"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=14#handshake"></use></svg><span>CRM งานขาย</span></button>
+          <button class="nav-item" data-view="products"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=14#shopping-bag"></use></svg><span>สินค้าและข้อเสนอ</span></button>
+          <button class="nav-item" data-view="deals"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=14#target"></use></svg><span>Pipeline ธุรกิจ</span></button>
+          <button class="nav-item" data-view="tasks"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=14#clipboard"></use></svg><span>งานติดตาม</span></button>
+          <button class="nav-item ai-nav" data-view="ai"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=14#sparkles"></use></svg><span>วิเคราะห์ด้วย AI</span></button>
         </nav>
         <div class="sidebar-tools">
           <button id="exportData" class="ghost-button">ส่งออกข้อมูล</button>
@@ -39,13 +39,13 @@
       <main class="main" id="mainContent">
         <header class="topbar">
           <div>
-            <p class="eyebrow brand-kicker"><img src="/brand/icon-favicon.svg?v=2" alt="" aria-hidden="true"> Business Growth System</p>
-            <h1 id="viewTitle">ภาพรวมธุรกิจ</h1>
+            <p class="eyebrow brand-kicker"><img src="/brand/icon-favicon.svg?v=14" alt="" aria-hidden="true"> Business Growth System</p>
+            <h1 id="viewTitle" tabindex="-1">ภาพรวมธุรกิจ</h1>
             <p id="viewDescription" class="view-description">ภาพรวมรายได้ งานขาย และสิ่งที่ต้องทำวันนี้</p>
           </div>
           <div class="topbar-actions">
             <button id="pageAction" class="page-action" type="button">เพิ่มลูกค้าใหม่</button>
-            <div class="role-switch" aria-label="เลือกมุมมองตามหน้าที่">
+            <div class="role-switch" role="group" aria-label="เลือกมุมมองตามหน้าที่">
               <span class="role-switch-label">มุมมอง</span>
               <button class="role-button active" data-role="owner" aria-pressed="true"><span class="role-pixel">OW</span> เจ้าของ</button>
               <button class="role-button" data-role="sales" aria-pressed="false"><span class="role-pixel">SL</span> ฝ่ายขาย</button>
@@ -62,8 +62,9 @@
               <h2 id="businessViewTitle">เลือก Dashboard ตามรูปแบบธุรกิจ</h2>
               <p id="businessViewDescription" class="muted"></p>
             </div>
-            <div id="businessViewSwitch" class="business-view-switch" aria-label="เลือกรูปแบบธุรกิจ"></div>
+            <div id="businessViewSwitch" class="business-view-switch" role="group" aria-label="เลือกรูปแบบธุรกิจ"></div>
           </section>
+          <div id="businessChangeSummary" class="business-change-summary" role="status" aria-live="polite"></div>
           <section id="roleWorkspace" class="role-workspace" aria-labelledby="roleDashboardTitle" aria-live="polite">
             <div class="role-workspace-copy">
               <p id="roleKicker" class="eyebrow">Owner command center</p>
@@ -73,15 +74,59 @@
             <div id="roleFocus" class="role-focus"></div>
             <button id="rolePrimaryAction" class="role-primary-action" type="button">ดูงานสำคัญ</button>
           </section>
+          <div id="ownerCommandGrid" class="owner-command-grid">
+            <section class="goal-banner" aria-labelledby="goalTitle">
+              <div>
+                <p class="eyebrow">เป้าหมายรายได้</p>
+                <h2 id="goalTitle">เป้าหมายรายได้ของธุรกิจ</h2>
+                <p id="goalMessage" class="muted"></p>
+              </div>
+              <div class="goal-meter-wrap">
+                <div class="goal-meta"><strong id="goalCurrent"></strong><span id="goalPercent"></span></div>
+                <div class="goal-meter" role="progressbar" aria-label="ความคืบหน้าเป้ารายได้" aria-valuemin="0" aria-valuemax="100"><span id="goalProgress"></span></div>
+              </div>
+            </section>
+            <section class="panel priority-panel" aria-labelledby="priorityPanelTitle">
+              <div class="panel-head">
+                <div><p id="priorityPanelKicker" class="eyebrow">Action queue</p><h2 id="priorityPanelTitle">Lead ที่ควรติดตามก่อน</h2></div>
+                <span id="priorityLeadBadge" class="badge"></span>
+              </div>
+              <div id="priorityLeads" class="priority-list"></div>
+            </section>
+          </div>
+          <div class="quick-actions" aria-label="เมนูทำงานด่วน">
+            <span class="quick-label">ทำรายการด่วน</span>
+            <button data-jump="customers">+ เพิ่มลูกค้า</button>
+            <button data-jump="deals">+ เพิ่มดีลธุรกิจ</button>
+            <button data-jump="tasks">+ เพิ่มงานติดตาม</button>
+            <span id="roleInsight" class="role-insight"></span>
+          </div>
+          <div id="kpiGrid" class="kpi-grid"></div>
+          <section class="journey-panel owner-journey" aria-labelledby="journeyTitle">
+            <div class="panel-head">
+              <div><p class="eyebrow">Owner customer journey</p><h2 id="journeyTitle">สรุปเส้นทางลูกค้าสำหรับ Owner</h2></div>
+              <div class="journey-head-actions"><img class="journey-brand-logo" src="/brand/logo-wordmark-light.svg?v=14" alt="Uncle Tung AI"><button class="small-button" data-jump="crm">เปิด CRM Board</button></div>
+            </div>
+            <p id="journeyContext" class="panel-context">อ่าน Conversion, มูลค่า และคอขวดจากภาพเดียว</p>
+            <div class="journey-overview">
+              <div class="journey-donut-card">
+                <div id="journeyDonut" class="journey-donut" role="img" aria-label="อัตราปิดการขาย"><span><strong id="journeyDonutValue">0%</strong><small>Conversion</small></span></div>
+                <div class="journey-donut-copy"><strong id="journeyDonutTitle">จาก Lead สู่รายได้</strong><span id="journeyDonutNote">กำลังคำนวณจากข้อมูลปัจจุบัน</span></div>
+              </div>
+              <div id="journeySummary" class="journey-summary" aria-label="ตัวเลขสรุป Customer Journey"></div>
+              <div id="journeyDecision" class="journey-decision" aria-live="polite"></div>
+            </div>
+            <div id="journeyFlow" class="journey-flow"></div>
+          </section>
           <details class="business-context" aria-labelledby="businessProfileTitle">
             <summary class="business-context-summary">
               <div class="business-identity">
-              <div id="businessAvatarPreview" class="business-avatar-preview" aria-hidden="true"></div>
-              <div>
-                <p class="context-label">Business Profile</p>
-                <h2 id="businessProfileTitle">โปรไฟล์ธุรกิจและรูปแบบการขาย</h2>
-                <p id="businessProfileSummary" class="muted"></p>
-              </div>
+                <div id="businessAvatarPreview" class="business-avatar-preview" aria-hidden="true"></div>
+                <div>
+                  <p class="context-label">Business Profile</p>
+                  <h2 id="businessProfileTitle">โปรไฟล์ธุรกิจและรูปแบบการขาย</h2>
+                  <p id="businessProfileSummary" class="muted"></p>
+                </div>
               </div>
               <div class="business-context-badges">
                 <span id="businessModeBadge" class="context-badge"></span>
@@ -103,101 +148,71 @@
               <button id="installBusinessCatalog" class="secondary-button" type="button">เพิ่มชุดแนะนำ</button>
             </div>
           </details>
-          <section class="goal-banner" aria-labelledby="goalTitle">
-            <div>
-              <p class="eyebrow">เป้าหมายรายได้</p>
-              <h2 id="goalTitle">เป้าหมายรายได้ของธุรกิจ</h2>
-              <p id="goalMessage" class="muted"></p>
+          <details id="dashboardSecondary" class="dashboard-secondary">
+            <summary><span class="secondary-summary-icon"><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=14#chart"></use></svg></span><strong>ข้อมูลประกอบการตัดสินใจ</strong><small>Business health, ลูกค้าล่าสุด และงานติดตาม</small></summary>
+            <div class="dashboard-grid dashboard-grid--insight">
+              <section class="panel insight-panel">
+                <div class="panel-head">
+                  <div><p id="signalPanelKicker" class="eyebrow">CDP signal</p><h2 id="signalPanelTitle">สัญญาณที่ควรตัดสินใจ</h2></div>
+                  <span id="pipelineBadge" class="badge"></span>
+                </div>
+                <div id="signalGrid" class="signal-grid"></div>
+              </section>
+              <section class="panel">
+                <div class="panel-head">
+                  <h2>ลูกค้าที่เข้ามาล่าสุด</h2>
+                  <button class="small-button" data-jump="customers">เพิ่มลูกค้า</button>
+                </div>
+                <div id="latestLeads" class="compact-list"></div>
+              </section>
+              <section class="panel">
+                <div class="panel-head">
+                  <h2>งานที่ต้องติดตาม</h2>
+                  <button class="small-button" data-jump="tasks">ดูงานทั้งหมด</button>
+                </div>
+                <div id="pendingTasks" class="compact-list"></div>
+              </section>
             </div>
-            <div class="goal-meter-wrap">
-              <div class="goal-meta"><strong id="goalCurrent"></strong><span id="goalPercent"></span></div>
-              <div class="goal-meter" role="progressbar" aria-label="ความคืบหน้าเป้ารายได้" aria-valuemin="0" aria-valuemax="100"><span id="goalProgress"></span></div>
-            </div>
-          </section>
-          <div class="quick-actions" aria-label="เมนูทำงานด่วน">
-            <span class="quick-label">ทำรายการด่วน</span>
-            <button data-jump="customers">+ เพิ่มลูกค้า</button>
-            <button data-jump="deals">+ เพิ่มดีลธุรกิจ</button>
-            <button data-jump="tasks">+ เพิ่มงานติดตาม</button>
-            <span id="roleInsight" class="role-insight"></span>
-          </div>
-          <div id="kpiGrid" class="kpi-grid"></div>
-          <section class="journey-panel owner-journey" aria-labelledby="journeyTitle">
-            <div class="panel-head">
-              <div><p class="eyebrow">Owner customer journey</p><h2 id="journeyTitle">สรุปเส้นทางลูกค้าสำหรับ Owner</h2></div>
-              <div class="journey-head-actions"><img class="journey-brand-logo" src="/brand/logo-wordmark-light.svg?v=2" alt="Uncle Tung AI"><button class="small-button" data-jump="crm">เปิด CRM Board</button></div>
-            </div>
-            <p id="journeyContext" class="panel-context">อ่าน Conversion, มูลค่า และคอขวดจากภาพเดียว</p>
-            <div class="journey-overview">
-              <div class="journey-donut-card">
-                <div id="journeyDonut" class="journey-donut" role="img" aria-label="อัตราปิดการขาย"><span><strong id="journeyDonutValue">0%</strong><small>Conversion</small></span></div>
-                <div class="journey-donut-copy"><strong id="journeyDonutTitle">จาก Lead สู่รายได้</strong><span id="journeyDonutNote">กำลังคำนวณจากข้อมูลปัจจุบัน</span></div>
-              </div>
-              <div id="journeySummary" class="journey-summary" aria-label="ตัวเลขสรุป Customer Journey"></div>
-              <div id="journeyDecision" class="journey-decision" aria-live="polite"></div>
-            </div>
-            <div id="journeyFlow" class="journey-flow"></div>
-          </section>
-          <div class="dashboard-grid dashboard-grid--insight">
-            <section class="panel priority-panel">
-              <div class="panel-head">
-                <div><p id="priorityPanelKicker" class="eyebrow">Action queue</p><h2 id="priorityPanelTitle">Lead ที่ควรติดตามก่อน</h2></div>
-                <span id="priorityLeadBadge" class="badge"></span>
-              </div>
-              <div id="priorityLeads" class="priority-list"></div>
-            </section>
-            <section class="panel insight-panel">
-              <div class="panel-head">
-                <div><p id="signalPanelKicker" class="eyebrow">CDP signal</p><h2 id="signalPanelTitle">สัญญาณที่ควรตัดสินใจ</h2></div>
-                <span id="pipelineBadge" class="badge"></span>
-              </div>
-              <div id="signalGrid" class="signal-grid"></div>
-            </section>
-            <section class="panel">
-              <div class="panel-head">
-                <h2>ลูกค้าที่เข้ามาล่าสุด</h2>
-                <button class="small-button" data-jump="customers">เพิ่มลูกค้า</button>
-              </div>
-              <div id="latestLeads" class="compact-list"></div>
-            </section>
-            <section class="panel">
-              <div class="panel-head">
-                <h2>งานที่ต้องติดตาม</h2>
-                <button class="small-button" data-jump="tasks">ดูงานทั้งหมด</button>
-              </div>
-              <div id="pendingTasks" class="compact-list"></div>
-            </section>
-          </div>
+          </details>
         </section>
 
         <section id="customersView" class="view">
-          <form id="customerForm" class="entry-form">
-            <label>ชื่อลูกค้า<input name="fullName" required placeholder="เช่น บริษัท ABC จำกัด"></label>
-            <label>เบอร์โทร<input name="phone" placeholder="08x-xxx-xxxx"></label>
-            <label>ช่องทางที่มา
-              <select name="source">
-                <option>Facebook</option>
-                <option>LINE OA</option>
-                <option>Website</option>
-                <option>Marketplace</option>
-                <option>Walk-in</option>
-                <option>หน้าร้าน / POS</option>
-                <option>โทรศัพท์</option>
-                <option>ตัวแทนจำหน่าย</option>
-                <option>Google Form</option>
-                <option>Event</option>
-                <option>Referral</option>
-              </select>
-            </label>
-            <label>แพ็กเกจที่สนใจ
-              <select name="solutionPackage" id="customerPackageSelect"></select>
-            </label>
-            <label><span id="customerTypeLabel">ประเภทลูกค้า</span>
-              <select name="customerType" id="customerTypeSelect"></select>
-            </label>
-            <label>ความต้องการเพิ่มเติม<input name="interest" required placeholder="เช่น ต้องการเพิ่มยอดขายจาก Facebook"></label>
-            <label>Avatar ตามประเภทธุรกิจ<select name="avatarPreset" id="customerAvatarPreset"></select></label>
-            <label>หรืออัปโหลดรูปจริง<input name="profilePhoto" type="file" accept="image/*"></label>
+          <form id="customerForm" class="entry-form customer-entry-form">
+            <fieldset class="customer-primary-fields">
+              <legend class="sr-only">ข้อมูลลูกค้าหลัก</legend>
+              <label>ชื่อลูกค้า<input name="fullName" required placeholder="เช่น บริษัท ABC จำกัด"></label>
+              <label>เบอร์โทร<input name="phone" placeholder="08x-xxx-xxxx"></label>
+              <label>ช่องทางที่มา
+                <select name="source">
+                  <option>Facebook</option>
+                  <option>LINE OA</option>
+                  <option>Website</option>
+                  <option>Marketplace</option>
+                  <option>Walk-in</option>
+                  <option>หน้าร้าน / POS</option>
+                  <option>โทรศัพท์</option>
+                  <option>ตัวแทนจำหน่าย</option>
+                  <option>Google Form</option>
+                  <option>Event</option>
+                  <option>Referral</option>
+                </select>
+              </label>
+              <label>ความต้องการหลัก<input name="interest" required placeholder="เช่น ต้องการเพิ่มยอดขายจาก Facebook"></label>
+            </fieldset>
+            <details id="customerAdvancedFields" class="customer-advanced-fields">
+              <summary><strong>ข้อเสนอและโปรไฟล์เพิ่มเติม</strong><span>Package, ประเภทลูกค้า และ Avatar</span></summary>
+              <div class="customer-advanced-grid">
+                <label>แพ็กเกจที่สนใจ
+                  <select name="solutionPackage" id="customerPackageSelect"></select>
+                  <small id="customerPackageHint" class="field-hint"></small>
+                </label>
+                <label><span id="customerTypeLabel">ประเภทลูกค้า</span>
+                  <select name="customerType" id="customerTypeSelect"></select>
+                </label>
+                <label>Avatar ตามประเภทธุรกิจ<select name="avatarPreset" id="customerAvatarPreset"></select></label>
+                <label>หรืออัปโหลดรูปจริง<input name="profilePhoto" type="file" accept="image/*"></label>
+              </div>
+            </details>
             <button type="submit">บันทึกลูกค้าและสร้าง Lead</button>
           </form>
           <div class="toolbar">
@@ -209,6 +224,20 @@
         </section>
 
         <section id="crmView" class="view">
+          <section id="crmBulkToolbar" class="crm-bulk-toolbar" aria-label="จัดการ Lead หลายรายการ">
+            <label class="bulk-select-all"><input id="selectAllLeads" type="checkbox"> เลือก Lead ทั้งหมด</label>
+            <span id="selectedLeadCount" class="muted">ยังไม่ได้เลือก Lead</span>
+            <label class="bulk-stage-label">ย้ายไปขั้น
+              <select id="bulkLeadStage">
+                <option value="New Lead">ลูกค้าใหม่</option>
+                <option value="Contacted">ติดต่อแล้ว</option>
+                <option value="Interested">สนใจ</option>
+                <option value="Proposal Sent">ส่งข้อเสนอแล้ว</option>
+              </select>
+            </label>
+            <button id="applyBulkLeadStage" class="page-action" type="button" disabled>ย้าย Lead ที่เลือก</button>
+            <button id="clearLeadSelection" class="small-button" type="button" disabled>ล้างที่เลือก</button>
+          </section>
           <div id="crmBoard" class="pipeline"></div>
         </section>
 
@@ -270,16 +299,16 @@
           <section class="ai-workspace">
             <header class="ai-workspace-head">
               <div class="ai-heading">
-                <img class="ai-brand-logo" src="/brand/logo-wordmark-dark.svg?v=2" alt="Uncle Tung AI — AI ที่เข้าใจง่าย ใช้ได้จริง">
+                <img class="ai-brand-logo" src="/brand/logo-wordmark-dark.svg?v=14" alt="Uncle Tung AI — AI ที่เข้าใจง่าย ใช้ได้จริง">
                 <div><p class="eyebrow">AI Business Analyst</p><h2>ถามข้อมูลธุรกิจของคุณด้วยภาษาปกติ</h2></div>
               </div>
-              <span class="ai-scope-note"><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=2#sparkles"></use></svg>AI สำหรับวิเคราะห์เฉพาะข้อมูลในระบบเท่านั้น</span>
+              <span class="ai-scope-note"><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=14#sparkles"></use></svg>AI สำหรับวิเคราะห์เฉพาะข้อมูลในระบบเท่านั้น</span>
             </header>
 
             <div class="ai-layout">
               <aside class="ai-control-card" aria-label="ชุดคำถามวิเคราะห์">
                 <div>
-                  <p class="ai-step"><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=2#target"></use></svg>1. เลือกมิติที่ต้องการวิเคราะห์</p>
+                  <p class="ai-step"><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=14#target"></use></svg>1. เลือกมิติที่ต้องการวิเคราะห์</p>
                   <label class="sr-only" for="analysisFocus">Prompt วิเคราะห์ 10 มิติ</label>
                   <select id="analysisFocus">
                     <option value="executive">1. ภาพรวมสำหรับเจ้าของธุรกิจ</option>
@@ -296,7 +325,7 @@
                 </div>
                 <div id="analysisPromptPreview" class="prompt-preview"></div>
                 <div class="ai-data-scope">
-                  <strong><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=2#clipboard"></use></svg>ข้อมูลที่ AI อ่าน</strong>
+                  <strong><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=14#clipboard"></use></svg>ข้อมูลที่ AI อ่าน</strong>
                   <span>Business Profile</span><span>ลูกค้าและ Lead</span><span>ดีลและ Pipeline</span><span>Package</span><span>งานติดตาม</span>
                 </div>
                 <small id="analysisPrivacy">ไม่ส่งรูปโปรไฟล์หรือเบอร์โทรลูกค้า และ API key ไม่แสดงใน browser</small>
@@ -304,11 +333,16 @@
 
               <section class="ai-chat-card" aria-label="สนทนากับ AI เกี่ยวกับข้อมูลธุรกิจ">
                 <div class="ai-result-head">
-                  <div><p class="eyebrow"><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=2#message"></use></svg>Business data chat</p><h2 id="analysisTitle">พร้อมช่วยวิเคราะห์</h2></div>
+                  <div><p class="eyebrow"><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=14#message"></use></svg>Business data chat</p><h2 id="analysisTitle">พร้อมช่วยวิเคราะห์</h2></div>
                   <span id="analysisStatus" class="badge">พร้อมใช้งาน</span>
                 </div>
+                <div class="analysis-snapshot" aria-label="ข้อมูลที่ใช้วิเคราะห์">
+                  <span id="analysisFreshness"></span>
+                  <div id="analysisMetricsSummary"></div>
+                </div>
+                <div id="analysisQuickQuestions" class="analysis-quick-questions" aria-label="คำถามแนะนำ"></div>
                 <div id="analysisResult" class="analysis-result empty-analysis" role="log" aria-live="polite" aria-relevant="additions">
-                  <div class="chat-empty"><strong>เริ่มจาก Prompt สำเร็จรูป หรือถามด้วยคำของคุณเอง</strong><span>คำตอบจะอ้างอิงเฉพาะข้อมูลที่มีอยู่ใน Web App</span></div>
+                  <div class="chat-empty"><strong>เลือกคำถามแนะนำ หรือถามด้วยคำของคุณเอง</strong><span>คำตอบจะอ้างอิงเฉพาะข้อมูลที่มีอยู่ใน Web App</span></div>
                 </div>
                 <form id="analysisChatForm" class="chat-composer">
                   <label for="analysisPrompt">2. คำถามที่ต้องการให้ AI วิเคราะห์</label>
@@ -324,7 +358,7 @@
         </section>
       </main>
     </div>
-    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <div id="toast" class="toast" hidden><span id="toastMessage" role="status" aria-live="polite"></span><button id="toastUndo" type="button" hidden>เลิกทำ</button><button id="toastDismiss" class="toast-dismiss" type="button" aria-label="ปิดการแจ้งเตือน">ปิด</button></div>
     <dialog id="recordDialog" class="record-dialog" aria-labelledby="recordDialogTitle">
       <form id="recordForm" method="dialog" class="record-form">
         <div class="dialog-head"><div><p class="eyebrow">จัดการข้อมูล</p><h2 id="recordDialogTitle">แก้ไขรายการ</h2></div><button class="dialog-close" type="button" data-close-dialog aria-label="ปิด">×</button></div>
@@ -332,6 +366,6 @@
         <div class="dialog-actions"><button class="small-button" type="button" data-close-dialog>ยกเลิก</button><button class="page-action" type="submit">บันทึกการแก้ไข</button></div>
       </form>
     </dialog>
-    <script src="app.js?v=11"></script>
+    <script src="app.js?v=14"></script>
   </body>
 </html>
