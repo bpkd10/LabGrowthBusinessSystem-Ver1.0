@@ -6,7 +6,18 @@ const leadStatuses = ["New Lead", "Contacted", "Interested", "Proposal Sent"];
 const dealStages = ["New", "Qualified", "Proposal", "Negotiation", "Won", "Lost"];
 const taskStatuses = ["todo", "in_progress", "done", "overdue"];
 const leadStatusLabels = { "New Lead": "ลูกค้าใหม่", Contacted: "ติดต่อแล้ว", Interested: "สนใจ", "Proposal Sent": "ส่งข้อเสนอแล้ว" };
-const dealStageLabels = { New: "รายการใหม่", Qualified: "คัดกรองแล้ว", Proposal: "ส่งข้อเสนอ", Negotiation: "กำลังเจรจา", Won: "ปิดการขาย", Lost: "ไม่สำเร็จ" };
+const dealStageLabels = {
+  New: "รับโอกาสธุรกิจใหม่",
+  Qualified: "ตรวจคุณภาพและความต้องการ",
+  Proposal: "ออกแบบและส่งข้อเสนอ",
+  Negotiation: "เจรจาเพื่อการตัดสินใจ",
+  Won: "ชนะดีล / เริ่มส่งมอบ",
+  Lost: "ไม่เดินหน้าต่อ"
+};
+const dealStageGroups = [
+  ["กำลังพัฒนาดีล", ["New", "Qualified", "Proposal", "Negotiation"]],
+  ["ผลลัพธ์ของดีล", ["Won", "Lost"]]
+];
 const taskStatusLabels = { todo: "รอดำเนินการ", in_progress: "กำลังทำ", done: "เสร็จแล้ว", overdue: "เลยกำหนด" };
 const priorityLabels = { High: "สูง", Medium: "ปานกลาง", Low: "ต่ำ" };
 const marketingPackages = [
@@ -175,6 +186,14 @@ function sumDealsBySource() {
     acc[source] = (acc[source] || 0) + Number(deal.value);
     return acc;
   }, {});
+}
+
+function dealStageOptionMarkup(selectedStage) {
+  return dealStageGroups.map(([groupLabel, stages]) => `
+    <optgroup label="${escapeHTML(groupLabel)}">
+      ${stages.map((stage) => `<option value="${escapeHTML(stage)}" ${selectedStage === stage ? "selected" : ""}>${escapeHTML(dealStageLabels[stage])}</option>`).join("")}
+    </optgroup>
+  `).join("");
 }
 
 function renderKpis() {
@@ -366,7 +385,7 @@ function renderDeals() {
   ).join("");
 
   document.querySelector("#dealTable").innerHTML = table(
-    ["โอกาสขาย", "ลูกค้า", "มูลค่า", "ขั้นตอน", "โอกาสสำเร็จ", "จัดการ"],
+    ["ดีลธุรกิจ", "ลูกค้า", "มูลค่า", "สถานะดีล", "โอกาสสำเร็จ", "จัดการ"],
     state.deals.map((deal) => `
       <tr>
         <td>${escapeHTML(deal.name)}</td>
@@ -374,7 +393,7 @@ function renderDeals() {
         <td>${escapeHTML(currency(deal.value))}</td>
         <td>
           <select class="status-select" data-deal-stage="${escapeHTML(deal.id)}" aria-label="สถานะ ${escapeHTML(deal.name)}">
-            ${dealStages.map((stage) => `<option value="${escapeHTML(stage)}" ${deal.stage === stage ? "selected" : ""}>${escapeHTML(dealStageLabels[stage])}</option>`).join("")}
+            ${dealStageOptionMarkup(deal.stage)}
           </select>
         </td>
         <td>${deal.probability}%</td>
@@ -430,8 +449,8 @@ const viewConfig = {
   dashboard: ["ภาพรวมธุรกิจ", "ดูรายได้ งานขาย และสิ่งที่ต้องทำวันนี้", "เพิ่มลูกค้าใหม่", "customers"],
   customers: ["ข้อมูลลูกค้า", "เก็บข้อมูลลูกค้า รูปโปรไฟล์ และแพ็กเกจที่สนใจ", "ไปหน้า CRM", "crm"],
   crm: ["CRM งานขาย", "ติดตาม Lead และเปลี่ยนความสนใจให้เป็นโอกาสขาย", "วิเคราะห์ด้วย AI", "ai"],
-  products: ["แพ็กเกจบริการ", "จัดการสินค้า บริการ และ Marketing Solution Package", "เพิ่มโอกาสขาย", "deals"],
-  deals: ["โอกาสการขาย", "ติดตามมูลค่าและขั้นตอนของงานขายทุกชิ้น", "ดูภาพรวม", "dashboard"],
+  products: ["แพ็กเกจบริการ", "จัดการสินค้า บริการ และ Marketing Solution Package", "เพิ่มดีลธุรกิจ", "deals"],
+  deals: ["Pipeline ธุรกิจ", "พัฒนาดีลตั้งแต่ตรวจความต้องการ ออกแบบข้อเสนอ จนเริ่มส่งมอบงาน", "ดูภาพรวม", "dashboard"],
   tasks: ["งานติดตาม", "จัดลำดับงานที่ต้องทำและป้องกัน Lead หลุด", "เปิด CRM", "crm"],
   ai: ["วิเคราะห์ด้วย AI", "ใช้ข้อมูลจริงในระบบเพื่อหาโอกาสและวางแผนงานต่อ", "กลับภาพรวม", "dashboard"]
 };
@@ -516,8 +535,8 @@ const recordConfigs = {
     fields: [["name", "ชื่อแพ็กเกจ/บริการ", "text"], ["category", "ประเภท", "text"], ["price", "ราคาขาย", "number"], ["cost", "ต้นทุน", "number"], ["status", "สถานะ", "select", ["active", "inactive"]]]
   },
   deal: {
-    title: "แก้ไขโอกาสขาย", collection: "deals",
-    fields: [["name", "ชื่อโอกาสขาย", "text"], ["value", "มูลค่า", "number"], ["stage", "ขั้นตอน", "select", dealStages], ["probability", "โอกาสสำเร็จ (%)", "number"]]
+    title: "แก้ไขดีลธุรกิจ", collection: "deals",
+    fields: [["name", "ชื่อดีลธุรกิจ", "text"], ["value", "มูลค่า", "number"], ["stage", "สถานะการพัฒนาดีล", "select", dealStages], ["probability", "โอกาสสำเร็จ (%)", "number"]]
   },
   task: {
     title: "แก้ไขงานติดตาม", collection: "tasks",
@@ -529,7 +548,10 @@ function recordFieldMarkup([name, label, type, options], record) {
   const value = record[name] ?? "";
   if (type === "select") {
     const labelMap = name === "stage" ? dealStageLabels : name === "status" ? { ...taskStatusLabels, active: "เปิดขาย", inactive: "ปิดขาย" } : name === "priority" ? priorityLabels : {};
-    return `<label>${escapeHTML(label)}<select name="${escapeHTML(name)}">${options.map((option) => `<option value="${escapeHTML(option)}" ${String(value) === String(option) ? "selected" : ""}>${escapeHTML(labelMap[option] || option)}</option>`).join("")}</select></label>`;
+    const optionMarkup = name === "stage"
+      ? dealStageOptionMarkup(String(value))
+      : options.map((option) => `<option value="${escapeHTML(option)}" ${String(value) === String(option) ? "selected" : ""}>${escapeHTML(labelMap[option] || option)}</option>`).join("");
+    return `<label>${escapeHTML(label)}<select name="${escapeHTML(name)}">${optionMarkup}</select></label>`;
   }
   return `<label>${escapeHTML(label)}<input name="${escapeHTML(name)}" type="${escapeHTML(type)}" value="${escapeHTML(value)}" ${type === "number" ? "min=\"0\"" : ""} required></label>`;
 }

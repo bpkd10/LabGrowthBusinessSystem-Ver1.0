@@ -24,7 +24,7 @@
           <button class="nav-item" data-view="customers"><span>02</span> ข้อมูลลูกค้า</button>
           <button class="nav-item" data-view="crm"><span>03</span> CRM งานขาย</button>
           <button class="nav-item" data-view="products"><span>04</span> แพ็กเกจบริการ</button>
-          <button class="nav-item" data-view="deals"><span>05</span> โอกาสการขาย</button>
+          <button class="nav-item" data-view="deals"><span>05</span> Pipeline ธุรกิจ</button>
           <button class="nav-item" data-view="tasks"><span>06</span> งานติดตาม</button>
           <button class="nav-item ai-nav" data-view="ai"><span>AI</span> วิเคราะห์ด้วย AI</button>
         </nav>
@@ -67,7 +67,7 @@
           <div class="quick-actions" aria-label="เมนูทำงานด่วน">
             <span class="quick-label">ทำรายการด่วน</span>
             <button data-jump="customers">+ เพิ่มลูกค้า</button>
-            <button data-jump="deals">+ เพิ่มโอกาสขาย</button>
+            <button data-jump="deals">+ เพิ่มดีลธุรกิจ</button>
             <button data-jump="tasks">+ เพิ่มงานติดตาม</button>
             <span id="roleInsight" class="role-insight"></span>
           </div>
@@ -161,19 +161,23 @@
             <label>ลูกค้า
               <select name="customerId" id="dealCustomerSelect"></select>
             </label>
-            <label>ชื่อโอกาสขาย<input name="name" required placeholder="เช่น Marketing Solution Package"></label>
+            <label>ชื่อดีลธุรกิจ<input name="name" required placeholder="เช่น โครงการวางระบบ Lead Generation"></label>
             <label>มูลค่า<input name="value" type="number" min="0" step="1000" required value="35000"></label>
-            <label>ขั้นตอนการขาย
+            <label>สถานะการพัฒนาดีล
               <select name="stage">
-                <option value="New">รายการใหม่</option>
-                <option value="Qualified">คัดกรองแล้ว</option>
-                <option value="Proposal">ส่งข้อเสนอ</option>
-                <option value="Negotiation">กำลังเจรจา</option>
-                <option value="Won">ปิดการขาย</option>
-                <option value="Lost">ไม่สำเร็จ</option>
+                <optgroup label="กำลังพัฒนาดีล">
+                  <option value="New">รับโอกาสธุรกิจใหม่</option>
+                  <option value="Qualified">ตรวจคุณภาพและความต้องการ</option>
+                  <option value="Proposal">ออกแบบและส่งข้อเสนอ</option>
+                  <option value="Negotiation">เจรจาเพื่อการตัดสินใจ</option>
+                </optgroup>
+                <optgroup label="ผลลัพธ์ของดีล">
+                  <option value="Won">ชนะดีล / เริ่มส่งมอบ</option>
+                  <option value="Lost">ไม่เดินหน้าต่อ</option>
+                </optgroup>
               </select>
             </label>
-            <button type="submit">เพิ่มโอกาสขาย</button>
+            <button type="submit">เพิ่มดีลธุรกิจ</button>
           </form>
           <div id="dealTable" class="table-wrap"></div>
         </section>
