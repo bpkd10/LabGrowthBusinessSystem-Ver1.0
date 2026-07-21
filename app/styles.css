@@ -103,6 +103,9 @@ textarea {
   width: 100%;
   max-width: 214px;
   height: auto;
+  min-height: 61px;
+  object-fit: contain;
+  object-position: left center;
 }
 
 .brand-business {
@@ -164,6 +167,9 @@ textarea {
 }
 
 .nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 11px 12px;
   text-align: left;
   background: transparent;
@@ -171,16 +177,33 @@ textarea {
 }
 
 .nav-item span {
-  margin-right: 8px;
-  color: #9aa8a3;
-  font-size: 11px;
-  letter-spacing: .08em;
+  margin: 0;
+  color: inherit;
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.nav-vector {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  transition: transform .18s ease;
 }
 
 .nav-item:hover,
 .nav-item.active {
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+.nav-item:hover .nav-vector,
+.nav-item:focus-visible .nav-vector {
+  transform: translateY(-1px) scale(1.06);
 }
 
 .ghost-button {
@@ -1294,7 +1317,7 @@ tbody tr:hover {
 }
 
 .nav-item span {
-  color: #789d94;
+  color: inherit;
 }
 
 .nav-item:hover,
@@ -1491,9 +1514,7 @@ tbody tr:hover {
   display: block;
   width: 142px;
   height: auto;
-  padding: 7px 10px;
-  border-radius: 8px;
-  background: #fff;
+  border-radius: 7px;
 }
 
 .ai-scope-note {
@@ -1510,13 +1531,10 @@ tbody tr:hover {
 }
 
 .ai-scope-note::before {
-  width: 7px;
-  height: 7px;
-  margin-right: 8px;
-  border-radius: 50%;
-  background: var(--accent-2);
-  content: "";
+  content: none;
 }
+
+.ai-scope-note .ui-icon { width: 15px; height: 15px; margin-right: 8px; color: #ff9b5c; }
 
 .ai-layout {
   display: grid;
@@ -1534,11 +1552,16 @@ tbody tr:hover {
 }
 
 .ai-step {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   margin-bottom: 9px;
   color: var(--ink);
   font-size: 13px;
   font-weight: 750;
 }
+
+.ai-step .ui-icon { width: 16px; height: 16px; color: var(--accent); }
 
 .ai-control-card select {
   width: 100%;
@@ -1563,6 +1586,14 @@ tbody tr:hover {
   display: block;
   margin-bottom: 6px;
   font-size: 12px;
+}
+
+.ai-data-scope strong .ui-icon,
+.ai-result-head .eyebrow .ui-icon {
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+  vertical-align: -2px;
 }
 
 .prompt-preview p {
