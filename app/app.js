@@ -4,6 +4,7 @@ const VALID_VIEWS = ["dashboard", "customers", "crm", "products", "deals", "task
 
 const businessModes = {
   online: {
+    code: "EC",
     label: "Online",
     description: "ขายผ่าน Social, Website และ Marketplace",
     customerTypeLabel: "กลุ่มลูกค้าออนไลน์",
@@ -17,6 +18,7 @@ const businessModes = {
     ]
   },
   onsite: {
+    code: "SV",
     label: "Onsite",
     description: "บริการที่สาขา นัดหมาย หรือพบลูกค้านอกสถานที่",
     customerTypeLabel: "ประเภทผู้รับบริการ",
@@ -30,6 +32,7 @@ const businessModes = {
     ]
   },
   wholesale: {
+    code: "B2B",
     label: "Wholesale",
     description: "ขายส่ง ตัวแทนจำหน่าย และลูกค้าองค์กร",
     customerTypeLabel: "ประเภทคู่ค้า",
@@ -43,6 +46,7 @@ const businessModes = {
     ]
   },
   retail: {
+    code: "RT",
     label: "Retail",
     description: "หน้าร้าน POS สมาชิก และการซื้อซ้ำ",
     customerTypeLabel: "กลุ่มลูกค้าหน้าร้าน",
@@ -180,6 +184,65 @@ const seedData = {
 };
 
 let state = loadState();
+const roleViews = {
+  owner: {
+    label: "เจ้าของธุรกิจ",
+    kicker: "Owner command center",
+    title: "ภาพรวมสำหรับเจ้าของธุรกิจ",
+    description: "ตัดสินใจจากรายได้ Pipeline และเรื่องที่ต้องแก้วันนี้",
+    pageDescription: "ดูรายได้ ความเสี่ยง และสิ่งที่ต้องตัดสินใจของทั้งธุรกิจ",
+    action: "ตรวจ Pipeline",
+    target: "deals",
+    focus: ["รายได้เทียบเป้า", "มูลค่า Pipeline", "งานเสี่ยงหลุด"],
+    priorityTitle: "เรื่องที่ต้องตัดสินใจก่อน",
+    priorityKicker: "Decision queue",
+    signalTitle: "สัญญาณสุขภาพธุรกิจ",
+    signalKicker: "Business health"
+  },
+  sales: {
+    label: "ฝ่ายขาย",
+    kicker: "Sales workspace",
+    title: "พื้นที่ทำงานของฝ่ายขาย",
+    description: "เห็น Lead ที่ควรโทร ดีลที่ควรตาม และขั้นตอนถัดไปทันที",
+    pageDescription: "โฟกัส Lead, Follow-up และดีลที่มีโอกาสปิดการขาย",
+    action: "เปิด CRM Board",
+    target: "crm",
+    focus: ["Lead คะแนนสูง", "ข้อเสนอรอตอบ", "Follow-up วันนี้"],
+    priorityTitle: "Lead ที่ควรติดตามก่อน",
+    priorityKicker: "Sales action queue",
+    signalTitle: "สัญญาณช่วยปิดการขาย",
+    signalKicker: "Sales signals"
+  },
+  marketing: {
+    label: "การตลาด",
+    kicker: "Marketing performance",
+    title: "ภาพรวมสำหรับทีมการตลาด",
+    description: "เชื่อมช่องทางที่มาของ Lead กับคุณภาพและมูลค่าที่สร้างได้",
+    pageDescription: "ดูช่องทาง แคมเปญ คุณภาพ Lead และรายได้ที่การตลาดมีส่วนสร้าง",
+    action: "ดูลูกค้าตามช่องทาง",
+    target: "customers",
+    focus: ["ช่องทางสร้าง Lead", "Lead เป็นลูกค้า", "มูลค่าจากแคมเปญ"],
+    priorityTitle: "Lead จากการตลาดที่ควรดู",
+    priorityKicker: "Campaign response",
+    signalTitle: "โอกาสปรับช่องทางและข้อเสนอ",
+    signalKicker: "Marketing signals"
+  },
+  ops: {
+    label: "ทีมปฏิบัติการ",
+    kicker: "Operations desk",
+    title: "พื้นที่ทำงานของทีมปฏิบัติการ",
+    description: "จัดลำดับงานค้าง งานส่งมอบ และลูกค้าที่ต้องดูแลต่อ",
+    pageDescription: "ดูงานค้าง กำหนดส่งมอบ และความเสี่ยงที่กระทบลูกค้า",
+    action: "เปิดงานติดตาม",
+    target: "tasks",
+    focus: ["งานครบกำหนด", "งานส่งมอบใหม่", "ลูกค้ารอดำเนินการ"],
+    priorityTitle: "งานลูกค้าที่ต้องจัดการก่อน",
+    priorityKicker: "Operations queue",
+    signalTitle: "สัญญาณความเสี่ยงในการส่งมอบ",
+    signalKicker: "Delivery health"
+  }
+};
+
 let activeRole = "owner";
 let toastTimer;
 
@@ -435,6 +498,41 @@ function renderBusinessProfile() {
   form.elements.revenueTarget.value = profile.revenueTarget;
 }
 
+function renderBusinessViewSwitch() {
+  const mode = currentBusinessMode();
+  document.querySelector("#businessViewTitle").textContent = `Dashboard ธุรกิจ ${mode.label}`;
+  document.querySelector("#businessViewDescription").textContent = `${mode.description} เมื่อเลือก ระบบจะเปลี่ยน Journey, ข้อเสนอ และคำเรียกของลูกค้าทันที`;
+  document.querySelector("#businessViewSwitch").innerHTML = Object.entries(businessModes).map(([key, item]) => `
+    <button type="button" class="business-view-button ${key === state.businessProfile.businessMode ? "active" : ""}" data-business-view="${escapeHTML(key)}" aria-pressed="${key === state.businessProfile.businessMode}">
+      <span>${escapeHTML(item.code)}</span>
+      <strong>${escapeHTML(item.label)}</strong>
+      <small>${escapeHTML(item.description)}</small>
+    </button>
+  `).join("");
+}
+
+function renderRoleWorkspace(data) {
+  const role = roleViews[activeRole] || roleViews.owner;
+  document.body.dataset.activeRole = activeRole;
+  document.querySelectorAll(".role-button").forEach((button) => {
+    const selected = button.dataset.role === activeRole;
+    button.classList.toggle("active", selected);
+    button.setAttribute("aria-pressed", String(selected));
+  });
+  document.querySelector("#roleKicker").textContent = role.kicker;
+  document.querySelector("#roleDashboardTitle").textContent = role.title;
+  document.querySelector("#roleDashboardDescription").textContent = role.description;
+  document.querySelector("#roleFocus").innerHTML = role.focus.map((item, index) => `<span><b>0${index + 1}</b>${escapeHTML(item)}</span>`).join("");
+  const primary = document.querySelector("#rolePrimaryAction");
+  primary.textContent = role.action;
+  primary.dataset.jump = role.target;
+  document.querySelector("#priorityPanelTitle").textContent = role.priorityTitle;
+  document.querySelector("#priorityPanelKicker").textContent = role.priorityKicker;
+  document.querySelector("#signalPanelTitle").textContent = role.signalTitle;
+  document.querySelector("#signalPanelKicker").textContent = role.signalKicker;
+  document.querySelector("#roleInsight").textContent = roleInsight(data);
+}
+
 function renderDashboard() {
   const data = metrics();
   const target = revenueTarget();
@@ -442,6 +540,8 @@ function renderDashboard() {
   const remaining = Math.max(target - data.revenue, 0);
   renderKpis();
   renderBusinessProfile();
+  renderBusinessViewSwitch();
+  renderRoleWorkspace(data);
   document.querySelector("#pipelineBadge").textContent = currency(data.pipelineValue);
   renderJourneyFlow();
   renderPriorityLeads();
@@ -455,8 +555,6 @@ function renderDashboard() {
   document.querySelector("#goalMessage").textContent = remaining
     ? `ต้องสร้างรายได้เพิ่มอีก ${currency(remaining)} เพื่อถึงเป้ารอบนี้`
     : "ถึงเป้ารายได้แล้ว เลือก deal ถัดไปเพื่อสร้างการเติบโตต่อเนื่อง";
-  document.querySelector("#roleInsight").textContent = roleInsight(data);
-
   document.querySelector("#latestLeads").innerHTML = state.leads.slice(-5).reverse().map((lead) => {
     const customer = customerById(lead.customerId);
     return compactItem(customer?.fullName || "-", `${customer?.source || "-"} · ${leadStatusLabels[lead.status] || lead.status}`, `${lead.leadScore} คะแนน`);
@@ -699,19 +797,33 @@ const viewConfig = {
   ai: ["วิเคราะห์ด้วย AI", "ใช้ข้อมูลจริงในระบบเพื่อหาโอกาสและวางแผนงานต่อ", "กลับภาพรวม", "dashboard"]
 };
 
-function showView(view) {
+function showView(route, options = {}) {
+  let [view, routeRole] = String(route || "dashboard").split("/");
   if (!VALID_VIEWS.includes(view)) view = "dashboard";
+  if (view === "dashboard" && roleViews[routeRole] && routeRole !== activeRole) {
+    activeRole = routeRole;
+    renderDashboard();
+  }
   document.querySelectorAll(".view").forEach((item) => item.classList.remove("active"));
   document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item.dataset.view === view));
   document.querySelector(`#${view}View`).classList.add("active");
-  const [title, description, actionLabel, actionTarget] = viewConfig[view];
+  const [defaultTitle, defaultDescription, defaultActionLabel, defaultActionTarget] = viewConfig[view];
+  const role = roleViews[activeRole] || roleViews.owner;
+  const title = view === "dashboard" ? role.title : defaultTitle;
+  const description = view === "dashboard" ? role.pageDescription : defaultDescription;
+  const actionLabel = view === "dashboard" ? role.action : defaultActionLabel;
+  const actionTarget = view === "dashboard" ? role.target : defaultActionTarget;
   document.querySelector("#viewTitle").textContent = title;
   document.querySelector("#viewDescription").textContent = description;
   document.querySelector("#pageAction").textContent = actionLabel;
   document.querySelector("#pageAction").dataset.target = actionTarget;
-  history.replaceState(null, "", `#${view}`);
+  const nextRoute = view === "dashboard" ? `dashboard/${activeRole}` : view;
+  if (options.historyMode !== "none") {
+    const method = options.historyMode === "replace" || location.hash === `#${nextRoute}` ? "replaceState" : "pushState";
+    history[method](null, "", `#${nextRoute}`);
+  }
   document.title = `${document.querySelector("#viewTitle").textContent} | Business Growth`;
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  if (options.scroll !== false) window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 document.querySelectorAll(".nav-item").forEach((button) => {
@@ -722,12 +834,23 @@ document.querySelector("#pageAction").addEventListener("click", (event) => showV
 
 document.querySelectorAll(".role-button").forEach((button) => {
   button.addEventListener("click", () => {
-    document.querySelectorAll(".role-button").forEach((item) => item.classList.remove("active"));
-    button.classList.add("active");
     activeRole = button.dataset.role;
     renderDashboard();
-    notify(`เปลี่ยนเป็นมุมมอง ${button.textContent}`);
+    showView(`dashboard/${activeRole}`, { scroll: false });
+    notify(`เปิดมุมมอง ${roleViews[activeRole].label} แล้ว`);
   });
+});
+
+document.querySelector("#businessViewSwitch").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-business-view]");
+  if (!button || !businessModes[button.dataset.businessView]) return;
+  state.businessProfile.businessMode = button.dataset.businessView;
+  saveState();
+  renderAll();
+  document.querySelector("#customerPackageSelect").value = currentBusinessCatalog()[0].name;
+  document.querySelector("#customerTypeSelect").value = currentBusinessMode().customerTypes[0];
+  showView(`dashboard/${activeRole}`, { scroll: false });
+  notify(`เปลี่ยน Dashboard เป็นธุรกิจ ${currentBusinessMode().label} แล้ว`);
 });
 
 document.querySelector("#businessProfileForm").addEventListener("submit", (event) => {
@@ -1167,7 +1290,7 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-window.addEventListener("hashchange", () => showView(location.hash.slice(1)));
+window.addEventListener("hashchange", () => showView(location.hash.slice(1), { historyMode: "none" }));
 
 function setDefaultDueDate() {
   const input = document.querySelector('input[name="dueDate"]');
@@ -1176,4 +1299,4 @@ function setDefaultDueDate() {
 
 setDefaultDueDate();
 renderAll();
-showView(location.hash.slice(1) || "dashboard");
+showView(location.hash.slice(1) || "dashboard/owner", { historyMode: "replace" });

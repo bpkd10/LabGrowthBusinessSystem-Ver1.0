@@ -12,7 +12,18 @@
   --danger: #b42318;
   --success: #16803c;
   --shadow: 0 12px 30px rgba(16, 37, 34, 0.07);
+  --role-color: #102522;
+  --role-soft: #e9efed;
 }
+
+body[data-business-mode="online"] { --accent: #6546ae; --accent-dark: #30214f; --accent-soft: #eee7ff; }
+body[data-business-mode="onsite"] { --accent: #1c66ad; --accent-dark: #173b5e; --accent-soft: #e1efff; }
+body[data-business-mode="wholesale"] { --accent: #526976; --accent-dark: #273b44; --accent-soft: #e7ecef; }
+body[data-business-mode="retail"] { --accent: #b56400; --accent-dark: #5f3709; --accent-soft: #fff0d7; }
+body[data-active-role="owner"] { --role-color: #102522; --role-soft: #e7efec; }
+body[data-active-role="sales"] { --role-color: #1663a7; --role-soft: #e2f0ff; }
+body[data-active-role="marketing"] { --role-color: #7147a8; --role-soft: #f0e7ff; }
+body[data-active-role="ops"] { --role-color: #9a5700; --role-soft: #fff0d7; }
 
 * {
   box-sizing: border-box;
@@ -298,6 +309,17 @@ h3 {
   background: #fff;
 }
 
+.role-switch-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 7px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
 .role-button {
   min-width: 70px;
   padding: 8px 10px;
@@ -306,8 +328,9 @@ h3 {
 }
 
 .role-button.active {
-  background: var(--ink);
+  background: var(--role-color);
   color: #fff;
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--role-color) 24%, transparent);
 }
 
 .view {
@@ -316,6 +339,128 @@ h3 {
 
 .view.active {
   display: block;
+  animation: view-enter .2s ease both;
+}
+
+@keyframes view-enter {
+  from { opacity: .35; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.business-view-bar {
+  display: grid;
+  grid-template-columns: minmax(220px, .68fr) minmax(600px, 1.55fr);
+  gap: 20px;
+  align-items: center;
+  margin-bottom: 14px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+
+.business-view-bar h2 { margin-bottom: 6px; }
+.business-view-bar .muted { margin-bottom: 0; font-size: 12px; line-height: 1.55; }
+
+.business-view-switch {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.business-view-button {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 2px 8px;
+  min-height: 74px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #f9fbfa;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.business-view-button > span {
+  grid-row: 1 / 3;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 7px;
+  background: #e9efed;
+  color: #52605d;
+  font-size: 9px;
+  font-weight: 850;
+}
+
+.business-view-button strong { font-size: 12px; }
+.business-view-button small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.business-view-button:hover { border-color: var(--accent); }
+.business-view-button.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.business-view-button.active > span { background: var(--accent); color: #fff; }
+
+.role-workspace {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.1fr) minmax(360px, 1.25fr) auto;
+  gap: 22px;
+  align-items: center;
+  margin-bottom: 14px;
+  padding: 20px 22px;
+  border-radius: 12px;
+  background: var(--role-color);
+  color: #fff;
+  box-shadow: var(--shadow);
+}
+
+.role-workspace .eyebrow { color: color-mix(in srgb, var(--role-soft) 82%, white); }
+.role-workspace h2 { margin-bottom: 6px; font-size: 21px; }
+.role-workspace p { margin-bottom: 0; color: color-mix(in srgb, var(--role-soft) 84%, white); font-size: 13px; }
+
+.role-focus {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.role-focus span {
+  display: grid;
+  min-height: 58px;
+  align-content: center;
+  padding: 9px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 8px;
+  background: rgba(255,255,255,.08);
+  font-size: 11px;
+}
+
+.role-focus b { margin-bottom: 3px; color: color-mix(in srgb, var(--role-soft) 74%, white); font-size: 9px; }
+
+.role-primary-action {
+  min-height: 42px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--role-color);
+  font-weight: 750;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 .kpi-grid {
@@ -660,12 +805,19 @@ tbody tr:hover {
 
 @media (max-width: 1100px) {
   .app-shell {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .sidebar {
     position: static;
+    min-width: 0;
+    max-width: 100vw;
     height: auto;
+  }
+
+  .main {
+    min-width: 0;
+    max-width: 100vw;
   }
 
   .nav {
@@ -684,10 +836,15 @@ tbody tr:hover {
 }
 
 @media (max-width: 680px) {
+  body { overflow-x: hidden; }
+
   .main,
   .sidebar {
     padding: 16px;
   }
+
+  .sidebar { gap: 14px; }
+  .sidebar-tools { display: none; }
 
   .topbar {
     display: grid;
@@ -1544,6 +1701,9 @@ body[data-business-mode="wholesale"] .journey-icon { background: #e7ecef; color:
 body[data-business-mode="retail"] .journey-icon { background: #fff0d7; color: #9a5700; }
 
 @media (max-width: 1320px) {
+  .business-view-bar { grid-template-columns: 1fr; }
+  .role-workspace { grid-template-columns: 1fr auto; }
+  .role-focus { grid-column: 1 / -1; grid-row: 2; }
   .business-profile-form {
     grid-template-columns: repeat(3, minmax(150px, 1fr));
   }
@@ -1553,6 +1713,10 @@ body[data-business-mode="retail"] .journey-icon { background: #fff0d7; color: #9
 }
 
 @media (max-width: 760px) {
+  .business-view-switch { grid-template-columns: 1fr 1fr; }
+  .role-workspace { grid-template-columns: 1fr; }
+  .role-focus { grid-column: auto; grid-row: auto; }
+  .role-primary-action { width: 100%; }
   .business-context-summary {
     align-items: flex-start;
     flex-direction: column;
@@ -1578,6 +1742,18 @@ body[data-business-mode="retail"] .journey-icon { background: #fff0d7; color: #9
 }
 
 @media (max-width: 460px) {
+  .business-view-switch { grid-template-columns: 1fr 1fr; }
+  .business-view-button { min-height: 56px; }
+  .business-view-button small { display: none; }
+  .role-switch {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    overflow: visible;
+  }
+  .role-switch-label { grid-column: 1 / -1; }
+  .role-button { min-width: 0; }
+  .topbar-actions,
+  .topbar-actions > * { min-width: 0; max-width: 100%; }
   .business-profile-form {
     grid-template-columns: 1fr;
   }

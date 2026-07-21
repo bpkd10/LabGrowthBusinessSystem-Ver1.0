@@ -6,7 +6,7 @@
     <meta name="description" content="Business Growth CRM สำหรับธุรกิจ Online, Onsite, Wholesale และ Retail">
     <meta name="theme-color" content="#0c3b36">
     <title>Business Growth Command Center | Uncle Tung AI</title>
-    <link rel="stylesheet" href="styles.css?v=4">
+    <link rel="stylesheet" href="styles.css?v=8">
   </head>
   <body>
     <a class="skip-link" href="#mainContent">ข้ามไปยังเนื้อหาหลัก</a>
@@ -45,15 +45,33 @@
           <div class="topbar-actions">
             <button id="pageAction" class="page-action" type="button">เพิ่มลูกค้าใหม่</button>
             <div class="role-switch" aria-label="เลือกมุมมองตามหน้าที่">
-              <button class="role-button active" data-role="owner"><span class="role-pixel">OW</span> เจ้าของ</button>
-              <button class="role-button" data-role="sales"><span class="role-pixel">SL</span> ฝ่ายขาย</button>
-              <button class="role-button" data-role="marketing"><span class="role-pixel">MK</span> การตลาด</button>
-              <button class="role-button" data-role="ops"><span class="role-pixel">OP</span> ทีมงาน</button>
+              <span class="role-switch-label">มุมมอง</span>
+              <button class="role-button active" data-role="owner" aria-pressed="true"><span class="role-pixel">OW</span> เจ้าของ</button>
+              <button class="role-button" data-role="sales" aria-pressed="false"><span class="role-pixel">SL</span> ฝ่ายขาย</button>
+              <button class="role-button" data-role="marketing" aria-pressed="false"><span class="role-pixel">MK</span> การตลาด</button>
+              <button class="role-button" data-role="ops" aria-pressed="false"><span class="role-pixel">OP</span> ทีมงาน</button>
             </div>
           </div>
         </header>
 
         <section id="dashboardView" class="view active">
+          <section class="business-view-bar" aria-labelledby="businessViewTitle">
+            <div>
+              <p class="eyebrow">Business scope</p>
+              <h2 id="businessViewTitle">เลือก Dashboard ตามรูปแบบธุรกิจ</h2>
+              <p id="businessViewDescription" class="muted"></p>
+            </div>
+            <div id="businessViewSwitch" class="business-view-switch" aria-label="เลือกรูปแบบธุรกิจ"></div>
+          </section>
+          <section id="roleWorkspace" class="role-workspace" aria-labelledby="roleDashboardTitle" aria-live="polite">
+            <div class="role-workspace-copy">
+              <p id="roleKicker" class="eyebrow">Owner command center</p>
+              <h2 id="roleDashboardTitle">ภาพรวมสำหรับเจ้าของธุรกิจ</h2>
+              <p id="roleDashboardDescription"></p>
+            </div>
+            <div id="roleFocus" class="role-focus"></div>
+            <button id="rolePrimaryAction" class="role-primary-action" type="button">ดูงานสำคัญ</button>
+          </section>
           <details class="business-context" aria-labelledby="businessProfileTitle">
             <summary class="business-context-summary">
               <div class="business-identity">
@@ -114,14 +132,14 @@
           <div class="dashboard-grid dashboard-grid--insight">
             <section class="panel priority-panel">
               <div class="panel-head">
-                <div><p class="eyebrow">Action queue</p><h2>Lead ที่ควรติดตามก่อน</h2></div>
+                <div><p id="priorityPanelKicker" class="eyebrow">Action queue</p><h2 id="priorityPanelTitle">Lead ที่ควรติดตามก่อน</h2></div>
                 <span id="priorityLeadBadge" class="badge"></span>
               </div>
               <div id="priorityLeads" class="priority-list"></div>
             </section>
             <section class="panel insight-panel">
               <div class="panel-head">
-                <div><p class="eyebrow">CDP signal</p><h2>สัญญาณที่ควรตัดสินใจ</h2></div>
+                <div><p id="signalPanelKicker" class="eyebrow">CDP signal</p><h2 id="signalPanelTitle">สัญญาณที่ควรตัดสินใจ</h2></div>
                 <span id="pipelineBadge" class="badge"></span>
               </div>
               <div id="signalGrid" class="signal-grid"></div>
@@ -280,6 +298,6 @@
         <div class="dialog-actions"><button class="small-button" type="button" data-close-dialog>ยกเลิก</button><button class="page-action" type="submit">บันทึกการแก้ไข</button></div>
       </form>
     </dialog>
-    <script src="app.js?v=4"></script>
+    <script src="app.js?v=8"></script>
   </body>
 </html>
