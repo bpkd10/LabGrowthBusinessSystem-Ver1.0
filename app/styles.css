@@ -755,6 +755,147 @@ tbody tr:hover {
   }
 }
 
+/* CDP-inspired dashboard: journey, signals, and editable records */
+.journey-panel {
+  margin-bottom: 14px;
+  padding: 20px;
+  border: 1px solid #bcd8d0;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f8fffc, #eef8f5);
+}
+
+.panel-context {
+  margin: -8px 0 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.journey-flow {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(130px, 1fr));
+  gap: 10px;
+  align-items: stretch;
+}
+
+.journey-step {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  min-height: 130px;
+  padding: 15px;
+  border: 1px solid #d9e8e3;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.journey-step:not(:last-child)::after {
+  position: absolute;
+  top: 50%;
+  right: -11px;
+  z-index: 1;
+  width: 11px;
+  height: 2px;
+  background: #7fb8aa;
+  content: "";
+}
+
+.journey-step.has-data {
+  border-color: #9ecfc0;
+}
+
+.journey-step:hover {
+  border-color: var(--accent);
+  box-shadow: 0 10px 20px rgba(8, 127, 109, .1);
+}
+
+.journey-number {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.journey-step strong { font-size: 14px; }
+.journey-step b { font-size: 29px; line-height: 1; }
+.journey-step small { color: var(--muted); font-size: 11px; }
+
+.dashboard-grid--insight .panel { min-height: 245px; }
+
+.priority-list { display: grid; gap: 9px; }
+
+.priority-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.priority-item:last-child { border-bottom: 0; }
+
+.priority-meta { display: grid; gap: 5px; text-align: right; }
+.priority-meta small { color: var(--muted); font-size: 11px; }
+.score-tag { color: var(--accent-dark); font-size: 12px; font-weight: 700; }
+
+.signal-grid { display: grid; gap: 9px; }
+
+.signal-card {
+  display: grid;
+  grid-template-columns: minmax(112px, .9fr) minmax(48px, auto) minmax(130px, 1.2fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.signal-card:hover { border-color: #9ecfc0; background: #f8fffc; }
+.signal-card span, .signal-card small { color: var(--muted); font-size: 12px; }
+.signal-card strong { color: var(--accent-dark); font-size: 16px; }
+.signal-card small b { color: var(--accent); }
+
+.table-actions { display: flex; gap: 6px; }
+.table-actions .danger:hover { border-color: #e3a49d; background: #fff6f5; color: var(--danger); }
+
+.record-dialog {
+  width: min(620px, calc(100vw - 30px));
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  box-shadow: 0 24px 70px rgba(16, 37, 34, .26);
+}
+
+.record-dialog::backdrop { background: rgba(10, 32, 28, .45); }
+.record-form { padding: 22px; background: #fff; }
+.dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.dialog-close { width: 34px; height: 34px; border: 0; border-radius: 50%; background: #edf3f1; color: var(--ink); font-size: 22px; cursor: pointer; }
+.record-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.record-fields label { display: grid; gap: 7px; color: var(--muted); font-size: 13px; }
+.record-fields input, .record-fields select { min-height: 42px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; }
+
+@media (max-width: 900px) {
+  .journey-flow { grid-template-columns: repeat(5, minmax(145px, 1fr)); overflow-x: auto; padding-bottom: 4px; }
+  .priority-item { grid-template-columns: minmax(0, 1fr) auto; }
+  .priority-item > .small-button { grid-column: 1 / -1; }
+}
+
+@media (max-width: 680px) {
+  .journey-panel { padding: 16px; }
+  .signal-card { grid-template-columns: 1fr auto; }
+  .signal-card small { grid-column: 1 / -1; }
+  .record-fields { grid-template-columns: 1fr; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

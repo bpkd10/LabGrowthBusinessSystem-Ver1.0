@@ -210,11 +210,10 @@ function renderDashboard() {
   const progress = Math.min((data.revenue / REVENUE_TARGET) * 100, 100);
   const remaining = Math.max(REVENUE_TARGET - data.revenue, 0);
   renderKpis();
-  document.querySelector("#topSourceBadge").textContent = `อันดับ 1: ${data.topSource}`;
   document.querySelector("#pipelineBadge").textContent = currency(data.pipelineValue);
-
-  renderBars("#sourceBars", Object.entries(sumDealsBySource()).sort((a, b) => b[1] - a[1]), "var(--accent)");
-  renderBars("#stageBars", Object.entries(countBy(state.deals, "stage")).sort((a, b) => b[1] - a[1]), "var(--accent-2)");
+  renderJourneyFlow();
+  renderPriorityLeads();
+  renderSignals(data);
 
   document.querySelector("#goalCurrent").textContent = `${currency(data.revenue)} / ${currency(REVENUE_TARGET)}`;
   document.querySelector("#goalPercent").textContent = percent(progress);
@@ -233,6 +232,45 @@ function renderDashboard() {
   document.querySelector("#pendingTasks").innerHTML = state.tasks.filter((task) => task.status !== "done").slice(0, 5).map((task) =>
     compactItem(task.title, `${task.owner} · ${task.dueDate}`, task.priority)
   ).join("");
+}
+
+function renderJourneyFlow() {
+  const steps = [
+    ["New Lead", "รู้จักเรา", "ลูกค้าใหม่"],
+    ["Contacted", "ติดต่อแล้ว", "เริ่มสนทนา"],
+    ["Interested", "สนใจ", "เห็นความต้องการ"],
+    ["Proposal Sent", "ส่งข้อเสนอ", "พร้อมตัดสินใจ"],
+    ["Won", "ปิดการขาย", "รายได้เกิดขึ้น"]
+  ];
+  document.querySelector("#journeyFlow").innerHTML = steps.map(([key, label, detail], index) => {
+    const count = key === "Won" ? state.deals.filter((deal) => deal.stage === "Won").length : state.leads.filter((lead) => lead.status === key).length;
+    return `<button class="journey-step ${count ? "has-data" : ""}" data-jump="${key === "Won" ? "deals" : "crm"}"><span class="journey-number">0${index + 1}</span><strong>${escapeHTML(label)}</strong><b>${count}</b><small>${escapeHTML(detail)}</small></button>`;
+  }).join("");
+}
+
+function renderPriorityLeads() {
+  const leads = [...state.leads]
+    .filter((lead) => lead.status !== "Proposal Sent" || lead.nextFollowUp <= today())
+    .sort((a, b) => b.leadScore - a.leadScore || a.nextFollowUp.localeCompare(b.nextFollowUp))
+    .slice(0, 3);
+  document.querySelector("#priorityLeadBadge").textContent = leads.length ? `${leads.length} รายการสำคัญ` : "ไม่มีรายการเร่งด่วน";
+  document.querySelector("#priorityLeads").innerHTML = leads.map((lead) => {
+    const customer = customerById(lead.customerId);
+    const overdue = lead.nextFollowUp < today();
+    return `<article class="priority-item"><div class="lead-profile">${avatarMarkup(customer, "small")}<div><strong>${escapeHTML(customer?.fullName || "-")}</strong><span>${escapeHTML(customer?.solutionPackage || "-")}</span></div></div><div class="priority-meta"><span class="score-tag">${lead.leadScore} คะแนน</span><small class="${overdue ? "danger" : ""}">${overdue ? "เกินกำหนด" : `ติดตาม ${lead.nextFollowUp}`}</small></div><button class="small-button" data-task-from-lead="${escapeHTML(lead.id)}">สร้างงาน</button></article>`;
+  }).join("") || `<div class="empty-state">Lead ทุกคนมีแผนติดตามแล้ว</div>`;
+}
+
+function renderSignals(data) {
+  const proposalLeads = state.leads.filter((lead) => lead.status === "Proposal Sent").length;
+  const sourceDeals = sumDealsBySource();
+  const sourceValue = sourceDeals[data.topSource] || 0;
+  const signals = [
+    ["ช่องทางที่คุ้มสุด", data.topSource, sourceValue ? `${currency(sourceValue)} ใน pipeline` : "ยังไม่มีมูลค่า Deal", "customers"],
+    ["ข้อเสนอที่ต้องดู", proposalLeads, proposalLeads ? "Lead รอการตัดสินใจ" : "ยังไม่มีข้อเสนอค้าง", "crm"],
+    ["งานที่เสี่ยงหลุด", data.overdueTasks, data.overdueTasks ? "งานเกินกำหนด ควรจัดการวันนี้" : "ไม่มีงานเกินกำหนด", "tasks"]
+  ];
+  document.querySelector("#signalGrid").innerHTML = signals.map(([label, value, note, target]) => `<button class="signal-card" data-jump="${target}"><span>${escapeHTML(label)}</span><strong>${escapeHTML(String(value))}</strong><small>${escapeHTML(note)} <b>ดู →</b></small></button>`).join("");
 }
 
 function compactItem(title, subtitle, value) {
@@ -267,10 +305,10 @@ function renderCustomers() {
 
   document.querySelector("#customerCount").textContent = `พบ ${customers.length} ราย`;
   document.querySelector("#customerTable").innerHTML = table(
-    ["ลูกค้า", "เบอร์โทร", "ช่องทาง", "แพ็กเกจที่สนใจ", "สถานะ Lead"],
+    ["ลูกค้า", "เบอร์โทร", "ช่องทาง", "แพ็กเกจที่สนใจ", "สถานะ Lead", "จัดการ"],
     customers.map((customer) => {
       const lead = state.leads.find((item) => item.customerId === customer.id);
-      return `<tr><td><div class="customer-cell">${avatarMarkup(customer, "small")}<div><strong>${escapeHTML(customer.fullName)}</strong><span>${escapeHTML(customer.interest)}</span></div></div></td><td>${escapeHTML(customer.phone)}</td><td>${escapeHTML(customer.source)}</td><td><span class="package-pill">${escapeHTML(customer.solutionPackage)}</span></td><td>${escapeHTML(leadStatusLabels[lead?.status] || "-")}</td></tr>`;
+      return `<tr><td><div class="customer-cell">${avatarMarkup(customer, "small")}<div><strong>${escapeHTML(customer.fullName)}</strong><span>${escapeHTML(customer.interest)}</span></div></div></td><td>${escapeHTML(customer.phone)}</td><td>${escapeHTML(customer.source)}</td><td><span class="package-pill">${escapeHTML(customer.solutionPackage)}</span></td><td>${escapeHTML(leadStatusLabels[lead?.status] || "-")}</td><td><div class="table-actions"><button class="row-action" data-edit-record="customer:${escapeHTML(customer.id)}">แก้ไข</button><button class="row-action danger" data-delete-record="customer:${escapeHTML(customer.id)}">ลบ</button></div></td></tr>`;
     })
   );
 }
@@ -314,10 +352,10 @@ function leadCard(lead) {
 
 function renderProducts() {
   document.querySelector("#productTable").innerHTML = table(
-    ["แพ็กเกจ/บริการ", "ประเภท", "ราคาขาย", "ต้นทุน", "กำไรขั้นต้น", "สถานะ"],
+    ["แพ็กเกจ/บริการ", "ประเภท", "ราคาขาย", "ต้นทุน", "กำไรขั้นต้น", "สถานะ", "จัดการ"],
     state.products.map((product) => {
       const margin = Number(product.price) - Number(product.cost);
-      return `<tr><td><strong>${escapeHTML(product.name)}</strong></td><td>${escapeHTML(product.category)}</td><td>${escapeHTML(currency(product.price))}</td><td>${escapeHTML(currency(product.cost))}</td><td class="success">${escapeHTML(currency(margin))}</td><td>${product.status === "active" ? "เปิดขาย" : "ปิดขาย"}</td></tr>`;
+      return `<tr><td><strong>${escapeHTML(product.name)}</strong></td><td>${escapeHTML(product.category)}</td><td>${escapeHTML(currency(product.price))}</td><td>${escapeHTML(currency(product.cost))}</td><td class="success">${escapeHTML(currency(margin))}</td><td>${product.status === "active" ? "เปิดขาย" : "ปิดขาย"}</td><td><div class="table-actions"><button class="row-action" data-edit-record="product:${escapeHTML(product.id)}">แก้ไข</button><button class="row-action danger" data-delete-record="product:${escapeHTML(product.id)}">ลบ</button></div></td></tr>`;
     })
   );
 }
@@ -328,7 +366,7 @@ function renderDeals() {
   ).join("");
 
   document.querySelector("#dealTable").innerHTML = table(
-    ["โอกาสขาย", "ลูกค้า", "มูลค่า", "ขั้นตอน", "โอกาสสำเร็จ"],
+    ["โอกาสขาย", "ลูกค้า", "มูลค่า", "ขั้นตอน", "โอกาสสำเร็จ", "จัดการ"],
     state.deals.map((deal) => `
       <tr>
         <td>${escapeHTML(deal.name)}</td>
@@ -340,6 +378,7 @@ function renderDeals() {
           </select>
         </td>
         <td>${deal.probability}%</td>
+        <td><div class="table-actions"><button class="row-action" data-edit-record="deal:${escapeHTML(deal.id)}">แก้ไข</button><button class="row-action danger" data-delete-record="deal:${escapeHTML(deal.id)}">ลบ</button></div></td>
       </tr>
     `)
   );
@@ -347,7 +386,7 @@ function renderDeals() {
 
 function renderTasks() {
   document.querySelector("#taskTable").innerHTML = table(
-    ["งานที่ต้องทำ", "ผู้รับผิดชอบ", "กำหนดเสร็จ", "ความสำคัญ", "สถานะ"],
+    ["งานที่ต้องทำ", "ผู้รับผิดชอบ", "กำหนดเสร็จ", "ความสำคัญ", "สถานะ", "จัดการ"],
     state.tasks.map((task) => `
       <tr>
         <td>${escapeHTML(task.title)}</td>
@@ -359,6 +398,7 @@ function renderTasks() {
             ${taskStatuses.map((status) => `<option value="${escapeHTML(status)}" ${task.status === status ? "selected" : ""}>${escapeHTML(taskStatusLabels[status])}</option>`).join("")}
           </select>
         </td>
+        <td><div class="table-actions"><button class="row-action" data-edit-record="task:${escapeHTML(task.id)}">แก้ไข</button><button class="row-action danger" data-delete-record="task:${escapeHTML(task.id)}">ลบ</button></div></td>
       </tr>
     `)
   );
@@ -460,6 +500,87 @@ function resizeProfilePhoto(file) {
     image.src = URL.createObjectURL(file);
   });
 }
+
+const recordConfigs = {
+  customer: {
+    title: "แก้ไขข้อมูลลูกค้า",
+    collection: "customers",
+    fields: [
+      ["fullName", "ชื่อลูกค้า", "text"], ["phone", "เบอร์โทร", "text"],
+      ["source", "ช่องทางที่มา", "select", ["Facebook", "LINE OA", "Website", "Google Form", "Event", "Referral"]],
+      ["solutionPackage", "แพ็กเกจที่สนใจ", "select", marketingPackages.map((item) => item.name)], ["interest", "ความต้องการ", "text"]
+    ]
+  },
+  product: {
+    title: "แก้ไขแพ็กเกจ/บริการ", collection: "products",
+    fields: [["name", "ชื่อแพ็กเกจ/บริการ", "text"], ["category", "ประเภท", "text"], ["price", "ราคาขาย", "number"], ["cost", "ต้นทุน", "number"], ["status", "สถานะ", "select", ["active", "inactive"]]]
+  },
+  deal: {
+    title: "แก้ไขโอกาสขาย", collection: "deals",
+    fields: [["name", "ชื่อโอกาสขาย", "text"], ["value", "มูลค่า", "number"], ["stage", "ขั้นตอน", "select", dealStages], ["probability", "โอกาสสำเร็จ (%)", "number"]]
+  },
+  task: {
+    title: "แก้ไขงานติดตาม", collection: "tasks",
+    fields: [["title", "งานที่ต้องทำ", "text"], ["owner", "ผู้รับผิดชอบ", "text"], ["dueDate", "กำหนดเสร็จ", "date"], ["priority", "ความสำคัญ", "select", ["High", "Medium", "Low"]], ["status", "สถานะ", "select", taskStatuses]]
+  }
+};
+
+function recordFieldMarkup([name, label, type, options], record) {
+  const value = record[name] ?? "";
+  if (type === "select") {
+    const labelMap = name === "stage" ? dealStageLabels : name === "status" ? { ...taskStatusLabels, active: "เปิดขาย", inactive: "ปิดขาย" } : name === "priority" ? priorityLabels : {};
+    return `<label>${escapeHTML(label)}<select name="${escapeHTML(name)}">${options.map((option) => `<option value="${escapeHTML(option)}" ${String(value) === String(option) ? "selected" : ""}>${escapeHTML(labelMap[option] || option)}</option>`).join("")}</select></label>`;
+  }
+  return `<label>${escapeHTML(label)}<input name="${escapeHTML(name)}" type="${escapeHTML(type)}" value="${escapeHTML(value)}" ${type === "number" ? "min=\"0\"" : ""} required></label>`;
+}
+
+function openRecordDialog(type, id) {
+  const config = recordConfigs[type];
+  const record = config && state[config.collection].find((item) => item.id === id);
+  if (!record) return;
+  const dialog = document.querySelector("#recordDialog");
+  const form = document.querySelector("#recordForm");
+  document.querySelector("#recordDialogTitle").textContent = config.title;
+  document.querySelector("#recordFields").innerHTML = config.fields.map((field) => recordFieldMarkup(field, record)).join("");
+  form.dataset.recordType = type;
+  form.dataset.recordId = id;
+  dialog.showModal();
+}
+
+function deleteRecord(type, id) {
+  const config = recordConfigs[type];
+  const record = config && state[config.collection].find((item) => item.id === id);
+  if (!record) return;
+  const related = type === "customer" ? " Lead และ Deal ที่เชื่อมกับลูกค้ารายนี้จะถูกลบด้วย" : "";
+  if (!window.confirm(`ยืนยันลบรายการนี้หรือไม่?${related}`)) return;
+  state[config.collection] = state[config.collection].filter((item) => item.id !== id);
+  if (type === "customer") {
+    state.leads = state.leads.filter((lead) => lead.customerId !== id);
+    state.deals = state.deals.filter((deal) => deal.customerId !== id);
+  }
+  saveState();
+  renderAll();
+  notify("ลบรายการเรียบร้อยแล้ว");
+}
+
+document.querySelector("#recordForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const config = recordConfigs[form.dataset.recordType];
+  const record = config && state[config.collection].find((item) => item.id === form.dataset.recordId);
+  if (!record) return;
+  const values = new FormData(form);
+  config.fields.forEach(([name, , type]) => {
+    record[name] = type === "number" ? Number(values.get(name)) : values.get(name).trim();
+  });
+  if (config.collection === "deals") record.probability = record.stage === "Won" ? 100 : record.stage === "Lost" ? 0 : Math.min(100, Math.max(0, Number(record.probability)));
+  saveState();
+  renderAll();
+  document.querySelector("#recordDialog").close();
+  notify("บันทึกการแก้ไขแล้ว");
+});
+
+document.querySelectorAll("[data-close-dialog]").forEach((button) => button.addEventListener("click", () => document.querySelector("#recordDialog").close()));
 
 document.querySelector("#customerForm").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -575,8 +696,20 @@ document.addEventListener("click", (event) => {
   const leadId = event.target.dataset.advanceLead;
   const taskLeadId = event.target.dataset.taskFromLead;
   const dealLeadId = event.target.dataset.dealFromLead;
+  const editRecord = event.target.dataset.editRecord;
+  const deleteRecordRef = event.target.dataset.deleteRecord;
 
   if (jumpTarget) showView(jumpTarget);
+
+  if (editRecord) {
+    const [type, id] = editRecord.split(":");
+    openRecordDialog(type, id);
+  }
+
+  if (deleteRecordRef) {
+    const [type, id] = deleteRecordRef.split(":");
+    deleteRecord(type, id);
+  }
 
   if (leadId) {
     const lead = state.leads.find((item) => item.id === leadId);

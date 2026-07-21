@@ -72,20 +72,28 @@
             <span id="roleInsight" class="role-insight"></span>
           </div>
           <div id="kpiGrid" class="kpi-grid"></div>
-          <div class="dashboard-grid">
-            <section class="panel">
+          <section class="journey-panel" aria-labelledby="journeyTitle">
+            <div class="panel-head">
+              <div><p class="eyebrow">Customer journey</p><h2 id="journeyTitle">เส้นทางลูกค้าจาก Lead สู่รายได้</h2></div>
+              <button class="small-button" data-jump="crm">เปิด CRM Board</button>
+            </div>
+            <p class="panel-context">ดูจุดที่ลูกค้าหยุดอยู่ แล้วเลือก Follow-up ที่ควรทำก่อน</p>
+            <div id="journeyFlow" class="journey-flow"></div>
+          </section>
+          <div class="dashboard-grid dashboard-grid--insight">
+            <section class="panel priority-panel">
               <div class="panel-head">
-                <h2>รายได้แยกตามช่องทาง</h2>
-                <span id="topSourceBadge" class="badge"></span>
+                <div><p class="eyebrow">Action queue</p><h2>Lead ที่ควรติดตามก่อน</h2></div>
+                <span id="priorityLeadBadge" class="badge"></span>
               </div>
-              <div id="sourceBars" class="bar-list"></div>
+              <div id="priorityLeads" class="priority-list"></div>
             </section>
-            <section class="panel">
+            <section class="panel insight-panel">
               <div class="panel-head">
-                <h2>โอกาสขายในแต่ละขั้น</h2>
+                <div><p class="eyebrow">CDP signal</p><h2>สัญญาณที่ควรตัดสินใจ</h2></div>
                 <span id="pipelineBadge" class="badge"></span>
               </div>
-              <div id="stageBars" class="bar-list"></div>
+              <div id="signalGrid" class="signal-grid"></div>
             </section>
             <section class="panel">
               <div class="panel-head">
@@ -221,6 +229,13 @@
       </main>
     </div>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <dialog id="recordDialog" class="record-dialog" aria-labelledby="recordDialogTitle">
+      <form id="recordForm" method="dialog" class="record-form">
+        <div class="dialog-head"><div><p class="eyebrow">จัดการข้อมูล</p><h2 id="recordDialogTitle">แก้ไขรายการ</h2></div><button class="dialog-close" type="button" data-close-dialog aria-label="ปิด">×</button></div>
+        <div id="recordFields" class="record-fields"></div>
+        <div class="dialog-actions"><button class="small-button" type="button" data-close-dialog>ยกเลิก</button><button class="page-action" type="submit">บันทึกการแก้ไข</button></div>
+      </form>
+    </dialog>
     <script src="app.js"></script>
   </body>
 </html>
