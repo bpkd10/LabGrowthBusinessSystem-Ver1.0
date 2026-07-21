@@ -6,7 +6,7 @@
     <meta name="description" content="Business Growth CRM สำหรับธุรกิจ Online, Onsite, Wholesale และ Retail">
     <meta name="theme-color" content="#0c3b36">
     <title>Business Growth Command Center | Uncle Tung AI</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=4">
   </head>
   <body>
     <a class="skip-link" href="#mainContent">ข้ามไปยังเนื้อหาหลัก</a>
@@ -23,7 +23,7 @@
           <button class="nav-item active" data-view="dashboard"><span>01</span> ภาพรวมธุรกิจ</button>
           <button class="nav-item" data-view="customers"><span>02</span> ข้อมูลลูกค้า</button>
           <button class="nav-item" data-view="crm"><span>03</span> CRM งานขาย</button>
-          <button class="nav-item" data-view="products"><span>04</span> แพ็กเกจบริการ</button>
+          <button class="nav-item" data-view="products"><span>04</span> สินค้าและข้อเสนอ</button>
           <button class="nav-item" data-view="deals"><span>05</span> Pipeline ธุรกิจ</button>
           <button class="nav-item" data-view="tasks"><span>06</span> งานติดตาม</button>
           <button class="nav-item ai-nav" data-view="ai"><span>AI</span> วิเคราะห์ด้วย AI</button>
@@ -54,24 +54,36 @@
         </header>
 
         <section id="dashboardView" class="view active">
-          <section class="business-context" aria-labelledby="businessProfileTitle">
-            <div class="business-identity">
+          <details class="business-context" aria-labelledby="businessProfileTitle">
+            <summary class="business-context-summary">
+              <div class="business-identity">
               <div id="businessAvatarPreview" class="business-avatar-preview" aria-hidden="true"></div>
               <div>
                 <p class="context-label">Business Profile</p>
-                <h2 id="businessProfileTitle">ตั้งค่าระบบให้ตรงกับธุรกิจ</h2>
+                <h2 id="businessProfileTitle">โปรไฟล์ธุรกิจและรูปแบบการขาย</h2>
                 <p id="businessProfileSummary" class="muted"></p>
               </div>
-            </div>
+              </div>
+              <div class="business-context-badges">
+                <span id="businessModeBadge" class="context-badge"></span>
+                <span id="businessCategoryBadge" class="context-badge context-badge--muted"></span>
+                <span class="edit-profile-label">แก้ไขโปรไฟล์</span>
+              </div>
+            </summary>
             <form id="businessProfileForm" class="business-profile-form">
               <label>ชื่อธุรกิจ<input name="businessName" required maxlength="60"></label>
               <label>รูปแบบการขาย<select name="businessMode" id="businessModeSelect"></select></label>
               <label>หมวดธุรกิจ<select name="businessCategory" id="businessCategorySelect"></select></label>
               <label>รูปโปรไฟล์<select name="businessAvatar" id="businessAvatarSelect"></select></label>
               <label>เป้ารายได้ต่อรอบ<input name="revenueTarget" type="number" min="1000" step="1000" required></label>
-              <button type="submit">บันทึกโปรไฟล์</button>
+              <button type="submit">บันทึกและปรับระบบ</button>
             </form>
-          </section>
+            <div class="catalog-context">
+              <div><strong>Package/Offer ที่เหมาะกับธุรกิจนี้</strong><span>เพิ่มเข้าเมนูสินค้าและข้อเสนอโดยไม่ลบข้อมูลเดิม</span></div>
+              <div id="businessCatalogPreview" class="catalog-preview"></div>
+              <button id="installBusinessCatalog" class="secondary-button" type="button">เพิ่มชุดแนะนำ</button>
+            </div>
+          </details>
           <section class="goal-banner" aria-labelledby="goalTitle">
             <div>
               <p class="eyebrow">เป้าหมายรายได้</p>
@@ -153,6 +165,9 @@
             <label>แพ็กเกจที่สนใจ
               <select name="solutionPackage" id="customerPackageSelect"></select>
             </label>
+            <label><span id="customerTypeLabel">ประเภทลูกค้า</span>
+              <select name="customerType" id="customerTypeSelect"></select>
+            </label>
             <label>ความต้องการเพิ่มเติม<input name="interest" required placeholder="เช่น ต้องการเพิ่มยอดขายจาก Facebook"></label>
             <label>Avatar ตามประเภทธุรกิจ<select name="avatarPreset" id="customerAvatarPreset"></select></label>
             <label>หรืออัปโหลดรูปจริง<input name="profilePhoto" type="file" accept="image/*"></label>
@@ -172,8 +187,8 @@
 
         <section id="productsView" class="view">
           <form id="productForm" class="entry-form">
-            <label>ชื่อแพ็กเกจ/บริการ<input name="name" required placeholder="เช่น Marketing Growth Package"></label>
-            <label>ประเภท<input name="category" required placeholder="การตลาด, อบรม, ที่ปรึกษา"></label>
+            <label>ชื่อสินค้า/บริการ/ข้อเสนอ<input name="name" required placeholder="เช่น Member Growth Package"></label>
+            <label>ประเภท<input name="category" required placeholder="สินค้า, บริการ, Subscription, Bundle"></label>
             <label>ราคาขาย<input name="price" type="number" min="0" step="100" required value="25000"></label>
             <label>ต้นทุน<input name="cost" type="number" min="0" step="100" required value="5000"></label>
             <button type="submit">เพิ่มแพ็กเกจ</button>
@@ -265,6 +280,6 @@
         <div class="dialog-actions"><button class="small-button" type="button" data-close-dialog>ยกเลิก</button><button class="page-action" type="submit">บันทึกการแก้ไข</button></div>
       </form>
     </dialog>
-    <script src="app.js"></script>
+    <script src="app.js?v=4"></script>
   </body>
 </html>

@@ -6,6 +6,8 @@ const businessModes = {
   online: {
     label: "Online",
     description: "ขายผ่าน Social, Website และ Marketplace",
+    customerTypeLabel: "กลุ่มลูกค้าออนไลน์",
+    customerTypes: ["ผู้ติดตามใหม่", "ผู้ซื้อครั้งแรก", "ลูกค้าซื้อซ้ำ", "ลูกค้า VIP"],
     journey: [
       ["New Lead", "เห็นสินค้า", "Reach / Visit"],
       ["Contacted", "เริ่มสนทนา", "Chat / Inbox"],
@@ -17,6 +19,8 @@ const businessModes = {
   onsite: {
     label: "Onsite",
     description: "บริการที่สาขา นัดหมาย หรือพบลูกค้านอกสถานที่",
+    customerTypeLabel: "ประเภทผู้รับบริการ",
+    customerTypes: ["ผู้สอบถาม", "ผู้นัดหมาย", "ผู้เข้ารับบริการ", "สมาชิกประจำ"],
     journey: [
       ["New Lead", "รู้จักบริการ", "Awareness"],
       ["Contacted", "สอบถาม", "Inquiry"],
@@ -28,6 +32,8 @@ const businessModes = {
   wholesale: {
     label: "Wholesale",
     description: "ขายส่ง ตัวแทนจำหน่าย และลูกค้าองค์กร",
+    customerTypeLabel: "ประเภทคู่ค้า",
+    customerTypes: ["Prospect", "ร้านค้าปลีก", "ตัวแทนจำหน่าย", "Key Account"],
     journey: [
       ["New Lead", "รับรายชื่อคู่ค้า", "Prospect"],
       ["Contacted", "ตรวจคุณสมบัติ", "Qualify"],
@@ -39,6 +45,8 @@ const businessModes = {
   retail: {
     label: "Retail",
     description: "หน้าร้าน POS สมาชิก และการซื้อซ้ำ",
+    customerTypeLabel: "กลุ่มลูกค้าหน้าร้าน",
+    customerTypes: ["Walk-in", "สมาชิกใหม่", "ลูกค้าซื้อซ้ำ", "VIP / High Value"],
     journey: [
       ["New Lead", "เข้าร้าน", "Visit"],
       ["Contacted", "เลือกสินค้า", "Browse"],
@@ -47,6 +55,33 @@ const businessModes = {
       ["Won", "สมาชิกซื้อซ้ำ", "Retention"]
     ]
   }
+};
+
+const businessCatalogs = {
+  online: [
+    { name: "Social Commerce Starter", category: "Online Offer", price: 12000, cost: 3000, description: "จัดระบบ Social, Chat และการรับออเดอร์" },
+    { name: "Marketplace Growth", category: "Online Offer", price: 25000, cost: 7000, description: "ปรับหน้าร้าน Marketplace และแคมเปญขาย" },
+    { name: "Content & Ads Growth", category: "Online Offer", price: 35000, cost: 11000, description: "Content, Ads และระบบเก็บ Lead" },
+    { name: "Omnichannel Commerce", category: "Online Offer", price: 59000, cost: 18000, description: "เชื่อม Social, Website, Marketplace และ CRM" }
+  ],
+  onsite: [
+    { name: "Booking Starter", category: "Onsite Offer", price: 15000, cost: 4000, description: "ระบบสอบถาม นัดหมาย และแจ้งเตือน" },
+    { name: "Service Experience", category: "Onsite Offer", price: 28000, cost: 8000, description: "ออกแบบขั้นตอนรับบริการและ Follow-up" },
+    { name: "Member Retention", category: "Onsite Offer", price: 39000, cost: 12000, description: "สมาชิก การกลับมาใช้ซ้ำ และ Referral" },
+    { name: "Multi-branch Service", category: "Onsite Offer", price: 79000, cost: 25000, description: "จัดการลูกค้าและมาตรฐานบริการหลายสาขา" }
+  ],
+  wholesale: [
+    { name: "Dealer Starter", category: "Wholesale Offer", price: 25000, cost: 7000, description: "รับสมัครและจัดกลุ่มตัวแทนจำหน่าย" },
+    { name: "Volume Order Growth", category: "Wholesale Offer", price: 50000, cost: 16000, description: "ราคาแบบขั้นบันได MOQ และ Repeat Order" },
+    { name: "Distributor Pro", category: "Wholesale Offer", price: 95000, cost: 32000, description: "Pipeline คู่ค้า ใบเสนอราคา และ PO" },
+    { name: "Key Account Program", category: "Wholesale Offer", price: 150000, cost: 52000, description: "แผนดูแลลูกค้าองค์กรและ Forecast" }
+  ],
+  retail: [
+    { name: "POS & Member Starter", category: "Retail Offer", price: 15000, cost: 4500, description: "เก็บสมาชิกและประวัติซื้อจากหน้าร้าน" },
+    { name: "Repeat Purchase", category: "Retail Offer", price: 25000, cost: 7500, description: "Coupon, Point และแคมเปญซื้อซ้ำ" },
+    { name: "Store Campaign", category: "Retail Offer", price: 35000, cost: 11000, description: "แคมเปญหน้าร้านร่วมกับ Social" },
+    { name: "Multi-branch Retail", category: "Retail Offer", price: 79000, cost: 26000, description: "สมาชิกกลางและรายงานหลายสาขา" }
+  ]
 };
 
 const businessCategories = {
@@ -156,7 +191,7 @@ function clone(value) {
 
 function loadState() {
   const saved = localStorage.getItem(STORAGE_KEY);
-  if (!saved) return clone(seedData);
+  if (!saved) return normalizeState(clone(seedData));
   try {
     const parsed = JSON.parse(saved);
     const isValid = ["customers", "leads", "products", "deals", "tasks"]
@@ -172,15 +207,32 @@ function normalizeState(data) {
     ...clone(seedData.businessProfile),
     ...(data.businessProfile || {})
   };
-  data.customers = data.customers.map((customer) => ({
-    ...customer,
-    solutionPackage: customer.solutionPackage || "Marketing Starter",
-    avatar: customer.avatar || "",
-    avatarPreset: customer.avatarPreset || data.businessProfile.businessCategory || "service"
-  }));
+  const mode = businessModes[data.businessProfile.businessMode] || businessModes.online;
+  const catalog = businessCatalogs[data.businessProfile.businessMode] || businessCatalogs.online;
+  const legacyPackageNames = marketingPackages.map((item) => item.name);
+  const needsLegacyMapping = Number(data.schemaVersion || 0) < 4;
+  data.customers = data.customers.map((customer, index) => {
+    const solutionPackage = needsLegacyMapping && legacyPackageNames.includes(customer.solutionPackage)
+      ? catalog[Math.max(0, legacyPackageNames.indexOf(customer.solutionPackage))]?.name || catalog[0].name
+      : customer.solutionPackage || catalog[0].name;
+    const matchedMode = Object.entries(businessCatalogs)
+      .find(([, offers]) => offers.some((offer) => offer.name === solutionPackage))?.[0];
+    return {
+      ...customer,
+      solutionPackage,
+      businessMode: customer.businessMode || matchedMode || "online",
+      avatar: customer.avatar || "",
+      avatarPreset: customer.avatarPreset || data.businessProfile.businessCategory || "service",
+      customerType: customer.customerType || mode.customerTypes[Math.min(index, mode.customerTypes.length - 1)]
+    };
+  });
   const existingNames = new Set(data.products.map((product) => product.name));
   seedData.products.filter((product) => product.id.startsWith("mp") && !existingNames.has(product.name))
     .forEach((product) => data.products.push(clone(product)));
+  catalog.filter((product) => !existingNames.has(product.name)).forEach((product) => data.products.push({
+    ...clone(product), id: uid("p"), status: "active", businessMode: data.businessProfile.businessMode
+  }));
+  data.schemaVersion = 5;
   return data;
 }
 
@@ -234,6 +286,14 @@ function initials(name) {
 
 function revenueTarget() {
   return Math.max(1000, Number(state.businessProfile?.revenueTarget) || REVENUE_TARGET);
+}
+
+function currentBusinessMode() {
+  return businessModes[state.businessProfile?.businessMode] || businessModes.online;
+}
+
+function currentBusinessCatalog() {
+  return businessCatalogs[state.businessProfile?.businessMode] || businessCatalogs.online;
 }
 
 function avatarPresetMarkup(presetKey, size = "normal", label = "โปรไฟล์ธุรกิจ") {
@@ -359,6 +419,11 @@ function renderBusinessProfile() {
   document.querySelector("#sidebarBusinessAvatar").textContent = (avatarPresets[profile.businessAvatar] || avatarPresets.service).code;
   document.querySelector("#businessAvatarPreview").innerHTML = avatarPresetMarkup(profile.businessAvatar, "large", `โปรไฟล์ ${profile.businessName}`);
   document.querySelector("#businessProfileSummary").textContent = `${mode.description} ระบบจะปรับ KPI, Customer Journey และคำแนะนำตามบริบทนี้`;
+  document.querySelector("#businessModeBadge").textContent = mode.label;
+  document.querySelector("#businessCategoryBadge").textContent = categoryLabel;
+  document.querySelector("#businessCatalogPreview").innerHTML = currentBusinessCatalog().map((item) =>
+    `<span class="catalog-chip"><strong>${escapeHTML(item.name)}</strong><small>${escapeHTML(currency(item.price))}</small></span>`
+  ).join("");
 
   document.querySelector("#businessModeSelect").innerHTML = Object.entries(businessModes)
     .map(([value, item]) => `<option value="${escapeHTML(value)}" ${profile.businessMode === value ? "selected" : ""}>${escapeHTML(item.label)}</option>`).join("");
@@ -470,11 +535,13 @@ function renderCustomers() {
 
   document.querySelector("#customerCount").textContent = `พบ ${customers.length} ราย`;
   document.querySelector("#customerTable").innerHTML = table(
-    ["ลูกค้า", "เบอร์โทร", "ช่องทาง", "แพ็กเกจที่สนใจ", "สถานะ Lead", "จัดการ"],
+    ["ลูกค้า", "ประเภทธุรกิจ / ลูกค้า", "เบอร์โทร", "ช่องทาง", "ข้อเสนอที่สนใจ", "สถานะ Lead", "จัดการ"],
     customers.map((customer) => {
       const lead = state.leads.find((item) => item.customerId === customer.id);
       const phone = String(customer.phone || "-");
-      return `<tr><td><div class="customer-cell">${avatarMarkup(customer, "small")}<div><strong>${escapeHTML(customer.fullName)}</strong><span>${escapeHTML(customer.interest)}</span></div></div></td><td><a class="contact-link" href="tel:${escapeHTML(phone.replace(/[^0-9+]/g, ""))}" aria-label="โทรหา ${escapeHTML(customer.fullName)}">${escapeHTML(phone)}</a></td><td>${contactBadge(customer.source)}</td><td><span class="package-pill">${escapeHTML(customer.solutionPackage)}</span></td><td>${escapeHTML(leadStatusLabels[lead?.status] || "-")}</td><td><div class="table-actions"><button class="row-action" data-edit-record="customer:${escapeHTML(customer.id)}">แก้ไข</button><button class="row-action danger" data-delete-record="customer:${escapeHTML(customer.id)}">ลบ</button></div></td></tr>`;
+      const recommended = currentBusinessCatalog().some((item) => item.name === customer.solutionPackage);
+      const customerMode = businessModes[customer.businessMode] || businessModes.online;
+      return `<tr><td><div class="customer-cell">${avatarMarkup(customer, "small")}<div><strong>${escapeHTML(customer.fullName)}</strong><span>${escapeHTML(customer.interest)}</span></div></div></td><td><span class="customer-type-pill">${escapeHTML(customerMode.label)} · ${escapeHTML(customer.customerType || "ยังไม่จัดกลุ่ม")}</span></td><td><a class="contact-link" href="tel:${escapeHTML(phone.replace(/[^0-9+]/g, ""))}" aria-label="โทรหา ${escapeHTML(customer.fullName)}">${escapeHTML(phone)}</a></td><td>${contactBadge(customer.source)}</td><td><span class="package-pill ${recommended ? "package-pill--fit" : ""}">${escapeHTML(customer.solutionPackage)}</span></td><td>${escapeHTML(leadStatusLabels[lead?.status] || "-")}</td><td><div class="table-actions"><button class="row-action" data-edit-record="customer:${escapeHTML(customer.id)}">แก้ไข</button><button class="row-action danger" data-delete-record="customer:${escapeHTML(customer.id)}">ลบ</button></div></td></tr>`;
     })
   );
 }
@@ -518,10 +585,11 @@ function leadCard(lead) {
 
 function renderProducts() {
   document.querySelector("#productTable").innerHTML = table(
-    ["แพ็กเกจ/บริการ", "ประเภท", "ราคาขาย", "ต้นทุน", "กำไรขั้นต้น", "สถานะ", "จัดการ"],
+    ["สินค้า/บริการ/ข้อเสนอ", "ประเภท", "ใช้กับธุรกิจ", "ราคาขาย", "ต้นทุน", "กำไรขั้นต้น", "สถานะ", "จัดการ"],
     state.products.map((product) => {
       const margin = Number(product.price) - Number(product.cost);
-      return `<tr><td><strong>${escapeHTML(product.name)}</strong></td><td>${escapeHTML(product.category)}</td><td>${escapeHTML(currency(product.price))}</td><td>${escapeHTML(currency(product.cost))}</td><td class="success">${escapeHTML(currency(margin))}</td><td>${product.status === "active" ? "เปิดขาย" : "ปิดขาย"}</td><td><div class="table-actions"><button class="row-action" data-edit-record="product:${escapeHTML(product.id)}">แก้ไข</button><button class="row-action danger" data-delete-record="product:${escapeHTML(product.id)}">ลบ</button></div></td></tr>`;
+      const modeLabel = product.businessMode ? businessModes[product.businessMode]?.label || "ทั่วไป" : "ทุกธุรกิจ";
+      return `<tr><td><strong>${escapeHTML(product.name)}</strong></td><td>${escapeHTML(product.category)}</td><td><span class="context-badge context-badge--table">${escapeHTML(modeLabel)}</span></td><td>${escapeHTML(currency(product.price))}</td><td>${escapeHTML(currency(product.cost))}</td><td class="success">${escapeHTML(currency(margin))}</td><td>${product.status === "active" ? "เปิดขาย" : "ปิดขาย"}</td><td><div class="table-actions"><button class="row-action" data-edit-record="product:${escapeHTML(product.id)}">แก้ไข</button><button class="row-action danger" data-delete-record="product:${escapeHTML(product.id)}">ลบ</button></div></td></tr>`;
     })
   );
 }
@@ -578,13 +646,32 @@ function renderAll() {
   renderDeals();
   renderTasks();
   renderPackageOptions();
+  renderCustomerTypeOptions();
   renderAvatarOptions();
 }
 
 function renderPackageOptions() {
   const select = document.querySelector("#customerPackageSelect");
   const selected = select.value;
-  select.innerHTML = marketingPackages.map((item) => `<option value="${escapeHTML(item.name)}" ${selected === item.name ? "selected" : ""}>${escapeHTML(item.name)} · ${escapeHTML(currency(item.price))}</option>`).join("");
+  const recommended = currentBusinessCatalog();
+  const recommendedNames = new Set(recommended.map((item) => item.name));
+  const otherProducts = state.products.filter((item) => item.status === "active" && !recommendedNames.has(item.name));
+  select.innerHTML = `
+    <optgroup label="แนะนำสำหรับ ${escapeHTML(currentBusinessMode().label)}">
+      ${recommended.map((item) => `<option value="${escapeHTML(item.name)}" ${selected === item.name ? "selected" : ""}>${escapeHTML(item.name)} · ${escapeHTML(currency(item.price))}</option>`).join("")}
+    </optgroup>
+    ${otherProducts.length ? `<optgroup label="สินค้าและบริการอื่นในระบบ">${otherProducts.map((item) => `<option value="${escapeHTML(item.name)}" ${selected === item.name ? "selected" : ""}>${escapeHTML(item.name)} · ${escapeHTML(currency(item.price))}</option>`).join("")}</optgroup>` : ""}
+  `;
+}
+
+function renderCustomerTypeOptions() {
+  const mode = currentBusinessMode();
+  const select = document.querySelector("#customerTypeSelect");
+  const selected = select.value;
+  document.querySelector("#customerTypeLabel").textContent = mode.customerTypeLabel;
+  select.innerHTML = mode.customerTypes.map((item) =>
+    `<option value="${escapeHTML(item)}" ${selected === item ? "selected" : ""}>${escapeHTML(item)}</option>`
+  ).join("");
 }
 
 function renderAvatarOptions() {
@@ -606,7 +693,7 @@ const viewConfig = {
   dashboard: ["ภาพรวมธุรกิจ", "ดูรายได้ งานขาย และสิ่งที่ต้องทำวันนี้", "เพิ่มลูกค้าใหม่", "customers"],
   customers: ["ข้อมูลลูกค้า", "เก็บข้อมูลลูกค้า รูปโปรไฟล์ และแพ็กเกจที่สนใจ", "ไปหน้า CRM", "crm"],
   crm: ["CRM งานขาย", "ติดตาม Lead และเปลี่ยนความสนใจให้เป็นโอกาสขาย", "วิเคราะห์ด้วย AI", "ai"],
-  products: ["แพ็กเกจบริการ", "จัดการสินค้า บริการ และ Marketing Solution Package", "เพิ่มดีลธุรกิจ", "deals"],
+  products: ["สินค้าและข้อเสนอ", "จัดการสินค้า บริการ Subscription และ Package ให้ตรงกับรูปแบบธุรกิจ", "เพิ่มดีลธุรกิจ", "deals"],
   deals: ["Pipeline ธุรกิจ", "พัฒนาดีลตั้งแต่ตรวจความต้องการ ออกแบบข้อเสนอ จนเริ่มส่งมอบงาน", "ดูภาพรวม", "dashboard"],
   tasks: ["งานติดตาม", "จัดลำดับงานที่ต้องทำและป้องกัน Lead หลุด", "เปิด CRM", "crm"],
   ai: ["วิเคราะห์ด้วย AI", "ใช้ข้อมูลจริงในระบบเพื่อหาโอกาสและวางแผนงานต่อ", "กลับภาพรวม", "dashboard"]
@@ -655,7 +742,27 @@ document.querySelector("#businessProfileForm").addEventListener("submit", (event
   };
   saveState();
   renderAll();
+  document.querySelector("#customerPackageSelect").value = currentBusinessCatalog()[0].name;
+  document.querySelector("#customerTypeSelect").value = currentBusinessMode().customerTypes[0];
+  document.querySelector(".business-context").open = false;
   notify("บันทึก Business Profile และปรับ Dashboard แล้ว");
+});
+
+document.querySelector("#installBusinessCatalog").addEventListener("click", () => {
+  const existingNames = new Set(state.products.map((product) => product.name));
+  const additions = currentBusinessCatalog().filter((item) => !existingNames.has(item.name));
+  additions.forEach((item) => state.products.push({
+    id: uid("p"),
+    name: item.name,
+    category: item.category,
+    price: item.price,
+    cost: item.cost,
+    status: "active",
+    businessMode: state.businessProfile.businessMode
+  }));
+  saveState();
+  renderAll();
+  notify(additions.length ? `เพิ่มข้อเสนอแนะนำ ${additions.length} รายการแล้ว` : "ชุดข้อเสนอแนะนำอยู่ในระบบแล้ว");
 });
 
 document.querySelector("#businessCategorySelect").addEventListener("change", (event) => {
@@ -709,7 +816,8 @@ const recordConfigs = {
       ["fullName", "ชื่อลูกค้า", "text"], ["phone", "เบอร์โทร", "text"],
       ["source", "ช่องทางที่มา", "select", contactSources],
       ["avatarPreset", "Avatar ตามประเภทธุรกิจ", "select", Object.keys(avatarPresets)],
-      ["solutionPackage", "แพ็กเกจที่สนใจ", "select", marketingPackages.map((item) => item.name)], ["interest", "ความต้องการ", "text"]
+      ["customerType", "ประเภทลูกค้า", "select", []],
+      ["solutionPackage", "ข้อเสนอที่สนใจ", "select", []], ["interest", "ความต้องการ", "text"]
     ]
   },
   product: {
@@ -745,7 +853,12 @@ function openRecordDialog(type, id) {
   const dialog = document.querySelector("#recordDialog");
   const form = document.querySelector("#recordForm");
   document.querySelector("#recordDialogTitle").textContent = config.title;
-  document.querySelector("#recordFields").innerHTML = config.fields.map((field) => recordFieldMarkup(field, record)).join("");
+  const fields = type === "customer" ? config.fields.map((field) => {
+    if (field[0] === "customerType") return [field[0], currentBusinessMode().customerTypeLabel, field[2], currentBusinessMode().customerTypes];
+    if (field[0] === "solutionPackage") return [field[0], field[1], field[2], [...new Set([...currentBusinessCatalog().map((item) => item.name), ...state.products.map((item) => item.name), record.solutionPackage])]];
+    return field;
+  }) : config.fields;
+  document.querySelector("#recordFields").innerHTML = fields.map((field) => recordFieldMarkup(field, record)).join("");
   form.dataset.recordType = type;
   form.dataset.recordId = id;
   dialog.showModal();
@@ -802,6 +915,8 @@ document.querySelector("#customerForm").addEventListener("submit", async (event)
     phone: form.get("phone").trim() || "-",
     source: form.get("source"),
     solutionPackage: form.get("solutionPackage"),
+    customerType: form.get("customerType"),
+    businessMode: state.businessProfile.businessMode,
     interest: form.get("interest").trim(),
     avatar,
     avatarPreset: form.get("avatarPreset") || state.businessProfile.businessCategory,
@@ -830,7 +945,8 @@ document.querySelector("#productForm").addEventListener("submit", (event) => {
     category: form.get("category").trim(),
     price: Number(form.get("price")),
     cost: Number(form.get("cost")),
-    status: "active"
+    status: "active",
+    businessMode: state.businessProfile.businessMode
   });
   event.currentTarget.reset();
   saveState();
@@ -945,7 +1061,7 @@ document.addEventListener("click", (event) => {
   if (dealLeadId) {
     const lead = state.leads.find((item) => item.id === dealLeadId);
     const customer = customerById(lead.customerId);
-    const solution = marketingPackages.find((item) => item.name === customer?.solutionPackage);
+    const solution = [...currentBusinessCatalog(), ...state.products].find((item) => item.name === customer?.solutionPackage);
     showView("deals");
     document.querySelector("#dealCustomerSelect").value = customer.id;
     document.querySelector('#dealForm input[name="name"]').value = customer.solutionPackage || "Marketing Solution Package";
@@ -964,7 +1080,8 @@ function analysisPayload() {
     leads: state.leads,
     deals: state.deals,
     tasks: state.tasks,
-    packages: marketingPackages
+    packages: state.products,
+    recommendedCatalog: currentBusinessCatalog()
   };
 }
 
@@ -1003,7 +1120,7 @@ document.querySelector("#analyzeBusiness").addEventListener("click", async () =>
 
 document.querySelector("#resetDemo").addEventListener("click", () => {
   if (!window.confirm("ต้องการล้างข้อมูลที่เพิ่มทั้งหมดและกลับไปใช้ข้อมูลตัวอย่างหรือไม่?")) return;
-  state = clone(seedData);
+  state = normalizeState(clone(seedData));
   saveState();
   renderAll();
   showView("dashboard");
