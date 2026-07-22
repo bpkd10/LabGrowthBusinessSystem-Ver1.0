@@ -20,13 +20,27 @@ const requiredRoutes = [
 for (const route of requiredRoutes) {
   assert.ok(ASSET_FILES[route], `Asset manifest ไม่มี route ${route}`);
   const [relativePath, contentType] = ASSET_FILES[route];
+  assert.ok(
+    relativePath.startsWith("app/"),
+    `${route} ต้องอยู่ภายใน app/ เพื่อไม่ให้หายเมื่อ deploy แบบ static`
+  );
   const absolutePath = resolve(root, relativePath);
   await access(absolutePath);
   assert.ok((await stat(absolutePath)).size > 100, `${relativePath} ว่างหรือมีขนาดผิดปกติ`);
   assert.equal(contentType, "image/svg+xml", `${route} ต้องใช้ SVG content type`);
   const svg = await readFile(absolutePath, "utf8");
   assert.match(svg, /<svg\b/, `${relativePath} ไม่มี root <svg>`);
+
+  if (route.startsWith("/brand/")) {
+    const sourceSvg = await readFile(resolve(root, "logo.svg", route.split("/").pop()), "utf8");
+    assert.equal(svg, sourceSvg, `${relativePath} ไม่ตรงกับไฟล์ต้นฉบับใน logo.svg/`);
+  }
 }
+
+assert.match(css, /--brand-orange:\s*#ff6b1a/i, "CSS ต้องประกาศสีส้มหลักจาก Logo เป็น CI token");
+assert.match(css, /--brand-ink:\s*#17171f/i, "CSS ต้องประกาศสีดำหลักจาก Logo เป็น CI token");
+assert.match(css, /--brand-soft:\s*#fee9ce/i, "CSS ต้องประกาศสีพื้นอ่อนจาก Logo เป็น CI token");
+assert.match(css, /--accent:\s*var\(--brand-orange-aa\)/, "สี action ต้องอ้าง CI token ที่ผ่าน contrast");
 
 for (const route of requiredRoutes.slice(1)) {
   assert.ok(html.includes(`${route}?v=${ASSET_VERSION}`), `HTML ยังไม่ได้ใช้ ${route} หรือใช้ Asset Version ไม่ตรงกัน`);
@@ -62,6 +76,6 @@ for (const match of css.matchAll(/url\(["']?([^"')]+)["']?\)/g)) {
   if (route.startsWith("/")) assert.ok(ASSET_FILES[route], `CSS อ้าง Asset ${route} ที่ไม่มีใน manifest`);
 }
 
-assert.equal(ASSET_VERSION, "14", "ต้องเพิ่ม Asset Version หลังแก้ UI/Logo/Icon เพื่อป้องกัน cache เก่า");
+assert.equal(ASSET_VERSION, "15", "ต้องเพิ่ม Asset Version หลังแก้ UI/Logo/Icon เพื่อป้องกัน cache เก่า");
 
 console.log(`Asset contract passed: ${requiredRoutes.length} SVG routes, ${referencedSymbols.size} referenced vector symbols, version ${ASSET_VERSION}`);

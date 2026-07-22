@@ -9,7 +9,8 @@
 - `app/index.html`: ตัวอย่าง web app ที่เปิดใช้ได้ทันที
 - `app/styles.css`: หน้าตาและ responsive layout
 - `app/app.js`: sample data, KPI calculation, CRM workflow และ localStorage
-- `logo.svg/`: ชุด Logo CI ทั้ง Wordmark, Dark, Light และ Favicon
+- `logo.svg/`: ไฟล์ต้นฉบับ Logo CI ทั้ง Wordmark, Dark, Light และ Favicon
+- `app/brand/`: สำเนา Logo สำหรับ deployment bundle ห้ามแก้แยกจากไฟล์ต้นฉบับ
 - `app/icons.svg`: Vector Icon Sprite กลางของทุก Business, Role และช่องทางติดต่อ
 - `scripts/assets.mjs`: Asset Manifest กลางที่ Build และ Dev Server ใช้ร่วมกัน
 
@@ -49,7 +50,7 @@ http://localhost:4173/
 npm run check
 ```
 
-คำสั่งนี้ตรวจ Asset Manifest, Logo SVG ทั้ง 4 แบบ, Vector Icon ที่ถูกเรียกใช้, UI contract, JavaScript syntax และ Build route จริงทั้ง 9 เส้นทาง หากไฟล์ Logo/Icon หายหรือ Build ส่งไฟล์เก่าไม่ตรงกับ source ระบบจะหยุดก่อน Deploy
+คำสั่งนี้ตรวจ Asset Manifest, Logo SVG ทั้ง 4 แบบ, ความตรงกันระหว่าง `logo.svg/` กับ `app/brand/`, CI color token, Vector Icon ที่ถูกเรียกใช้, UI contract, JavaScript syntax และ Build route จริงทั้ง 9 เส้นทาง หากไฟล์ Logo/Icon อยู่นอก deployment bundle, หาย, สี CI ไม่ตรง หรือ Build ส่งไฟล์เก่าไม่ตรงกับ source ระบบจะหยุดก่อน Deploy
 
 ## Flow การใช้งาน
 

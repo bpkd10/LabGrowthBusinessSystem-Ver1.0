@@ -1,19 +1,24 @@
 :root {
+  /* Uncle Tung AI CI, synchronized with app/brand/*.svg */
+  --brand-orange: #ff6b1a;
+  --brand-orange-aa: #c34500;
+  --brand-ink: #17171f;
+  --brand-soft: #fee9ce;
   --bg: #f5f5f7;
   --surface: #ffffff;
-  --ink: #17171f;
+  --ink: var(--brand-ink);
   --muted: #64646f;
   --line: #dedee4;
-  --accent: #c34500;
-  --accent-dark: #17171f;
-  --accent-soft: #fee9ce;
-  --accent-2: #ff6b1a;
+  --accent: var(--brand-orange-aa);
+  --accent-dark: var(--brand-ink);
+  --accent-soft: var(--brand-soft);
+  --accent-2: var(--brand-orange);
   --accent-3: #3b82f6;
   --danger: #b42318;
   --success: #16803c;
   --shadow: 0 12px 30px rgba(23, 23, 31, 0.07);
-  --role-color: #17171f;
-  --role-soft: #fee9ce;
+  --role-color: var(--brand-ink);
+  --role-soft: var(--brand-soft);
   --business-color: #6546ae;
   --business-dark: #30214f;
   --business-soft: #eee7ff;
