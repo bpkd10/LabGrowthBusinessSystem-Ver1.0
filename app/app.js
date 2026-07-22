@@ -6,7 +6,12 @@ import {
   updateProductAcrossState,
   detachProductRelations,
   createZeroState
-} from "./business-workflows.js?v=17";
+} from "./business-workflows.js?v=18";
+import {
+  parseImportFile,
+  buildImportPlan,
+  applyImportPlan
+} from "./data-import.js?v=18";
 
 const STORAGE_KEY = "business-growth-dashboard-demo";
 const REVENUE_TARGET = 100000;
@@ -277,6 +282,7 @@ let persistedStateSnapshot = clone(state);
 let analysisInFlight = false;
 let resetStep = 1;
 let resetExported = false;
+let importSession = null;
 
 function clone(value) {
   return typeof structuredClone === "function"
@@ -354,7 +360,7 @@ function normalizeState(data) {
     businessCategory: product.businessCategory || data.businessProfile.businessCategory,
     pipelineStage: dealStages.includes(product.pipelineStage) ? product.pipelineStage : "Proposal"
   }));
-  data.schemaVersion = 7;
+  data.schemaVersion = 8;
   const relatedState = normalizeOfferRelations(data);
   relatedState.customers = relatedState.customers.map(alignCustomerType);
   return relatedState;
@@ -483,7 +489,7 @@ function customerOffer(customer) {
 }
 
 function iconMarkup(name, className = "ui-icon") {
-  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=17#${escapeHTML(name)}"></use></svg>`;
+  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=18#${escapeHTML(name)}"></use></svg>`;
 }
 
 document.querySelector("#toastUndo").addEventListener("click", () => {
@@ -955,6 +961,11 @@ function renderProducts() {
   modeSelect.innerHTML = Object.entries(businessModes).map(([value, item]) =>
     `<option value="${escapeHTML(value)}" ${value === selectedMode ? "selected" : ""}>${escapeHTML(pipelineModeLabels[value] || item.label)}</option>`
   ).join("");
+  const categorySelect = document.querySelector("#productBusinessCategory");
+  const selectedCategory = categorySelect.value || state.businessProfile.businessCategory;
+  categorySelect.innerHTML = Object.entries(businessCategories).map(([value, label]) =>
+    `<option value="${escapeHTML(value)}" ${value === selectedCategory ? "selected" : ""}>${escapeHTML(label)}</option>`
+  ).join("");
   const stageSelect = document.querySelector("#productPipelineStage");
   const selectedStage = stageSelect.value || "Proposal";
   stageSelect.innerHTML = dealStages.map((stage) =>
@@ -1303,7 +1314,7 @@ const recordConfigs = {
   },
   product: {
     title: "แก้ไขแพ็กเกจ/บริการ", collection: "products",
-    fields: [["name", "ชื่อเฉพาะของสินค้า/ข้อเสนอ", "text"], ["category", "ประเภท", "select", productCategories], ["businessMode", "รูปแบบธุรกิจใน Pipeline", "select", Object.keys(businessModes)], ["pipelineStage", "เสนอในขั้น Pipeline", "select", dealStages], ["price", "ราคาขาย", "number"], ["cost", "ต้นทุน", "number"], ["status", "สถานะ", "select", ["active", "inactive"]]]
+    fields: [["name", "ชื่อเฉพาะของสินค้า/ข้อเสนอ", "text"], ["category", "ประเภท", "select", productCategories], ["businessMode", "รูปแบบธุรกิจใน Pipeline", "select", Object.keys(businessModes)], ["businessCategory", "หมวดธุรกิจ", "select", Object.keys(businessCategories)], ["pipelineStage", "เสนอในขั้น Pipeline", "select", dealStages], ["price", "ราคาขาย", "number"], ["cost", "ต้นทุน", "number"], ["description", "รายละเอียด Package", "text"], ["recommendationReason", "เหตุผลที่ควรแนะนำ", "text"], ["status", "สถานะ", "select", ["active", "inactive"]]]
   },
   deal: {
     title: "แก้ไขดีลธุรกิจ", collection: "deals",
@@ -1318,7 +1329,7 @@ const recordConfigs = {
 function recordFieldMarkup([name, label, type, options], record) {
   const value = name === "solutionPackageId" && record[name] ? `product:${record[name]}` : record[name] ?? "";
   if (type === "select") {
-    const labelMap = name === "stage" || name === "pipelineStage" ? dealStageLabels : name === "businessMode" ? pipelineModeLabels : name === "status" ? { ...taskStatusLabels, ...leadStatusLabels, active: "เปิดขาย", inactive: "ปิดขาย" } : name === "priority" ? priorityLabels : name === "avatarPreset" ? Object.fromEntries(Object.entries(avatarPresets).map(([key, item]) => [key, `${item.code} · ${item.label}`])) : {};
+    const labelMap = name === "stage" || name === "pipelineStage" ? dealStageLabels : name === "businessMode" ? pipelineModeLabels : name === "businessCategory" ? businessCategories : name === "status" ? { ...taskStatusLabels, ...leadStatusLabels, active: "เปิดขาย", inactive: "ปิดขาย" } : name === "priority" ? priorityLabels : name === "avatarPreset" ? Object.fromEntries(Object.entries(avatarPresets).map(([key, item]) => [key, `${item.code} · ${item.label}`])) : {};
     const optionMarkup = name === "stage"
       ? dealStageOptionMarkup(String(value))
       : options.map((option) => {
@@ -1488,16 +1499,17 @@ document.querySelector("#productForm").addEventListener("submit", (event) => {
     cost: Number(form.get("cost")),
     status: "active",
     businessMode: form.get("businessMode"),
-    businessCategory: state.businessProfile.businessCategory,
+    businessCategory: form.get("businessCategory"),
     pipelineStage: form.get("pipelineStage"),
-    description: `ข้อเสนอที่ผู้ใช้สร้างสำหรับ ${businessModes[form.get("businessMode")]?.label || "ธุรกิจนี้"}`,
-    recommendationReason: `ใช้ในขั้น ${dealStageLabels[form.get("pipelineStage")] || dealStageLabels.Proposal}`
+    description: form.get("description").trim(),
+    recommendationReason: form.get("recommendationReason").trim() || `ใช้ในขั้น ${dealStageLabels[form.get("pipelineStage")] || dealStageLabels.Proposal}`
   });
   state = normalizeOfferRelations(state);
   state.customers = state.customers.map(alignCustomerType);
   if (!saveState()) return;
   event.currentTarget.reset();
   document.querySelector("#productBusinessMode").value = state.businessProfile.businessMode;
+  document.querySelector("#productBusinessCategory").value = state.businessProfile.businessCategory;
   document.querySelector("#productPipelineStage").value = "Proposal";
   renderAll();
   notify("สร้างสินค้าและเชื่อมกับ Business Pipeline แล้ว");
@@ -1914,27 +1926,111 @@ document.querySelector("#resetConfirm").addEventListener("click", () => {
 
 document.querySelector("#exportData").addEventListener("click", exportStateData);
 
+const importCollectionLabels = {
+  state: "ข้อมูลสำรองทั้งระบบ",
+  customers: "ลูกค้าและ Lead",
+  products: "สินค้า / Package / ข้อเสนอ",
+  deals: "ดีลและ Pipeline",
+  tasks: "งานติดตาม"
+};
+
+function importPreviewMarkup(plan) {
+  if (plan.kind === "state") {
+    const imported = plan.importedState;
+    return `<div class="import-state-grid">${["customers", "leads", "products", "deals", "tasks"].map((key) =>
+      `<span><strong>${escapeHTML(importCollectionLabels[key] || key)}</strong><b>${escapeHTML(imported[key].length)}</b> รายการ</span>`
+    ).join("")}</div>`;
+  }
+  if (!plan.records.length) return '<div class="empty-state">ยังไม่มีแถวที่พร้อมนำเข้า กรุณาเลือกประเภทข้อมูลอื่นหรือตรวจหัวตาราง</div>';
+  const hiddenFields = new Set(["id", "avatar", "solutionPackageId", "productId", "customerId", "businessCategory"]);
+  const headers = Object.keys(plan.records[0]).filter((key) => !hiddenFields.has(key)).slice(0, 6);
+  const rows = plan.records.slice(0, 5).map((record) => `<tr>${headers.map((key) => `<td>${escapeHTML(record[key] ?? "-")}</td>`).join("")}</tr>`);
+  return table(headers, rows);
+}
+
+function refreshImportPlan() {
+  if (!importSession) return;
+  const collectionSelect = document.querySelector("#importCollection");
+  const sheetSelect = document.querySelector("#importSheet");
+  let parsed = importSession.parsed;
+  if (parsed.kind === "rows") {
+    const sheet = parsed.sheets[Number(sheetSelect.value) || 0] || parsed.sheets[0];
+    parsed = { ...parsed, rows: sheet?.rows || [] };
+  }
+  const plan = buildImportPlan(parsed, {
+    collection: parsed.kind === "state" ? "auto" : collectionSelect.value,
+    businessProfile: state.businessProfile,
+    state
+  });
+  importSession.plan = plan;
+  const detectedText = parsed.kind === "state" ? "ระบบจะใช้ข้อมูลชุดนี้แทนข้อมูลปัจจุบัน" : collectionSelect.value === "auto" ? "ตรวจจับอัตโนมัติ" : "เลือกโดยผู้ใช้";
+  document.querySelector("#importPlanSummary").innerHTML = `<div><span>รูปแบบที่พบ</span><strong>${escapeHTML(importCollectionLabels[plan.collection])}</strong></div><div><span>พร้อมนำเข้า</span><strong>${plan.kind === "state" ? "ทั้งระบบ" : `${plan.records.length} รายการ`}</strong></div><div><span>วิธี Mapping</span><strong>${escapeHTML(detectedText)}</strong></div>`;
+  document.querySelector("#importPreview").innerHTML = importPreviewMarkup(plan);
+  const warnings = [
+    ...(importSession.parsed.warnings || []).map((warning) => typeof warning === "string" ? warning : warning.message).filter(Boolean),
+    ...(plan.rejected || []).slice(0, 3).map((item) => `แถว ${item.row}: ${item.reason}`)
+  ];
+  document.querySelector("#importWarning").textContent = warnings.length ? warnings.join(" · ") : "ระบบจะรวมข้อมูลซ้ำด้วยเบอร์โทรลูกค้าหรือชื่อ Package และอัปเดต Dashboard หลังยืนยัน";
+  document.querySelector("#importConfirm").disabled = plan.kind !== "state" && plan.records.length === 0;
+}
+
+function openImportReview(parsed, file) {
+  importSession = { parsed, file, plan: null };
+  const collectionSelect = document.querySelector("#importCollection");
+  const sheetSelect = document.querySelector("#importSheet");
+  collectionSelect.value = "auto";
+  collectionSelect.disabled = parsed.kind === "state";
+  sheetSelect.innerHTML = parsed.kind === "state"
+    ? '<option value="0">ข้อมูลสำรองทั้งระบบ</option>'
+    : parsed.sheets.map((sheet, index) => `<option value="${index}">${escapeHTML(sheet.name)} · ${sheet.rows.length} แถว</option>`).join("");
+  sheetSelect.disabled = parsed.kind === "state" || parsed.sheets.length <= 1;
+  document.querySelector("#importFileSummary").innerHTML = `<span><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=18#clipboard"></use></svg><strong>${escapeHTML(file.name)}</strong></span><span>${escapeHTML(parsed.format.toUpperCase())}</span><span>${escapeHTML(`${Math.max(1, Math.ceil(file.size / 1024))} KB`)}</span>`;
+  refreshImportPlan();
+  document.querySelector("#importDialog").showModal();
+}
+
+function closeImportDialog() {
+  document.querySelector("#importDialog").close();
+  importSession = null;
+}
+
 document.querySelector("#importData").addEventListener("change", async (event) => {
   const [file] = event.target.files;
   if (!file) return;
 
   try {
-    const imported = JSON.parse(await file.text());
-    const valid = ["customers", "leads", "products", "deals", "tasks"]
-      .every((key) => Array.isArray(imported[key]));
-    if (!valid) throw new Error("invalid schema");
-    state = normalizeState(imported);
-    if (!saveState()) return;
-    selectedLeadIds.clear();
-    renderAll();
-    resetCustomerFormDefaults();
-    showView("dashboard", { focusHeading: true });
-    notify("นำเข้าข้อมูลเรียบร้อยแล้ว");
-  } catch {
-    notify("นำเข้าไม่สำเร็จ กรุณาใช้ไฟล์ JSON ที่ Export จาก app นี้");
+    notify(`กำลังอ่านและวิเคราะห์ ${file.name}`);
+    const parsed = await parseImportFile(file, { xlsx: globalThis.XLSX, mammoth: globalThis.mammoth });
+    if (parsed.kind === "rows" && !parsed.rows.length) throw new Error("ไม่พบแถวข้อมูลที่อ่านได้จากไฟล์นี้");
+    openImportReview(parsed, file);
+  } catch (error) {
+    notify(`นำเข้าไม่สำเร็จ: ${error.message || "รูปแบบไฟล์ไม่ถูกต้อง"}`);
   } finally {
     event.target.value = "";
   }
+});
+
+document.querySelector("#importCollection").addEventListener("change", refreshImportPlan);
+document.querySelector("#importSheet").addEventListener("change", refreshImportPlan);
+document.querySelector("#importClose").addEventListener("click", closeImportDialog);
+document.querySelector("#importCancel").addEventListener("click", closeImportDialog);
+document.querySelector("#importConfirm").addEventListener("click", () => {
+  if (!importSession?.plan) return;
+  const previousState = clone(state);
+  const result = applyImportPlan(state, importSession.plan);
+  state = normalizeState(result.state);
+  if (!saveState()) return;
+  const collection = importSession.plan.collection;
+  selectedLeadIds.clear();
+  closeImportDialog();
+  renderAll();
+  resetCustomerFormDefaults();
+  const target = collection === "state" ? "dashboard" : collection;
+  showView(target, { focusHeading: true });
+  const resultText = result.stats.replacedState
+    ? "นำเข้าข้อมูลสำรองทั้งระบบแล้ว"
+    : `นำเข้าแล้ว ${result.stats.created} รายการ อัปเดตข้อมูลเดิม ${result.stats.updated} รายการ${result.stats.rejected ? ` ข้าม ${result.stats.rejected} แถว` : ""}`;
+  registerUndo(resultText, () => { state = normalizeState(clone(previousState)); });
 });
 
 document.addEventListener("keydown", (event) => {

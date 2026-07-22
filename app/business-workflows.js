@@ -133,7 +133,7 @@ export function detachProductRelations(inputState, productId) {
 export function createZeroState() {
   return {
     meta: { updatedAt: new Date().toISOString() },
-    schemaVersion: 7,
+    schemaVersion: 8,
     businessProfile: {
       businessName: "",
       businessMode: "online",

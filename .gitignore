@@ -1,5 +1,6 @@
 .env
 .env.local
 dist/
+node_modules/
 .DS_Store
 .netlify/

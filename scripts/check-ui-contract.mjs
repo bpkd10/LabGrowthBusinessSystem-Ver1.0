@@ -30,6 +30,12 @@ const requiredHtmlContracts = [
   "productBusinessMode",
   "productPipelineStage",
   "dealProductSelect"
+  ,"importDialog"
+  ,"importCollection"
+  ,"importPreview"
+  ,"importConfirm"
+  ,"productBusinessCategory"
+  ,"productDescription"
 ];
 
 for (const id of requiredHtmlContracts) {
@@ -39,6 +45,11 @@ for (const id of requiredHtmlContracts) {
 for (const functionName of ["registerUndo", "setLeadStatus", "analysisEvidenceMarkup", "validIsoDate", "resetCustomerFormDefaults", "setResetStep"]) {
   assert.match(appJs, new RegExp(`function\\s+${functionName}\\s*\\(`), `JavaScript contract ${functionName}() ยังไม่มี`);
 }
+
+assert.match(html, /accept=["'][^"']*\.csv[^"']*\.xlsx[^"']*\.docx[^"']*["']/, "ตัวเลือกไฟล์ยังไม่ประกาศ format ที่รองรับ");
+assert.match(appJs, /parseImportFile/, "Import UI ยังไม่ได้เรียก File Parser กลาง");
+assert.match(appJs, /buildImportPlan/, "Import UI ยังไม่ได้วิเคราะห์และ Mapping ข้อมูลก่อนบันทึก");
+assert.match(appJs, /applyImportPlan/, "Import UI ยังไม่ได้บันทึกแผน Import เข้าระบบ");
 
 assert.match(appJs, /data-lead-status/, "CRM ยังไม่มี Stage Select ที่เปลี่ยนย้อนกลับได้");
 assert.match(appJs, /data-lead-select/, "CRM ยังไม่มี Checkbox สำหรับ Bulk Action");
