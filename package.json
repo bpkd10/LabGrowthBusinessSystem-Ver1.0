@@ -8,9 +8,10 @@
     "build": "node scripts/build.mjs",
     "check:assets": "node scripts/check-assets.mjs",
     "check:ui": "node scripts/check-ui-contract.mjs",
+    "check:workflows": "node scripts/check-business-workflows.mjs",
     "check:syntax": "node --check app/app.js && node --check scripts/*.mjs",
     "precheck:smoke": "npm run build",
     "check:smoke": "node scripts/smoke-build.mjs",
-    "check": "npm run check:assets && npm run check:ui && npm run check:syntax && npm run check:smoke"
+    "check": "npm run check:assets && npm run check:ui && npm run check:workflows && npm run check:syntax && npm run check:smoke"
   }
 }

@@ -19,14 +19,21 @@ const requiredHtmlContracts = [
   "analysisFreshness",
   "analysisMetricsSummary",
   "toastUndo",
-  "toastDismiss"
+  "toastDismiss",
+  "resetDialog",
+  "resetStepCard",
+  "resetBack",
+  "resetNext",
+  "resetExport",
+  "resetConfirm",
+  "resetProgress"
 ];
 
 for (const id of requiredHtmlContracts) {
   assert.match(html, new RegExp(`id=["']${id}["']`), `HTML contract #${id} ยังไม่มี`);
 }
 
-for (const functionName of ["registerUndo", "setLeadStatus", "analysisEvidenceMarkup", "validIsoDate", "resetCustomerFormDefaults"]) {
+for (const functionName of ["registerUndo", "setLeadStatus", "analysisEvidenceMarkup", "validIsoDate", "resetCustomerFormDefaults", "setResetStep"]) {
   assert.match(appJs, new RegExp(`function\\s+${functionName}\\s*\\(`), `JavaScript contract ${functionName}() ยังไม่มี`);
 }
 
@@ -37,6 +44,12 @@ assert.match(appJs, /analysisInFlight/, "AI ยังไม่มี guard ป�
 assert.match(appJs, /persistedStateSnapshot/, "การบันทึกยังไม่มี snapshot สำหรับ rollback เมื่อ localStorage เต็ม");
 assert.match(appJs, /aria-current/, "เมนู SPA ยังไม่ประกาศหน้าปัจจุบันให้ Screen Reader");
 assert.doesNotMatch(appJs, /^\s*saveState\(\);/m, "พบการบันทึกที่ไม่ตรวจผลสำเร็จ อาจแจ้งข้อมูลสำเร็จทั้งที่ localStorage เต็ม");
+assert.doesNotMatch(appJs, /#resetDemo[\s\S]{0,180}window\.confirm/, "Set Zero ยังใช้ confirm ชั้นเดียวแทนคำเตือน 3 ขั้น");
+assert.match(appJs, /createZeroState\(\)/, "Set Zero ยังไม่ได้ล้างข้อมูลจริงทุก collection");
+const customerSubmitBlock = appJs.match(/#customerForm"\)\.addEventListener\("submit",\s*async[\s\S]*?\n}\);/)?.[0] || "";
+assert.match(customerSubmitBlock, /const\s+formElement\s*=\s*event\.currentTarget/, "ฟอร์มลูกค้ายังไม่ได้เก็บ reference ก่อน async upload");
+assert.match(customerSubmitBlock, /formElement\.reset\(\)/, "ฟอร์มลูกค้ายังไม่ได้ใช้ reference เดิมหลัง async upload");
+assert.doesNotMatch(customerSubmitBlock, /await[\s\S]*event\.currentTarget/, "ห้ามใช้ event.currentTarget หลัง await เพราะค่าอาจเป็น null");
 assert.match(html, /id=["']viewTitle["'][^>]*tabindex=["']-1["']/, "หัวข้อหน้าไม่สามารถรับ focus หลังเปลี่ยนหน้า");
 assert.match(html, /id=["']businessViewSwitch["'][^>]*role=["']group["']/, "ตัวเลือกรูปแบบธุรกิจยังไม่มี semantic group");
 assert.match(html, /class=["']role-switch["'][^>]*role=["']group["']/, "ตัวเลือกมุมมองตามหน้าที่ยังไม่มี semantic group");

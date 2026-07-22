@@ -1,3 +1,5 @@
+import { buildProfileCatalog, packagesMissingFromCatalog, mergeCatalogWithProducts, createZeroState } from "./business-workflows.js?v=16";
+
 const STORAGE_KEY = "business-growth-dashboard-demo";
 const REVENUE_TARGET = 100000;
 const VALID_VIEWS = ["dashboard", "customers", "crm", "products", "deals", "tasks", "ai"];
@@ -257,6 +259,8 @@ let toastReturnFocus = null;
 const selectedLeadIds = new Set();
 let persistedStateSnapshot = clone(state);
 let analysisInFlight = false;
+let resetStep = 1;
+let resetExported = false;
 
 function clone(value) {
   return typeof structuredClone === "function"
@@ -291,7 +295,7 @@ function normalizeState(data) {
     ...clone(seedData.businessProfile),
     ...(data.businessProfile || {})
   };
-  const catalog = businessCatalogs[data.businessProfile.businessMode] || businessCatalogs.online;
+  const catalog = buildProfileCatalog(data.businessProfile, businessCatalogs);
   const legacyPackageNames = marketingPackages.map((item) => item.name);
   const needsLegacyMapping = Number(data.schemaVersion || 0) < 4;
   data.customers = data.customers.map((customer, index) => {
@@ -308,18 +312,13 @@ function normalizeState(data) {
       ...customer,
       solutionPackage,
       businessMode,
+      businessCategory: customer.businessCategory || data.businessProfile.businessCategory || "service",
       avatar: customer.avatar || "",
       avatarPreset: customer.avatarPreset || data.businessProfile.businessCategory || "service",
       customerType: customer.customerType || customerMode.customerTypes[Math.min(index, customerMode.customerTypes.length - 1)]
     };
   });
-  const existingNames = new Set(data.products.map((product) => product.name));
-  seedData.products.filter((product) => product.id.startsWith("mp") && !existingNames.has(product.name))
-    .forEach((product) => data.products.push(clone(product)));
-  catalog.filter((product) => !existingNames.has(product.name)).forEach((product) => data.products.push({
-    ...clone(product), id: uid("p"), status: "active", businessMode: data.businessProfile.businessMode
-  }));
-  data.schemaVersion = 5;
+  data.schemaVersion = 6;
   return data;
 }
 
@@ -415,7 +414,7 @@ function initials(name) {
 }
 
 function revenueTarget() {
-  return Math.max(1000, Number(state.businessProfile?.revenueTarget) || REVENUE_TARGET);
+  return Math.max(0, Number(state.businessProfile?.revenueTarget) || 0);
 }
 
 function currentBusinessMode() {
@@ -423,11 +422,11 @@ function currentBusinessMode() {
 }
 
 function currentBusinessCatalog() {
-  return businessCatalogs[state.businessProfile?.businessMode] || businessCatalogs.online;
+  return mergeCatalogWithProducts(buildProfileCatalog(state.businessProfile, businessCatalogs), state.products);
 }
 
 function iconMarkup(name, className = "ui-icon") {
-  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=15#${escapeHTML(name)}"></use></svg>`;
+  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=16#${escapeHTML(name)}"></use></svg>`;
 }
 
 document.querySelector("#toastUndo").addEventListener("click", () => {
@@ -509,7 +508,7 @@ function renderKpis() {
   const data = metrics();
   const roleCards = {
     owner: [
-      ["รายได้ที่ปิดได้", currency(data.revenue), "เทียบเป้ารายได้รอบนี้", data.revenue >= revenueTarget() ? "success" : "", "deals", "THB"],
+      ["รายได้ที่ปิดได้", currency(data.revenue), "เทียบเป้ารายได้รอบนี้", revenueTarget() > 0 && data.revenue >= revenueTarget() ? "success" : "", "deals", "THB"],
       ["มูลค่า Pipeline", currency(data.pipelineValue), `${data.openDeals} ดีลที่กำลังพัฒนา`, "", "deals", "PL"],
       ["อัตราปิดการขาย", percent(data.conversionRate), `${data.totalLeads} Lead ในระบบ`, "", "crm", "CV"],
       ["งานที่ต้องตัดสินใจ", data.pendingTasks, data.overdueTasks ? `${data.overdueTasks} งานเลยกำหนด` : "ไม่มีงานเลยกำหนด", data.overdueTasks ? "warning" : "success", "tasks", "AC"]
@@ -560,15 +559,13 @@ function renderBusinessProfile() {
   const categoryLabel = businessCategories[profile.businessCategory] || businessCategories.service;
   const form = document.querySelector("#businessProfileForm");
   document.body.dataset.businessMode = profile.businessMode;
-  document.querySelector("#sidebarBusinessName").textContent = profile.businessName;
+  document.querySelector("#sidebarBusinessName").textContent = profile.businessName || "ยังไม่ได้ตั้งชื่อธุรกิจ";
   document.querySelector("#sidebarBusinessMode").textContent = `${mode.label} · ${categoryLabel}`;
   document.querySelector("#businessAvatarPreview").innerHTML = avatarPresetMarkup(profile.businessAvatar, "large", `โปรไฟล์ ${profile.businessName}`);
   document.querySelector("#businessProfileSummary").textContent = `${mode.description} ระบบจะปรับ KPI, Customer Journey และคำแนะนำตามบริบทนี้`;
   document.querySelector("#businessModeBadge").textContent = mode.label;
   document.querySelector("#businessCategoryBadge").textContent = categoryLabel;
-  document.querySelector("#businessCatalogPreview").innerHTML = currentBusinessCatalog().map((item) =>
-    `<span class="catalog-chip"><strong>${escapeHTML(item.name)}</strong><small>${escapeHTML(currency(item.price))}</small></span>`
-  ).join("");
+  renderBusinessCatalogPreview(currentBusinessCatalog());
 
   document.querySelector("#businessModeSelect").innerHTML = Object.entries(businessModes)
     .map(([value, item]) => `<option value="${escapeHTML(value)}" ${profile.businessMode === value ? "selected" : ""}>${escapeHTML(item.label)}</option>`).join("");
@@ -578,6 +575,31 @@ function renderBusinessProfile() {
     .map(([value, item]) => `<option value="${escapeHTML(value)}" ${profile.businessAvatar === value ? "selected" : ""}>${escapeHTML(item.code)} · ${escapeHTML(item.label)}</option>`).join("");
   form.elements.businessName.value = profile.businessName;
   form.elements.revenueTarget.value = profile.revenueTarget;
+}
+
+function renderBusinessCatalogPreview(catalog) {
+  document.querySelector("#businessCatalogPreview").innerHTML = catalog.map((item) =>
+    `<span class="catalog-chip" title="${escapeHTML(item.description)}"><strong>${escapeHTML(item.name)}</strong><small>${escapeHTML(currency(item.price))}</small></span>`
+  ).join("");
+  const missingCount = packagesMissingFromCatalog(state.products, catalog).length;
+  const button = document.querySelector("#installBusinessCatalog");
+  button.textContent = missingCount ? `เพิ่ม ${missingCount} Package ให้ธุรกิจ` : "เพิ่มแล้วครบทุก Package";
+  button.disabled = missingCount === 0;
+}
+
+function draftBusinessProfile() {
+  const form = document.querySelector("#businessProfileForm");
+  return {
+    businessName: form.elements.businessName.value.trim(),
+    businessMode: form.elements.businessMode.value,
+    businessCategory: form.elements.businessCategory.value,
+    businessAvatar: form.elements.businessAvatar.value,
+    revenueTarget: Number(form.elements.revenueTarget.value) || 0
+  };
+}
+
+function previewDraftBusinessCatalog() {
+  renderBusinessCatalogPreview(mergeCatalogWithProducts(buildProfileCatalog(draftBusinessProfile(), businessCatalogs), state.products));
 }
 
 function renderBusinessViewSwitch() {
@@ -621,7 +643,7 @@ function renderRoleWorkspace(data) {
 function renderDashboard() {
   const data = metrics();
   const target = revenueTarget();
-  const progress = Math.min((data.revenue / target) * 100, 100);
+  const progress = target > 0 ? Math.min((data.revenue / target) * 100, 100) : 0;
   const remaining = Math.max(target - data.revenue, 0);
   renderKpis();
   renderBusinessProfile();
@@ -632,12 +654,16 @@ function renderDashboard() {
   renderPriorityLeads();
   renderSignals(data);
 
-  document.querySelector("#goalTitle").textContent = `${state.businessProfile.businessName}: เป้ารายได้ ${currency(target)}`;
+  document.querySelector("#goalTitle").textContent = target > 0
+    ? `${state.businessProfile.businessName || "ธุรกิจของฉัน"}: เป้ารายได้ ${currency(target)}`
+    : "เริ่มต้นด้วยการตั้งเป้ารายได้ของธุรกิจ";
   document.querySelector("#goalCurrent").textContent = `${currency(data.revenue)} / ${currency(target)}`;
   document.querySelector("#goalPercent").textContent = percent(progress);
   document.querySelector("#goalProgress").style.setProperty("--progress-scale", String(Math.max(0, progress / 100)));
   document.querySelector(".goal-meter").setAttribute("aria-valuenow", String(Math.round(progress)));
-  document.querySelector("#goalMessage").textContent = remaining
+  document.querySelector("#goalMessage").textContent = target <= 0
+    ? "เปิดโปรไฟล์ธุรกิจด้านล่าง กรอกชื่อธุรกิจ รูปแบบการขาย และเป้ารายได้เพื่อเริ่มใช้งาน"
+    : remaining
     ? `ต้องสร้างรายได้เพิ่มอีก ${currency(remaining)} เพื่อถึงเป้ารอบนี้`
     : "ถึงเป้ารายได้แล้ว เลือก deal ถัดไปเพื่อสร้างการเติบโตต่อเนื่อง";
   document.querySelector("#latestLeads").innerHTML = state.leads.slice(-5).reverse().map((lead) => {
@@ -799,7 +825,11 @@ function renderCustomers() {
     customers.map((customer) => {
       const lead = state.leads.find((item) => item.customerId === customer.id);
       const phone = String(customer.phone || "-");
-      const customerCatalog = businessCatalogs[customer.businessMode] || currentBusinessCatalog();
+      const customerCatalog = mergeCatalogWithProducts(buildProfileCatalog({
+        ...state.businessProfile,
+        businessMode: customer.businessMode,
+        businessCategory: customer.businessCategory || state.businessProfile.businessCategory
+      }, businessCatalogs), state.products);
       const recommended = customerCatalog.some((item) => item.name === customer.solutionPackage);
       const customerMode = businessModes[customer.businessMode] || businessModes.online;
       return `<tr><td><div class="customer-cell">${avatarMarkup(customer, "small")}<div><strong>${escapeHTML(customer.fullName)}</strong><span>${escapeHTML(customer.interest)}</span></div></div></td><td><span class="customer-type-pill">${escapeHTML(customerMode.label)} · ${escapeHTML(customer.customerType || "ยังไม่จัดกลุ่ม")}</span></td><td><a class="contact-link" href="tel:${escapeHTML(phone.replace(/[^0-9+]/g, ""))}" aria-label="โทรหา ${escapeHTML(customer.fullName)}">${escapeHTML(phone)}</a></td><td>${contactBadge(customer.source)}</td><td><span class="package-pill ${recommended ? "package-pill--fit" : ""}">${escapeHTML(customer.solutionPackage)}</span></td><td>${escapeHTML(leadStatusLabels[lead?.status] || "-")}</td><td><div class="table-actions"><button class="row-action" data-edit-record="customer:${escapeHTML(customer.id)}">แก้ไข</button><button class="row-action danger" data-delete-record="customer:${escapeHTML(customer.id)}">ลบ</button></div></td></tr>`;
@@ -863,11 +893,14 @@ function updateCrmBulkToolbar() {
 
 function renderProducts() {
   document.querySelector("#productTable").innerHTML = table(
-    ["สินค้า/บริการ/ข้อเสนอ", "ประเภท", "ใช้กับธุรกิจ", "ราคาขาย", "ต้นทุน", "กำไรขั้นต้น", "สถานะ", "จัดการ"],
+    ["สินค้า/บริการ/ข้อเสนอ", "ประเภท", "เหมาะกับธุรกิจ", "ราคาขาย", "ต้นทุน", "กำไรขั้นต้น", "สถานะ", "จัดการ"],
     state.products.map((product) => {
       const margin = Number(product.price) - Number(product.cost);
       const modeLabel = product.businessMode ? businessModes[product.businessMode]?.label || "ทั่วไป" : "ทุกธุรกิจ";
-      return `<tr><td><strong>${escapeHTML(product.name)}</strong></td><td>${escapeHTML(product.category)}</td><td><span class="context-badge context-badge--table">${escapeHTML(modeLabel)}</span></td><td>${escapeHTML(currency(product.price))}</td><td>${escapeHTML(currency(product.cost))}</td><td class="success">${escapeHTML(currency(margin))}</td><td>${product.status === "active" ? "เปิดขาย" : "ปิดขาย"}</td><td><div class="table-actions"><button class="row-action" data-edit-record="product:${escapeHTML(product.id)}">แก้ไข</button><button class="row-action danger" data-delete-record="product:${escapeHTML(product.id)}">ลบ</button></div></td></tr>`;
+      const categoryLabel = product.businessCategory ? businessCategories[product.businessCategory] || "ทุกหมวด" : "ทุกหมวด";
+      const relation = product.businessMode ? `${modeLabel} · ${categoryLabel}` : modeLabel;
+      const reason = product.recommendationReason || product.description || "";
+      return `<tr><td><div class="product-name-cell"><strong>${escapeHTML(product.name)}</strong>${reason ? `<span>${escapeHTML(reason)}</span>` : ""}</div></td><td>${escapeHTML(product.category)}</td><td><span class="context-badge context-badge--table">${escapeHTML(relation)}</span></td><td>${escapeHTML(currency(product.price))}</td><td>${escapeHTML(currency(product.cost))}</td><td class="success">${escapeHTML(currency(margin))}</td><td>${product.status === "active" ? "เปิดขาย" : "ปิดขาย"}</td><td><div class="table-actions"><button class="row-action" data-edit-record="product:${escapeHTML(product.id)}">แก้ไข</button><button class="row-action danger" data-delete-record="product:${escapeHTML(product.id)}">ลบ</button></div></td></tr>`;
     })
   );
 }
@@ -967,7 +1000,7 @@ function renderAvatarOptions() {
 }
 
 function resetCustomerFormDefaults() {
-  document.querySelector("#customerPackageSelect").value = currentBusinessCatalog()[0].name;
+  document.querySelector("#customerPackageSelect").value = currentBusinessCatalog()[0]?.name || "";
   document.querySelector("#customerTypeSelect").value = currentBusinessMode().customerTypes[0];
   document.querySelector("#customerAvatarPreset").value = state.businessProfile.businessCategory;
   renderPackageOptions();
@@ -977,7 +1010,9 @@ function roleInsight(data) {
   if (activeRole === "sales") return `ฝ่ายขาย: มี ${data.openDeals} โอกาสขาย มูลค่ารวม ${currency(data.pipelineValue)}`;
   if (activeRole === "marketing") return `การตลาด: ${data.topSource} สร้าง Lead สูงสุด ควรตรวจคุณภาพก่อนเพิ่มงบ`;
   if (activeRole === "ops") return `ทีมงาน: มี ${data.pendingTasks} งานค้าง และ ${data.overdueTasks} งานเลยกำหนด`;
-  return `เจ้าของ: ทำได้ ${percent((data.revenue / revenueTarget()) * 100)} ของเป้ารายได้`;
+  return revenueTarget() > 0
+    ? `เจ้าของ: ทำได้ ${percent((data.revenue / revenueTarget()) * 100)} ของเป้ารายได้`
+    : "เจ้าของ: ตั้งค่าโปรไฟล์และเป้ารายได้เพื่อเริ่มวัดผล";
 }
 
 const viewConfig = {
@@ -1063,7 +1098,7 @@ document.querySelector("#businessProfileForm").addEventListener("submit", (event
     businessMode: form.get("businessMode"),
     businessCategory: form.get("businessCategory"),
     businessAvatar: form.get("businessAvatar"),
-    revenueTarget: Math.max(1000, Number(form.get("revenueTarget")) || REVENUE_TARGET)
+    revenueTarget: Math.max(0, Number(form.get("revenueTarget")) || 0)
   };
   if (!saveState()) return;
   renderAll();
@@ -1073,8 +1108,7 @@ document.querySelector("#businessProfileForm").addEventListener("submit", (event
 });
 
 document.querySelector("#installBusinessCatalog").addEventListener("click", () => {
-  const existingNames = new Set(state.products.map((product) => product.name));
-  const additions = currentBusinessCatalog().filter((item) => !existingNames.has(item.name));
+  const additions = packagesMissingFromCatalog(state.products, currentBusinessCatalog());
   additions.forEach((item) => state.products.push({
     id: uid("p"),
     name: item.name,
@@ -1082,7 +1116,10 @@ document.querySelector("#installBusinessCatalog").addEventListener("click", () =
     price: item.price,
     cost: item.cost,
     status: "active",
-    businessMode: state.businessProfile.businessMode
+    businessMode: item.businessMode,
+    businessCategory: item.businessCategory,
+    description: item.description,
+    recommendationReason: item.recommendationReason
   }));
   if (!saveState()) return;
   renderAll();
@@ -1092,11 +1129,15 @@ document.querySelector("#installBusinessCatalog").addEventListener("click", () =
 document.querySelector("#businessCategorySelect").addEventListener("change", (event) => {
   document.querySelector("#businessAvatarSelect").value = event.target.value;
   document.querySelector("#businessAvatarPreview").innerHTML = avatarPresetMarkup(event.target.value, "large", "ตัวอย่างรูปโปรไฟล์ธุรกิจ");
+  previewDraftBusinessCatalog();
 });
 
 document.querySelector("#businessAvatarSelect").addEventListener("change", (event) => {
   document.querySelector("#businessAvatarPreview").innerHTML = avatarPresetMarkup(event.target.value, "large", "ตัวอย่างรูปโปรไฟล์ธุรกิจ");
 });
+
+document.querySelector("#businessModeSelect").addEventListener("change", previewDraftBusinessCatalog);
+document.querySelector('#businessProfileForm input[name="businessName"]').addEventListener("input", debounce(previewDraftBusinessCatalog, 180));
 
 function debounce(callback, delay = 140) {
   let timer;
@@ -1190,7 +1231,11 @@ function openRecordDialog(type, id) {
   document.querySelector("#recordDialogTitle").textContent = config.title;
   const fields = type === "customer" ? config.fields.map((field) => {
     const recordMode = businessModes[record.businessMode] || currentBusinessMode();
-    const recordCatalog = businessCatalogs[record.businessMode] || currentBusinessCatalog();
+    const recordCatalog = mergeCatalogWithProducts(buildProfileCatalog({
+      ...state.businessProfile,
+      businessMode: record.businessMode,
+      businessCategory: record.businessCategory || state.businessProfile.businessCategory
+    }, businessCatalogs), state.products);
     if (field[0] === "customerType") return [field[0], recordMode.customerTypeLabel, field[2], recordMode.customerTypes];
     if (field[0] === "solutionPackage") return [field[0], field[1], field[2], [...new Set([...recordCatalog.map((item) => item.name), ...state.products.map((item) => item.name), record.solutionPackage])]];
     return field;
@@ -1242,7 +1287,8 @@ document.querySelectorAll("[data-close-dialog]").forEach((button) => button.addE
 
 document.querySelector("#customerForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const form = new FormData(event.currentTarget);
+  const formElement = event.currentTarget;
+  const form = new FormData(formElement);
   const customerId = uid("c");
   let avatar = "";
   try {
@@ -1258,6 +1304,7 @@ document.querySelector("#customerForm").addEventListener("submit", async (event)
     solutionPackage: form.get("solutionPackage"),
     customerType: form.get("customerType"),
     businessMode: state.businessProfile.businessMode,
+    businessCategory: state.businessProfile.businessCategory,
     interest: form.get("interest").trim(),
     avatar,
     avatarPreset: form.get("avatarPreset") || state.businessProfile.businessCategory,
@@ -1272,7 +1319,7 @@ document.querySelector("#customerForm").addEventListener("submit", async (event)
     nextFollowUp: new Date(Date.now() + 86400000 * 2).toISOString().slice(0, 10)
   });
   if (!saveState()) return;
-  event.currentTarget.reset();
+  formElement.reset();
   renderAll();
   document.querySelector("#customerAdvancedFields").open = false;
   resetCustomerFormDefaults();
@@ -1607,18 +1654,7 @@ document.querySelector("#analysisChatForm").addEventListener("submit", async (ev
 
 renderPromptPreview();
 
-document.querySelector("#resetDemo").addEventListener("click", () => {
-  if (!window.confirm("ต้องการล้างข้อมูลที่เพิ่มทั้งหมดและกลับไปใช้ข้อมูลตัวอย่างหรือไม่?")) return;
-  state = normalizeState(clone(seedData));
-  if (!saveState()) return;
-  selectedLeadIds.clear();
-  renderAll();
-  resetCustomerFormDefaults();
-  showView("dashboard", { focusHeading: true });
-  notify("รีเซ็ตข้อมูลตัวอย่างแล้ว");
-});
-
-document.querySelector("#exportData").addEventListener("click", () => {
+function exportStateData() {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -1627,7 +1663,83 @@ document.querySelector("#exportData").addEventListener("click", () => {
   link.click();
   URL.revokeObjectURL(url);
   notify("ส่งออกข้อมูลเป็นไฟล์ JSON แล้ว");
+  return true;
+}
+
+const resetStepContent = {
+  1: {
+    label: "ตรวจสอบคำสั่ง",
+    title: "คุณต้องการคืนค่าเริ่มต้นใช่ไหม?",
+    description: "คำสั่งนี้จะล้างข้อมูลธุรกิจในระบบทั้งหมด ระบบจะให้คุณตรวจสอบอีก 2 ขั้นก่อนดำเนินการ"
+  },
+  2: {
+    label: "ป้องกันข้อมูลสูญหาย",
+    title: "การคืนค่านี้จะไม่เก็บข้อมูลชุดเก่า",
+    description: "ต้องส่งออกข้อมูลเป็นไฟล์ JSON ก่อน จึงจะไปขั้นถัดไปได้ ไฟล์นี้สามารถนำกลับเข้าระบบภายหลัง"
+  },
+  3: {
+    label: "ยืนยันครั้งสุดท้าย",
+    title: "เริ่มการคืนค่าข้อมูลเป็น Set Zero",
+    description: "ลูกค้า Lead Package ดีล งานติดตาม ชื่อธุรกิจ และเป้ารายได้จะถูกล้างเป็นศูนย์ทั้งหมด"
+  }
+};
+
+function setResetStep(step) {
+  resetStep = Math.min(3, Math.max(1, step));
+  const content = resetStepContent[resetStep];
+  document.querySelector("#resetProgress").textContent = `ขั้น ${resetStep} จาก 3`;
+  document.querySelector("#resetStepLabel").textContent = content.label;
+  document.querySelector("#resetDialogTitle").textContent = content.title;
+  document.querySelector("#resetStepDescription").textContent = content.description;
+  document.querySelector("#resetStepCard").dataset.step = String(resetStep);
+  const backButton = document.querySelector("#resetBack");
+  const exportButton = document.querySelector("#resetExport");
+  const nextButton = document.querySelector("#resetNext");
+  const confirmButton = document.querySelector("#resetConfirm");
+  backButton.textContent = resetStep === 1 ? "ยกเลิก" : "ย้อนกลับ";
+  exportButton.hidden = resetStep !== 2;
+  exportButton.textContent = resetExported ? "ส่งออกข้อมูลแล้ว" : "ส่งออกข้อมูลก่อน";
+  exportButton.disabled = resetExported;
+  nextButton.hidden = resetStep === 3;
+  nextButton.disabled = resetStep === 2 && !resetExported;
+  confirmButton.hidden = resetStep !== 3;
+  requestAnimationFrame(() => document.querySelector("#resetDialogTitle").focus?.());
+}
+
+document.querySelector("#resetDemo").addEventListener("click", () => {
+  resetExported = false;
+  setResetStep(1);
+  document.querySelector("#resetDialog").showModal();
 });
+
+document.querySelector("#resetBack").addEventListener("click", () => {
+  if (resetStep === 1) return document.querySelector("#resetDialog").close();
+  setResetStep(resetStep - 1);
+});
+
+document.querySelector("#resetNext").addEventListener("click", () => {
+  if (resetStep === 2 && !resetExported) return;
+  setResetStep(resetStep + 1);
+});
+
+document.querySelector("#resetExport").addEventListener("click", () => {
+  resetExported = exportStateData();
+  setResetStep(2);
+});
+
+document.querySelector("#resetConfirm").addEventListener("click", () => {
+  if (resetStep !== 3 || !resetExported) return;
+  state = createZeroState();
+  if (!saveState()) return;
+  selectedLeadIds.clear();
+  document.querySelector("#resetDialog").close();
+  renderAll();
+  resetCustomerFormDefaults();
+  showView("dashboard", { focusHeading: true });
+  notify("Set Zero เรียบร้อย ข้อมูลธุรกิจทั้งหมดเริ่มต้นที่ศูนย์");
+});
+
+document.querySelector("#exportData").addEventListener("click", exportStateData);
 
 document.querySelector("#importData").addEventListener("change", async (event) => {
   const [file] = event.target.files;

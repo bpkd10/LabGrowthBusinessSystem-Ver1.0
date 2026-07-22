@@ -10,6 +10,7 @@ const css = await readFile(resolve(root, "app/styles.css"), "utf8");
 const sprite = await readFile(resolve(root, "app/icons.svg"), "utf8");
 
 const requiredRoutes = [
+  "/business-workflows.js",
   "/icons.svg",
   "/brand/logo-wordmark.svg",
   "/brand/logo-wordmark-dark.svg",
@@ -27,6 +28,10 @@ for (const route of requiredRoutes) {
   const absolutePath = resolve(root, relativePath);
   await access(absolutePath);
   assert.ok((await stat(absolutePath)).size > 100, `${relativePath} ว่างหรือมีขนาดผิดปกติ`);
+  if (route === "/business-workflows.js") {
+    assert.match(contentType, /text\/javascript/, `${route} ต้องใช้ JavaScript content type`);
+    continue;
+  }
   assert.equal(contentType, "image/svg+xml", `${route} ต้องใช้ SVG content type`);
   const svg = await readFile(absolutePath, "utf8");
   assert.match(svg, /<svg\b/, `${relativePath} ไม่มี root <svg>`);
@@ -42,7 +47,7 @@ assert.match(css, /--brand-ink:\s*#17171f/i, "CSS ต้องประกาศ
 assert.match(css, /--brand-soft:\s*#fee9ce/i, "CSS ต้องประกาศสีพื้นอ่อนจาก Logo เป็น CI token");
 assert.match(css, /--accent:\s*var\(--brand-orange-aa\)/, "สี action ต้องอ้าง CI token ที่ผ่าน contrast");
 
-for (const route of requiredRoutes.slice(1)) {
+for (const route of requiredRoutes.slice(2)) {
   assert.ok(html.includes(`${route}?v=${ASSET_VERSION}`), `HTML ยังไม่ได้ใช้ ${route} หรือใช้ Asset Version ไม่ตรงกัน`);
 }
 
@@ -50,6 +55,7 @@ assert.ok(html.includes(`/icons.svg?v=${ASSET_VERSION}`), "HTML ไม่ได�
 assert.ok(appJs.includes(`/icons.svg?v=${ASSET_VERSION}`), "JavaScript ไม่ได้อ้างอิง icon sprite version ปัจจุบัน");
 assert.ok(html.includes(`styles.css?v=${ASSET_VERSION}`), "HTML ยังไม่ได้ใช้ CSS Asset Version ปัจจุบัน");
 assert.ok(html.includes(`app.js?v=${ASSET_VERSION}`), "HTML ยังไม่ได้ใช้ JavaScript Asset Version ปัจจุบัน");
+assert.ok(appJs.includes(`business-workflows.js?v=${ASSET_VERSION}`), "JavaScript workflow ยังไม่ได้ใช้ Asset Version ปัจจุบัน");
 
 const symbolIds = new Set([...sprite.matchAll(/<symbol\s+id="([^"]+)"/g)].map((match) => match[1]));
 const referencedSymbols = new Set([
@@ -76,6 +82,6 @@ for (const match of css.matchAll(/url\(["']?([^"')]+)["']?\)/g)) {
   if (route.startsWith("/")) assert.ok(ASSET_FILES[route], `CSS อ้าง Asset ${route} ที่ไม่มีใน manifest`);
 }
 
-assert.equal(ASSET_VERSION, "15", "ต้องเพิ่ม Asset Version หลังแก้ UI/Logo/Icon เพื่อป้องกัน cache เก่า");
+assert.equal(ASSET_VERSION, "16", "ต้องเพิ่ม Asset Version หลังแก้ UI/Logo/Icon เพื่อป้องกัน cache เก่า");
 
-console.log(`Asset contract passed: ${requiredRoutes.length} SVG routes, ${referencedSymbols.size} referenced vector symbols, version ${ASSET_VERSION}`);
+console.log(`Asset contract passed: ${requiredRoutes.length} required routes, ${referencedSymbols.size} referenced vector symbols, version ${ASSET_VERSION}`);
