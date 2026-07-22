@@ -9,13 +9,23 @@ import {
   applyImportPlan
 } from "../app/data-import.js";
 
-for (const extension of ["json", "csv", "tsv", "xls", "xlsx", "md", "txt", "doc", "docx"]) {
+for (const extension of ["json", "csv", "cvs", "tsv", "xls", "xlsx", "md", "txt", "doc", "docx"]) {
   assert.ok(supportedImportExtensions.includes(extension), `ต้องรองรับไฟล์ .${extension}`);
 }
 
 const csvRows = parseCsvText("ชื่อลูกค้า,เบอร์โทร,ช่องทาง,ความต้องการ\nร้านเหนือ,081-111-2222,Facebook,เพิ่มยอดขาย\n\"บริษัท, ไทย\",02-111-2222,Website,ระบบ CRM");
 assert.equal(csvRows.length, 2, "CSV ต้องอ่านจำนวนแถวถูกต้อง");
 assert.equal(csvRows[1]["ชื่อลูกค้า"], "บริษัท, ไทย", "CSV ต้องอ่านค่าที่มี comma ใน quote ได้");
+
+const cvsFile = {
+  name: "customers.cvs",
+  size: 64,
+  text: async () => "ชื่อลูกค้า,เบอร์โทร\nลูกค้า CVS,0800000000",
+  arrayBuffer: async () => new ArrayBuffer(0)
+};
+const parsedCvs = await parseImportFile(cvsFile);
+assert.equal(parsedCvs.format, "csv", ".CVS ต้องทำงานเป็น alias ของ CSV");
+assert.equal(parsedCvs.rows[0]["ชื่อลูกค้า"], "ลูกค้า CVS", ".CVS ต้องอ่านข้อมูลลูกค้าได้");
 
 const markdownRows = parseMarkdownText(`| ชื่อสินค้า | ราคา | ต้นทุน | รูปแบบธุรกิจ |
 | --- | ---: | ---: | --- |

@@ -1,0 +1,13 @@
+ชื่องาน: โทรติดตามข้อเสนอ Corporate AI Training ทีม ABC
+ผู้รับผิดชอบ: Sales Team
+กำหนดเสร็จ: 2026-08-02
+ความสำคัญ: High
+สถานะ: รอดำเนินการ
+แพ็กเกจ: Corporate AI Training
+
+ชื่องาน: ส่งตัวอย่าง curriculum ให้คุณนภา
+ผู้รับผิดชอบ: Uncle Tung AI
+กำหนดเสร็จ: 2026-08-03
+ความสำคัญ: Medium
+สถานะ: กำลังทำ
+แพ็กเกจ: AI Fundamentals Course

@@ -1,4 +1,4 @@
-export const supportedImportExtensions = ["json", "csv", "tsv", "xls", "xlsx", "md", "txt", "doc", "docx"];
+export const supportedImportExtensions = ["json", "csv", "cvs", "tsv", "xls", "xlsx", "md", "txt", "doc", "docx"];
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const collections = ["customers", "products", "deals", "tasks"];
@@ -153,9 +153,11 @@ function textToRows(text) {
 
 function extractLegacyDocText(buffer) {
   const bytes = new Uint8Array(buffer);
+  const utf8 = new TextDecoder("utf-8").decode(bytes);
   const latin = new TextDecoder("windows-1252").decode(bytes);
   const unicode = bytes.byteLength % 2 === 0 ? new TextDecoder("utf-16le").decode(bytes) : "";
-  const clean = (value) => value.replace(/[^\p{L}\p{N}\s:,.+\-@/()]/gu, " ").replace(/[ \t]{2,}/g, " ");
+  const clean = (value) => value.replace(/[^\p{L}\p{M}\p{N}\s:,.+\-@/()]/gu, " ").replace(/[ \t]{2,}/g, " ");
+  if (!utf8.includes("\uFFFD") && /[\p{L}\p{N}]/u.test(utf8)) return clean(utf8);
   return `${clean(latin)}\n${clean(unicode)}`;
 }
 
@@ -178,10 +180,10 @@ export async function parseImportFile(file, adapters = {}) {
     return { kind: "rows", format: extension, fileName: file.name, rows, sheets: [{ name: "JSON", rows }] };
   }
 
-  if (["csv", "tsv"].includes(extension)) {
+  if (["csv", "cvs", "tsv"].includes(extension)) {
     const text = await file.text();
     const rows = extension === "tsv" ? delimitedRows(text, "\t") : parseCsvText(text);
-    return { kind: "rows", format: extension, fileName: file.name, rows, sheets: [{ name: extension.toUpperCase(), rows }] };
+    return { kind: "rows", format: extension === "cvs" ? "csv" : extension, fileName: file.name, rows, sheets: [{ name: extension.toUpperCase(), rows }] };
   }
 
   if (["md", "txt"].includes(extension)) {
