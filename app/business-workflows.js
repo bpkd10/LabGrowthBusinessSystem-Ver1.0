@@ -16,11 +16,14 @@ export function buildProfileCatalog(profile, catalogs) {
   const category = categoryProfiles[businessCategory] || categoryProfiles.service;
   const catalog = catalogs[businessMode] || catalogs.online || Object.values(catalogs)[0] || [];
 
-  return catalog.map((item) => ({
+  const pipelineStages = ["Qualified", "Proposal", "Negotiation", "Won"];
+  return catalog.map((item, index) => ({
     ...item,
+    catalogKey: `${businessMode}:${businessCategory}:${item.name}`,
     name: `${item.name} · ${category.label}`,
     description: `${item.description} สำหรับ ${businessName} โดยเน้น${category.focus}`,
     recommendationReason: `เหมาะกับ ${category.label} ที่ขายแบบ ${businessMode}`,
+    pipelineStage: item.pipelineStage || pipelineStages[Math.min(index, pipelineStages.length - 1)],
     businessMode,
     businessCategory
   }));
@@ -28,13 +31,15 @@ export function buildProfileCatalog(profile, catalogs) {
 
 export function packagesMissingFromCatalog(products, catalog) {
   const existingNames = new Set(products.map((product) => product.name));
-  return catalog.filter((item) => !existingNames.has(item.name));
+  const existingCatalogKeys = new Set(products.map((product) => product.catalogKey).filter(Boolean));
+  return catalog.filter((item) => !existingCatalogKeys.has(item.catalogKey) && !existingNames.has(item.name));
 }
 
 export function mergeCatalogWithProducts(catalog, products) {
   const storedByName = new Map(products.map((product) => [product.name, product]));
+  const storedByCatalogKey = new Map(products.filter((product) => product.catalogKey).map((product) => [product.catalogKey, product]));
   return catalog.map((item) => {
-    const stored = storedByName.get(item.name);
+    const stored = storedByCatalogKey.get(item.catalogKey) || storedByName.get(item.name);
     if (!stored) return item;
     return {
       ...item,
@@ -45,10 +50,90 @@ export function mergeCatalogWithProducts(catalog, products) {
   });
 }
 
+function copy(value) {
+  return typeof structuredClone === "function"
+    ? structuredClone(value)
+    : JSON.parse(JSON.stringify(value));
+}
+
+export function normalizeOfferRelations(inputState) {
+  const state = copy(inputState);
+  const products = Array.isArray(state.products) ? state.products : [];
+  const productById = new Map(products.map((product) => [product.id, product]));
+  const productByName = new Map(products.map((product) => [product.name, product]));
+
+  state.customers = (state.customers || []).map((customer) => {
+    const linked = productById.get(customer.solutionPackageId) || productByName.get(customer.solutionPackage);
+    return {
+      ...customer,
+      solutionPackageId: linked?.id || "",
+      solutionPackage: linked?.name || customer.solutionPackage || "",
+      businessMode: linked?.businessMode || customer.businessMode,
+      businessCategory: linked?.businessCategory || customer.businessCategory
+    };
+  });
+
+  state.deals = (state.deals || []).map((deal) => {
+    const linked = productById.get(deal.productId) || productByName.get(deal.offerName);
+    return {
+      ...deal,
+      productId: linked?.id || "",
+      offerName: linked?.name || deal.offerName || ""
+    };
+  });
+  state.tasks = (state.tasks || []).map((task) => {
+    const linked = productById.get(task.productId) || productByName.get(task.offerName);
+    return {
+      ...task,
+      productId: linked?.id || "",
+      offerName: linked?.name || task.offerName || ""
+    };
+  });
+
+  return state;
+}
+
+export function updateProductAcrossState(inputState, productId, changes) {
+  const state = normalizeOfferRelations(inputState);
+  const product = state.products.find((item) => item.id === productId);
+  if (!product) return state;
+  Object.assign(product, changes);
+  state.customers = state.customers.map((customer) => customer.solutionPackageId === productId
+    ? {
+      ...customer,
+      solutionPackage: product.name,
+      businessMode: product.businessMode || customer.businessMode,
+      businessCategory: product.businessCategory || customer.businessCategory
+    }
+    : customer);
+  state.deals = state.deals.map((deal) => deal.productId === productId
+    ? { ...deal, offerName: product.name }
+    : deal);
+  state.tasks = state.tasks.map((task) => task.productId === productId
+    ? { ...task, offerName: product.name }
+    : task);
+  return state;
+}
+
+export function detachProductRelations(inputState, productId) {
+  const state = normalizeOfferRelations(inputState);
+  state.products = state.products.filter((product) => product.id !== productId);
+  state.customers = state.customers.map((customer) => customer.solutionPackageId === productId
+    ? { ...customer, solutionPackageId: "" }
+    : customer);
+  state.deals = state.deals.map((deal) => deal.productId === productId
+    ? { ...deal, productId: "" }
+    : deal);
+  state.tasks = state.tasks.map((task) => task.productId === productId
+    ? { ...task, productId: "" }
+    : task);
+  return state;
+}
+
 export function createZeroState() {
   return {
     meta: { updatedAt: new Date().toISOString() },
-    schemaVersion: 6,
+    schemaVersion: 7,
     businessProfile: {
       businessName: "",
       businessMode: "online",

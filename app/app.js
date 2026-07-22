@@ -1,4 +1,12 @@
-import { buildProfileCatalog, packagesMissingFromCatalog, mergeCatalogWithProducts, createZeroState } from "./business-workflows.js?v=16";
+import {
+  buildProfileCatalog,
+  packagesMissingFromCatalog,
+  mergeCatalogWithProducts,
+  normalizeOfferRelations,
+  updateProductAcrossState,
+  detachProductRelations,
+  createZeroState
+} from "./business-workflows.js?v=17";
 
 const STORAGE_KEY = "business-growth-dashboard-demo";
 const REVENUE_TARGET = 100000;
@@ -105,6 +113,13 @@ const businessCategories = {
   property: "อสังหาริมทรัพย์"
 };
 
+const pipelineModeLabels = {
+  online: "Online · Social / Website / Marketplace",
+  onsite: "Onsite · นัดหมาย / หน้าสาขา",
+  wholesale: "Wholesale · B2B / ตัวแทน / องค์กร",
+  retail: "Retail · หน้าร้าน / POS / สมาชิก"
+};
+
 const avatarPresets = {
   creator: { code: "ON", label: "Online Creator", tone: "violet", icon: "globe" },
   service: { code: "SV", label: "Professional Service", tone: "teal", icon: "handshake" },
@@ -127,6 +142,7 @@ const roleIcons = { owner: "crown", sales: "handshake", marketing: "megaphone", 
 
 const leadStatuses = ["New Lead", "Contacted", "Interested", "Proposal Sent"];
 const dealStages = ["New", "Qualified", "Proposal", "Negotiation", "Won", "Lost"];
+const productCategories = ["สินค้า", "บริการ", "Package", "Subscription", "Bundle"];
 const taskStatuses = ["todo", "in_progress", "done", "overdue"];
 const leadStatusLabels = { "New Lead": "ลูกค้าใหม่", Contacted: "ติดต่อแล้ว", Interested: "สนใจ", "Proposal Sent": "ส่งข้อเสนอแล้ว" };
 const dealStageLabels = {
@@ -172,13 +188,13 @@ const seedData = {
     { id: "l4", customerId: "c4", status: "New Lead", assignedTo: "Admin", leadScore: 43, nextFollowUp: "2026-07-07" }
   ],
   products: [
-    { id: "p1", name: "AI Fundamentals Course", category: "Course", price: 5900, cost: 1500, status: "active" },
-    { id: "p2", name: "Corporate AI Training", category: "Training", price: 85000, cost: 25000, status: "active" },
-    { id: "p3", name: "AI Consulting Package", category: "Consulting", price: 45000, cost: 12000, status: "active" },
-    { id: "mp1", name: "Marketing Starter", category: "Marketing Solution", price: 15000, cost: 3500, status: "active" },
-    { id: "mp2", name: "Content Growth", category: "Marketing Solution", price: 25000, cost: 7000, status: "active" },
-    { id: "mp3", name: "Lead Generation", category: "Marketing Solution", price: 35000, cost: 11000, status: "active" },
-    { id: "mp4", name: "Full Funnel Solution", category: "Marketing Solution", price: 59000, cost: 18000, status: "active" }
+    { id: "p1", name: "AI Fundamentals Course", category: "สินค้า", price: 5900, cost: 1500, status: "active", businessMode: "online", pipelineStage: "Qualified" },
+    { id: "p2", name: "Corporate AI Training", category: "บริการ", price: 85000, cost: 25000, status: "active", businessMode: "onsite", pipelineStage: "Proposal" },
+    { id: "p3", name: "AI Consulting Package", category: "Package", price: 45000, cost: 12000, status: "active", businessMode: "onsite", pipelineStage: "Negotiation" },
+    { id: "mp1", name: "Marketing Starter", category: "Package", price: 15000, cost: 3500, status: "active", businessMode: "online", pipelineStage: "Qualified" },
+    { id: "mp2", name: "Content Growth", category: "Subscription", price: 25000, cost: 7000, status: "active", businessMode: "online", pipelineStage: "Proposal" },
+    { id: "mp3", name: "Lead Generation", category: "บริการ", price: 35000, cost: 11000, status: "active", businessMode: "online", pipelineStage: "Proposal" },
+    { id: "mp4", name: "Full Funnel Solution", category: "Bundle", price: 59000, cost: 18000, status: "active", businessMode: "online", pipelineStage: "Negotiation" }
   ],
   deals: [
     { id: "d1", customerId: "c1", name: "Public course enrollment", value: 5900, stage: "Won", probability: 100 },
@@ -287,6 +303,14 @@ function validIsoDate(value) {
   return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
 }
 
+function alignCustomerType(customer) {
+  const mode = businessModes[customer.businessMode] || businessModes.online;
+  return {
+    ...customer,
+    customerType: mode.customerTypes.includes(customer.customerType) ? customer.customerType : mode.customerTypes[0]
+  };
+}
+
 function normalizeState(data) {
   data.meta = {
     updatedAt: validIsoDate(data.meta?.updatedAt)
@@ -318,8 +342,22 @@ function normalizeState(data) {
       customerType: customer.customerType || customerMode.customerTypes[Math.min(index, customerMode.customerTypes.length - 1)]
     };
   });
-  data.schemaVersion = 6;
-  return data;
+  data.products = data.products.map((product) => ({
+    ...product,
+    category: productCategories.includes(product.category)
+      ? product.category
+      : /course|product/i.test(product.category) ? "สินค้า"
+        : /training|consulting|service/i.test(product.category) ? "บริการ"
+          : /subscription/i.test(product.category) ? "Subscription"
+            : /bundle/i.test(product.category) ? "Bundle" : "Package",
+    businessMode: businessModes[product.businessMode] ? product.businessMode : data.businessProfile.businessMode,
+    businessCategory: product.businessCategory || data.businessProfile.businessCategory,
+    pipelineStage: dealStages.includes(product.pipelineStage) ? product.pipelineStage : "Proposal"
+  }));
+  data.schemaVersion = 7;
+  const relatedState = normalizeOfferRelations(data);
+  relatedState.customers = relatedState.customers.map(alignCustomerType);
+  return relatedState;
 }
 
 function saveState() {
@@ -425,8 +463,27 @@ function currentBusinessCatalog() {
   return mergeCatalogWithProducts(buildProfileCatalog(state.businessProfile, businessCatalogs), state.products);
 }
 
+function offerByReference(reference) {
+  const value = String(reference || "");
+  if (value.startsWith("product:")) return state.products.find((item) => item.id === value.slice(8));
+  if (value.startsWith("catalog:")) return currentBusinessCatalog().find((item) => item.catalogKey === value.slice(8));
+  return state.products.find((item) => item.id === value || item.name === value)
+    || currentBusinessCatalog().find((item) => item.name === value);
+}
+
+function offerReference(offer) {
+  if (!offer) return "";
+  return offer.id ? `product:${offer.id}` : `catalog:${offer.catalogKey}`;
+}
+
+function customerOffer(customer) {
+  return state.products.find((item) => item.id === customer?.solutionPackageId)
+    || state.products.find((item) => item.name === customer?.solutionPackage)
+    || currentBusinessCatalog().find((item) => item.name === customer?.solutionPackage);
+}
+
 function iconMarkup(name, className = "ui-icon") {
-  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=16#${escapeHTML(name)}"></use></svg>`;
+  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=17#${escapeHTML(name)}"></use></svg>`;
 }
 
 document.querySelector("#toastUndo").addEventListener("click", () => {
@@ -693,7 +750,7 @@ function renderJourneyFlow() {
       : stageLeads.reduce((sum, lead) => {
           const deal = state.deals.find((item) => item.customerId === lead.customerId && item.stage !== "Lost");
           const customer = customerById(lead.customerId);
-          const offer = [...currentBusinessCatalog(), ...state.products].find((item) => item.name === customer?.solutionPackage);
+          const offer = customerOffer(customer);
           return sum + Number(deal?.value || offer?.price || 0);
         }, 0);
     return { key, label, detail, count, value };
@@ -755,7 +812,7 @@ function renderPriorityLeads() {
   document.querySelector("#priorityLeads").innerHTML = leads.map((lead) => {
     const customer = customerById(lead.customerId);
     const overdue = lead.nextFollowUp < today();
-    return `<article class="priority-item"><div class="lead-profile">${avatarMarkup(customer, "small")}<div><strong>${escapeHTML(customer?.fullName || "-")}</strong><span>${escapeHTML(customer?.solutionPackage || "-")}</span></div></div><div class="priority-meta"><span class="score-tag">${lead.leadScore} คะแนน</span><small class="${overdue ? "danger" : ""}">${overdue ? "เกินกำหนด" : `ติดตาม ${lead.nextFollowUp}`}</small></div><button class="small-button" data-task-from-lead="${escapeHTML(lead.id)}">สร้างงาน</button></article>`;
+    return `<article class="priority-item"><div class="lead-profile">${avatarMarkup(customer, "small")}<div><strong>${escapeHTML(customer?.fullName || "-")}</strong><span>${escapeHTML(customerOffer(customer)?.name || customer?.solutionPackage || "-")}</span></div></div><div class="priority-meta"><span class="score-tag">${lead.leadScore} คะแนน</span><small class="${overdue ? "danger" : ""}">${overdue ? "เกินกำหนด" : `ติดตาม ${lead.nextFollowUp}`}</small></div><button class="small-button" data-task-from-lead="${escapeHTML(lead.id)}">สร้างงาน</button></article>`;
   }).join("") || `<div class="empty-state">Lead ทุกคนมีแผนติดตามแล้ว</div>`;
 }
 
@@ -830,9 +887,10 @@ function renderCustomers() {
         businessMode: customer.businessMode,
         businessCategory: customer.businessCategory || state.businessProfile.businessCategory
       }, businessCatalogs), state.products);
-      const recommended = customerCatalog.some((item) => item.name === customer.solutionPackage);
+      const offer = customerOffer(customer);
+      const recommended = customerCatalog.some((item) => item.id === offer?.id || item.catalogKey === offer?.catalogKey || item.name === offer?.name);
       const customerMode = businessModes[customer.businessMode] || businessModes.online;
-      return `<tr><td><div class="customer-cell">${avatarMarkup(customer, "small")}<div><strong>${escapeHTML(customer.fullName)}</strong><span>${escapeHTML(customer.interest)}</span></div></div></td><td><span class="customer-type-pill">${escapeHTML(customerMode.label)} · ${escapeHTML(customer.customerType || "ยังไม่จัดกลุ่ม")}</span></td><td><a class="contact-link" href="tel:${escapeHTML(phone.replace(/[^0-9+]/g, ""))}" aria-label="โทรหา ${escapeHTML(customer.fullName)}">${escapeHTML(phone)}</a></td><td>${contactBadge(customer.source)}</td><td><span class="package-pill ${recommended ? "package-pill--fit" : ""}">${escapeHTML(customer.solutionPackage)}</span></td><td>${escapeHTML(leadStatusLabels[lead?.status] || "-")}</td><td><div class="table-actions"><button class="row-action" data-edit-record="customer:${escapeHTML(customer.id)}">แก้ไข</button><button class="row-action danger" data-delete-record="customer:${escapeHTML(customer.id)}">ลบ</button></div></td></tr>`;
+      return `<tr><td><div class="customer-cell">${avatarMarkup(customer, "small")}<div><strong>${escapeHTML(customer.fullName)}</strong><span>${escapeHTML(customer.interest)}</span></div></div></td><td><span class="customer-type-pill">${escapeHTML(customerMode.label)} · ${escapeHTML(customer.customerType || "ยังไม่จัดกลุ่ม")}</span></td><td><a class="contact-link" href="tel:${escapeHTML(phone.replace(/[^0-9+]/g, ""))}" aria-label="โทรหา ${escapeHTML(customer.fullName)}">${escapeHTML(phone)}</a></td><td>${contactBadge(customer.source)}</td><td><span class="package-pill ${recommended ? "package-pill--fit" : ""}">${escapeHTML(offer?.name || customer.solutionPackage || "ยังไม่เลือกข้อเสนอ")}</span></td><td>${escapeHTML(leadStatusLabels[lead?.status] || "-")}</td><td><div class="table-actions"><button class="row-action" data-edit-record="customer:${escapeHTML(customer.id)}">แก้ไข</button><button class="row-action danger" data-delete-record="customer:${escapeHTML(customer.id)}">ลบ</button></div></td></tr>`;
     })
   );
 }
@@ -869,7 +927,7 @@ function leadCard(lead) {
           ${contactBadge(customer?.source || "-")}
         </div>
       </div>
-      <span class="package-pill">${escapeHTML(customer?.solutionPackage || "ยังไม่เลือกแพ็กเกจ")}</span>
+      <span class="package-pill">${escapeHTML(customerOffer(customer)?.name || customer?.solutionPackage || "ยังไม่เลือกข้อเสนอ")}</span>
       <span>${escapeHTML(customer?.interest || "-")}</span>
       <span>คะแนน Lead ${escapeHTML(lead.leadScore)} · ติดตาม ${escapeHTML(lead.nextFollowUp)}</span>
       <div class="lead-actions">
@@ -892,29 +950,53 @@ function updateCrmBulkToolbar() {
 }
 
 function renderProducts() {
+  const modeSelect = document.querySelector("#productBusinessMode");
+  const selectedMode = modeSelect.value || state.businessProfile.businessMode;
+  modeSelect.innerHTML = Object.entries(businessModes).map(([value, item]) =>
+    `<option value="${escapeHTML(value)}" ${value === selectedMode ? "selected" : ""}>${escapeHTML(pipelineModeLabels[value] || item.label)}</option>`
+  ).join("");
+  const stageSelect = document.querySelector("#productPipelineStage");
+  const selectedStage = stageSelect.value || "Proposal";
+  stageSelect.innerHTML = dealStages.map((stage) =>
+    `<option value="${escapeHTML(stage)}" ${stage === selectedStage ? "selected" : ""}>${escapeHTML(dealStageLabels[stage])}</option>`
+  ).join("");
   document.querySelector("#productTable").innerHTML = table(
-    ["สินค้า/บริการ/ข้อเสนอ", "ประเภท", "เหมาะกับธุรกิจ", "ราคาขาย", "ต้นทุน", "กำไรขั้นต้น", "สถานะ", "จัดการ"],
+    ["สินค้า/บริการ/ข้อเสนอ", "ประเภท", "Business Mode", "ใช้ใน Pipeline", "ราคาขาย", "ต้นทุน", "กำไรขั้นต้น", "สถานะ", "จัดการ"],
     state.products.map((product) => {
       const margin = Number(product.price) - Number(product.cost);
       const modeLabel = product.businessMode ? businessModes[product.businessMode]?.label || "ทั่วไป" : "ทุกธุรกิจ";
       const categoryLabel = product.businessCategory ? businessCategories[product.businessCategory] || "ทุกหมวด" : "ทุกหมวด";
       const relation = product.businessMode ? `${modeLabel} · ${categoryLabel}` : modeLabel;
       const reason = product.recommendationReason || product.description || "";
-      return `<tr><td><div class="product-name-cell"><strong>${escapeHTML(product.name)}</strong>${reason ? `<span>${escapeHTML(reason)}</span>` : ""}</div></td><td>${escapeHTML(product.category)}</td><td><span class="context-badge context-badge--table">${escapeHTML(relation)}</span></td><td>${escapeHTML(currency(product.price))}</td><td>${escapeHTML(currency(product.cost))}</td><td class="success">${escapeHTML(currency(margin))}</td><td>${product.status === "active" ? "เปิดขาย" : "ปิดขาย"}</td><td><div class="table-actions"><button class="row-action" data-edit-record="product:${escapeHTML(product.id)}">แก้ไข</button><button class="row-action danger" data-delete-record="product:${escapeHTML(product.id)}">ลบ</button></div></td></tr>`;
+      return `<tr><td><div class="product-name-cell"><strong>${escapeHTML(product.name)}</strong>${reason ? `<span>${escapeHTML(reason)}</span>` : ""}</div></td><td>${escapeHTML(product.category)}</td><td><span class="context-badge context-badge--table">${escapeHTML(relation)}</span></td><td><span class="pipeline-fit">${escapeHTML(dealStageLabels[product.pipelineStage] || dealStageLabels.Proposal)}</span></td><td>${escapeHTML(currency(product.price))}</td><td>${escapeHTML(currency(product.cost))}</td><td class="success">${escapeHTML(currency(margin))}</td><td>${product.status === "active" ? "เปิดขาย" : "ปิดขาย"}</td><td><div class="table-actions"><button class="row-action" data-edit-record="product:${escapeHTML(product.id)}">แก้ไข</button><button class="row-action danger" data-delete-record="product:${escapeHTML(product.id)}">ลบ</button></div></td></tr>`;
     })
   );
 }
 
+function renderDealOfferOptions(preferredProductId = "") {
+  const select = document.querySelector("#dealProductSelect");
+  if (!select) return;
+  const selected = preferredProductId || select.value;
+  const activeProducts = state.products.filter((product) => product.status === "active");
+  select.innerHTML = `<option value="">ไม่เชื่อมสินค้า/ข้อเสนอ</option>${activeProducts.map((product) =>
+    `<option value="${escapeHTML(product.id)}" ${product.id === selected ? "selected" : ""}>${escapeHTML(product.name)} · ${escapeHTML(businessModes[product.businessMode]?.label || "ทุกธุรกิจ")} · ${escapeHTML(dealStageLabels[product.pipelineStage] || dealStageLabels.Proposal)}</option>`
+  ).join("")}`;
+}
+
 function renderDeals() {
-  document.querySelector("#dealCustomerSelect").innerHTML = state.customers.map((customer) =>
-    `<option value="${escapeHTML(customer.id)}">${escapeHTML(customer.fullName)}</option>`
-  ).join("");
+  document.querySelector("#dealCustomerSelect").innerHTML = state.customers.length
+    ? state.customers.map((customer) => `<option value="${escapeHTML(customer.id)}">${escapeHTML(customer.fullName)}</option>`).join("")
+    : `<option value="">เพิ่มลูกค้าก่อนสร้าง Deal</option>`;
+  const submitButton = document.querySelector('#dealForm button[type="submit"]');
+  submitButton.disabled = state.customers.length === 0;
+  submitButton.textContent = state.customers.length ? "เพิ่มดีลธุรกิจ" : "เพิ่มลูกค้าก่อนสร้าง Deal";
 
   document.querySelector("#dealTable").innerHTML = table(
-    ["ดีลธุรกิจ", "ลูกค้า", "มูลค่า", "สถานะดีล", "โอกาสสำเร็จ", "จัดการ"],
+    ["ชื่อดีลเฉพาะ", "สินค้า/ข้อเสนอที่เชื่อม", "ลูกค้า", "มูลค่า", "สถานะดีล", "โอกาสสำเร็จ", "จัดการ"],
     state.deals.map((deal) => `
       <tr>
         <td>${escapeHTML(deal.name)}</td>
+        <td><span class="package-pill">${escapeHTML(state.products.find((item) => item.id === deal.productId)?.name || deal.offerName || "ไม่ได้เชื่อมข้อเสนอ")}</span></td>
         <td>${escapeHTML(customerById(deal.customerId)?.fullName || "-")}</td>
         <td>${escapeHTML(currency(deal.value))}</td>
         <td>
@@ -927,6 +1009,7 @@ function renderDeals() {
       </tr>
     `)
   );
+  renderDealOfferOptions();
 }
 
 function renderTasks() {
@@ -966,18 +1049,20 @@ function renderPackageOptions() {
   const select = document.querySelector("#customerPackageSelect");
   const selected = select.value;
   const recommended = currentBusinessCatalog();
+  const recommendedIds = new Set(recommended.map((item) => item.id).filter(Boolean));
   const recommendedNames = new Set(recommended.map((item) => item.name));
-  const otherProducts = state.products.filter((item) => item.status === "active" && !recommendedNames.has(item.name));
+  const otherProducts = state.products.filter((item) => item.status === "active" && !recommendedIds.has(item.id) && !recommendedNames.has(item.name));
   select.innerHTML = `
     <optgroup label="แนะนำสำหรับ ${escapeHTML(currentBusinessMode().label)}">
-      ${recommended.map((item) => `<option value="${escapeHTML(item.name)}" ${selected === item.name ? "selected" : ""}>${escapeHTML(item.name)} · ${escapeHTML(currency(item.price))}</option>`).join("")}
+      ${recommended.map((item) => `<option value="${escapeHTML(offerReference(item))}" ${selected === offerReference(item) ? "selected" : ""}>${escapeHTML(item.name)} · ${escapeHTML(currency(item.price))}</option>`).join("")}
     </optgroup>
-    ${otherProducts.length ? `<optgroup label="สินค้าและบริการอื่นในระบบ">${otherProducts.map((item) => `<option value="${escapeHTML(item.name)}" ${selected === item.name ? "selected" : ""}>${escapeHTML(item.name)} · ${escapeHTML(currency(item.price))}</option>`).join("")}</optgroup>` : ""}
+    ${otherProducts.length ? `<optgroup label="สินค้าและบริการอื่นในระบบ">${otherProducts.map((item) => `<option value="${escapeHTML(offerReference(item))}" ${selected === offerReference(item) ? "selected" : ""}>${escapeHTML(item.name)} · ${escapeHTML(currency(item.price))}</option>`).join("")}</optgroup>` : ""}
   `;
-  const selectedOffer = [...recommended, ...otherProducts].find((item) => item.name === select.value) || recommended[0];
+  const selectedOffer = offerByReference(select.value) || recommended[0] || otherProducts[0];
   const hint = document.querySelector("#customerPackageHint");
   if (hint && selectedOffer) {
-    hint.textContent = `แนะนำสำหรับ ${currentBusinessMode().label}: ${selectedOffer.description || `${selectedOffer.category} ที่สัมพันธ์กับรูปแบบการขายนี้`}`;
+    const offerMode = businessModes[selectedOffer.businessMode] || currentBusinessMode();
+    hint.textContent = `ใช้กับ ${offerMode.label} ในขั้น ${dealStageLabels[selectedOffer.pipelineStage] || dealStageLabels.Proposal}: ${selectedOffer.description || `${selectedOffer.category} ที่สัมพันธ์กับรูปแบบการขายนี้`}`;
   }
 }
 
@@ -1000,7 +1085,7 @@ function renderAvatarOptions() {
 }
 
 function resetCustomerFormDefaults() {
-  document.querySelector("#customerPackageSelect").value = currentBusinessCatalog()[0]?.name || "";
+  document.querySelector("#customerPackageSelect").value = offerReference(currentBusinessCatalog()[0]);
   document.querySelector("#customerTypeSelect").value = currentBusinessMode().customerTypes[0];
   document.querySelector("#customerAvatarPreset").value = state.businessProfile.businessCategory;
   renderPackageOptions();
@@ -1082,6 +1167,7 @@ document.querySelector("#businessViewSwitch").addEventListener("click", (event) 
   const button = event.target.closest("[data-business-view]");
   if (!button || !businessModes[button.dataset.businessView]) return;
   state.businessProfile.businessMode = button.dataset.businessView;
+  document.querySelector("#productBusinessMode").value = state.businessProfile.businessMode;
   if (!saveState()) return;
   renderAll();
   resetCustomerFormDefaults();
@@ -1100,6 +1186,7 @@ document.querySelector("#businessProfileForm").addEventListener("submit", (event
     businessAvatar: form.get("businessAvatar"),
     revenueTarget: Math.max(0, Number(form.get("revenueTarget")) || 0)
   };
+  document.querySelector("#productBusinessMode").value = state.businessProfile.businessMode;
   if (!saveState()) return;
   renderAll();
   resetCustomerFormDefaults();
@@ -1118,9 +1205,13 @@ document.querySelector("#installBusinessCatalog").addEventListener("click", () =
     status: "active",
     businessMode: item.businessMode,
     businessCategory: item.businessCategory,
+    pipelineStage: item.pipelineStage,
+    catalogKey: item.catalogKey,
     description: item.description,
     recommendationReason: item.recommendationReason
   }));
+  state = normalizeOfferRelations(state);
+  state.customers = state.customers.map(alignCustomerType);
   if (!saveState()) return;
   renderAll();
   notify(additions.length ? `เพิ่มข้อเสนอแนะนำ ${additions.length} รายการแล้ว` : "ชุดข้อเสนอแนะนำอยู่ในระบบแล้ว");
@@ -1150,6 +1241,20 @@ function debounce(callback, delay = 140) {
 document.querySelector("#customerSearch").addEventListener("input", debounce(renderCustomers));
 document.querySelector("#customerSourceFilter").addEventListener("change", renderCustomers);
 document.querySelector("#customerPackageSelect").addEventListener("change", renderPackageOptions);
+document.querySelector("#dealProductSelect").addEventListener("change", (event) => {
+  const product = state.products.find((item) => item.id === event.target.value);
+  if (!product) return;
+  document.querySelector('#dealForm input[name="name"]').value = product.name;
+  document.querySelector('#dealForm input[name="value"]').value = product.price;
+  document.querySelector('#dealForm select[name="stage"]').value = product.pipelineStage || "Proposal";
+});
+document.querySelector("#dealCustomerSelect").addEventListener("change", (event) => {
+  const customer = customerById(event.target.value);
+  if (customer?.solutionPackageId) {
+    renderDealOfferOptions(customer.solutionPackageId);
+    document.querySelector("#dealProductSelect").dispatchEvent(new Event("change"));
+  }
+});
 
 function resizeProfilePhoto(file) {
   if (!file) return Promise.resolve("");
@@ -1183,7 +1288,7 @@ const recordConfigs = {
       ["source", "ช่องทางที่มา", "select", contactSources],
       ["avatarPreset", "Avatar ตามประเภทธุรกิจ", "select", Object.keys(avatarPresets)],
       ["customerType", "ประเภทลูกค้า", "select", []],
-      ["solutionPackage", "ข้อเสนอที่สนใจ", "select", []], ["interest", "ความต้องการ", "text"]
+      ["solutionPackageId", "ข้อเสนอที่สนใจ", "select", []], ["interest", "ความต้องการ", "text"]
     ]
   },
   lead: {
@@ -1198,11 +1303,11 @@ const recordConfigs = {
   },
   product: {
     title: "แก้ไขแพ็กเกจ/บริการ", collection: "products",
-    fields: [["name", "ชื่อแพ็กเกจ/บริการ", "text"], ["category", "ประเภท", "text"], ["price", "ราคาขาย", "number"], ["cost", "ต้นทุน", "number"], ["status", "สถานะ", "select", ["active", "inactive"]]]
+    fields: [["name", "ชื่อเฉพาะของสินค้า/ข้อเสนอ", "text"], ["category", "ประเภท", "select", productCategories], ["businessMode", "รูปแบบธุรกิจใน Pipeline", "select", Object.keys(businessModes)], ["pipelineStage", "เสนอในขั้น Pipeline", "select", dealStages], ["price", "ราคาขาย", "number"], ["cost", "ต้นทุน", "number"], ["status", "สถานะ", "select", ["active", "inactive"]]]
   },
   deal: {
     title: "แก้ไขดีลธุรกิจ", collection: "deals",
-    fields: [["name", "ชื่อดีลธุรกิจ", "text"], ["value", "มูลค่า", "number"], ["stage", "สถานะการพัฒนาดีล", "select", dealStages], ["probability", "โอกาสสำเร็จ (%)", "number"]]
+    fields: [["customerId", "ลูกค้า", "select", []], ["productId", "สินค้า/ข้อเสนอที่เชื่อม", "select", []], ["name", "ชื่อดีลเฉพาะสำหรับลูกค้า", "text"], ["value", "มูลค่า", "number"], ["stage", "สถานะการพัฒนาดีล", "select", dealStages], ["probability", "โอกาสสำเร็จ (%)", "number"]]
   },
   task: {
     title: "แก้ไขงานติดตาม", collection: "tasks",
@@ -1211,12 +1316,16 @@ const recordConfigs = {
 };
 
 function recordFieldMarkup([name, label, type, options], record) {
-  const value = record[name] ?? "";
+  const value = name === "solutionPackageId" && record[name] ? `product:${record[name]}` : record[name] ?? "";
   if (type === "select") {
-    const labelMap = name === "stage" ? dealStageLabels : name === "status" ? { ...taskStatusLabels, ...leadStatusLabels, active: "เปิดขาย", inactive: "ปิดขาย" } : name === "priority" ? priorityLabels : name === "avatarPreset" ? Object.fromEntries(Object.entries(avatarPresets).map(([key, item]) => [key, `${item.code} · ${item.label}`])) : {};
+    const labelMap = name === "stage" || name === "pipelineStage" ? dealStageLabels : name === "businessMode" ? pipelineModeLabels : name === "status" ? { ...taskStatusLabels, ...leadStatusLabels, active: "เปิดขาย", inactive: "ปิดขาย" } : name === "priority" ? priorityLabels : name === "avatarPreset" ? Object.fromEntries(Object.entries(avatarPresets).map(([key, item]) => [key, `${item.code} · ${item.label}`])) : {};
     const optionMarkup = name === "stage"
       ? dealStageOptionMarkup(String(value))
-      : options.map((option) => `<option value="${escapeHTML(option)}" ${String(value) === String(option) ? "selected" : ""}>${escapeHTML(labelMap[option] || option)}</option>`).join("");
+      : options.map((option) => {
+        const optionValue = typeof option === "object" ? option.value : option;
+        const optionLabel = typeof option === "object" ? option.label : labelMap[option] || option;
+        return `<option value="${escapeHTML(optionValue)}" ${String(value) === String(optionValue) ? "selected" : ""}>${escapeHTML(optionLabel)}</option>`;
+      }).join("");
     return `<label>${escapeHTML(label)}<select name="${escapeHTML(name)}">${optionMarkup}</select></label>`;
   }
   return `<label>${escapeHTML(label)}<input name="${escapeHTML(name)}" type="${escapeHTML(type)}" value="${escapeHTML(value)}" ${type === "number" ? "min=\"0\"" : ""} required></label>`;
@@ -1237,7 +1346,16 @@ function openRecordDialog(type, id) {
       businessCategory: record.businessCategory || state.businessProfile.businessCategory
     }, businessCatalogs), state.products);
     if (field[0] === "customerType") return [field[0], recordMode.customerTypeLabel, field[2], recordMode.customerTypes];
-    if (field[0] === "solutionPackage") return [field[0], field[1], field[2], [...new Set([...recordCatalog.map((item) => item.name), ...state.products.map((item) => item.name), record.solutionPackage])]];
+    if (field[0] === "solutionPackageId") {
+      const offers = [...recordCatalog, ...state.products].filter((item, index, all) => all.findIndex((candidate) => (candidate.id && candidate.id === item.id) || (!candidate.id && candidate.name === item.name)) === index);
+      const options = offers.map((item) => ({ value: offerReference(item), label: `${item.name} · ${currency(item.price)}` }));
+      if (!record.solutionPackageId && record.solutionPackage) options.unshift({ value: "", label: `${record.solutionPackage} · เก็บจากข้อมูลเดิม` });
+      return [field[0], field[1], field[2], options];
+    }
+    return field;
+  }) : type === "deal" ? config.fields.map((field) => {
+    if (field[0] === "customerId") return [field[0], field[1], field[2], state.customers.map((customer) => ({ value: customer.id, label: customer.fullName }))];
+    if (field[0] === "productId") return [field[0], field[1], field[2], [{ value: "", label: "ไม่เชื่อมสินค้า/ข้อเสนอ" }, ...state.products.map((product) => ({ value: product.id, label: `${product.name} · ${dealStageLabels[product.pipelineStage] || dealStageLabels.Proposal}` }))]];
     return field;
   }) : config.fields;
   document.querySelector("#recordFields").innerHTML = fields.map((field) => recordFieldMarkup(field, record)).join("");
@@ -1250,10 +1368,15 @@ function deleteRecord(type, id) {
   const config = recordConfigs[type];
   const record = config && state[config.collection].find((item) => item.id === id);
   if (!record) return;
-  const related = type === "customer" ? " Lead และ Deal ที่เชื่อมกับลูกค้ารายนี้จะถูกลบด้วย" : "";
+  const related = type === "customer"
+    ? " Lead และ Deal ที่เชื่อมกับลูกค้ารายนี้จะถูกลบด้วย"
+    : type === "product"
+      ? " ระบบจะถอดการเชื่อมจาก Customer, Deal และงานติดตาม แต่ยังเก็บชื่อเดิมไว้ในประวัติ"
+      : "";
   if (!window.confirm(`ยืนยันลบรายการนี้หรือไม่?${related}`)) return;
   const previousState = clone(state);
-  state[config.collection] = state[config.collection].filter((item) => item.id !== id);
+  if (type === "product") state = detachProductRelations(state, id);
+  else state[config.collection] = state[config.collection].filter((item) => item.id !== id);
   if (type === "customer") {
     state.leads = state.leads.filter((lead) => lead.customerId !== id);
     state.deals = state.deals.filter((deal) => deal.customerId !== id);
@@ -1272,10 +1395,33 @@ document.querySelector("#recordForm").addEventListener("submit", (event) => {
   const record = config && state[config.collection].find((item) => item.id === form.dataset.recordId);
   if (!record) return;
   const values = new FormData(form);
-  config.fields.forEach(([name, , type]) => {
-    record[name] = type === "number" ? Number(values.get(name)) : values.get(name).trim();
+  const changes = {};
+  config.fields.forEach(([name, , fieldType]) => {
+    if (name === "solutionPackageId") return;
+    const value = values.get(name);
+    changes[name] = fieldType === "number" ? Number(value) : String(value || "").trim();
   });
-  if (config.collection === "deals") record.probability = record.stage === "Won" ? 100 : record.stage === "Lost" ? 0 : Math.min(100, Math.max(0, Number(record.probability)));
+  if (form.dataset.recordType === "product") {
+    state = updateProductAcrossState(state, record.id, changes);
+    state.customers = state.customers.map(alignCustomerType);
+  } else {
+    Object.assign(record, changes);
+  }
+  if (config.collection === "customers") {
+    const offer = offerByReference(values.get("solutionPackageId"));
+    if (offer) {
+      record.solutionPackageId = offer.id || "";
+      record.solutionPackage = offer.name;
+      record.businessMode = offer.businessMode || record.businessMode;
+      record.businessCategory = offer.businessCategory || record.businessCategory;
+      Object.assign(record, alignCustomerType(record));
+    }
+  }
+  if (config.collection === "deals") {
+    const offer = state.products.find((item) => item.id === record.productId);
+    record.offerName = offer?.name || record.offerName || "";
+    record.probability = record.stage === "Won" ? 100 : record.stage === "Lost" ? 0 : Math.min(100, Math.max(0, Number(record.probability)));
+  }
   if (config.collection === "leads") record.leadScore = Math.min(100, Math.max(0, Number(record.leadScore)));
   if (!saveState()) return;
   renderAll();
@@ -1290,6 +1436,8 @@ document.querySelector("#customerForm").addEventListener("submit", async (event)
   const formElement = event.currentTarget;
   const form = new FormData(formElement);
   const customerId = uid("c");
+  const selectedOffer = offerByReference(form.get("solutionPackage"));
+  const selectedOfferMode = businessModes[selectedOffer?.businessMode] || currentBusinessMode();
   let avatar = "";
   try {
     avatar = await resizeProfilePhoto(form.get("profilePhoto"));
@@ -1301,10 +1449,13 @@ document.querySelector("#customerForm").addEventListener("submit", async (event)
     fullName: form.get("fullName").trim(),
     phone: form.get("phone").trim() || "-",
     source: form.get("source"),
-    solutionPackage: form.get("solutionPackage"),
-    customerType: form.get("customerType"),
-    businessMode: state.businessProfile.businessMode,
-    businessCategory: state.businessProfile.businessCategory,
+    solutionPackageId: selectedOffer?.id || "",
+    solutionPackage: selectedOffer?.name || "ยังไม่เลือกข้อเสนอ",
+    customerType: selectedOffer?.businessMode && selectedOffer.businessMode !== state.businessProfile.businessMode
+      ? selectedOfferMode.customerTypes[0]
+      : form.get("customerType"),
+    businessMode: selectedOffer?.businessMode || state.businessProfile.businessMode,
+    businessCategory: selectedOffer?.businessCategory || state.businessProfile.businessCategory,
     interest: form.get("interest").trim(),
     avatar,
     avatarPreset: form.get("avatarPreset") || state.businessProfile.businessCategory,
@@ -1332,16 +1483,24 @@ document.querySelector("#productForm").addEventListener("submit", (event) => {
   state.products.push({
     id: uid("p"),
     name: form.get("name").trim(),
-    category: form.get("category").trim(),
+    category: form.get("category"),
     price: Number(form.get("price")),
     cost: Number(form.get("cost")),
     status: "active",
-    businessMode: state.businessProfile.businessMode
+    businessMode: form.get("businessMode"),
+    businessCategory: state.businessProfile.businessCategory,
+    pipelineStage: form.get("pipelineStage"),
+    description: `ข้อเสนอที่ผู้ใช้สร้างสำหรับ ${businessModes[form.get("businessMode")]?.label || "ธุรกิจนี้"}`,
+    recommendationReason: `ใช้ในขั้น ${dealStageLabels[form.get("pipelineStage")] || dealStageLabels.Proposal}`
   });
+  state = normalizeOfferRelations(state);
+  state.customers = state.customers.map(alignCustomerType);
   if (!saveState()) return;
   event.currentTarget.reset();
+  document.querySelector("#productBusinessMode").value = state.businessProfile.businessMode;
+  document.querySelector("#productPipelineStage").value = "Proposal";
   renderAll();
-  notify("เพิ่มสินค้า/บริการแล้ว");
+  notify("สร้างสินค้าและเชื่อมกับ Business Pipeline แล้ว");
 });
 
 document.querySelector("#dealForm").addEventListener("submit", (event) => {
@@ -1351,6 +1510,8 @@ document.querySelector("#dealForm").addEventListener("submit", (event) => {
   state.deals.push({
     id: uid("d"),
     customerId: form.get("customerId"),
+    productId: form.get("productId"),
+    offerName: state.products.find((item) => item.id === form.get("productId"))?.name || "",
     name: form.get("name").trim(),
     value: Number(form.get("value")),
     stage,
@@ -1481,9 +1642,12 @@ document.addEventListener("click", (event) => {
   if (taskLeadId) {
     const lead = state.leads.find((item) => item.id === taskLeadId);
     const customer = customerById(lead.customerId);
+    const offer = customerOffer(customer);
     state.tasks.push({
       id: uid("t"),
-      title: `ติดตาม ${customer?.fullName || "ลูกค้า"} เรื่อง ${customer?.solutionPackage || "แพ็กเกจบริการ"}`,
+      title: `ติดตาม ${customer?.fullName || "ลูกค้า"} เรื่อง ${offer?.name || customer?.solutionPackage || "แพ็กเกจบริการ"}`,
+      productId: offer?.id || "",
+      offerName: offer?.name || customer?.solutionPackage || "",
       owner: lead.assignedTo,
       dueDate: lead.nextFollowUp,
       priority: lead.leadScore > 70 ? "High" : "Medium",
@@ -1498,11 +1662,13 @@ document.addEventListener("click", (event) => {
   if (dealLeadId) {
     const lead = state.leads.find((item) => item.id === dealLeadId);
     const customer = customerById(lead.customerId);
-    const solution = [...currentBusinessCatalog(), ...state.products].find((item) => item.name === customer?.solutionPackage);
+    const solution = customerOffer(customer);
     showView("deals", { focusHeading: true });
     document.querySelector("#dealCustomerSelect").value = customer.id;
-    document.querySelector('#dealForm input[name="name"]').value = customer.solutionPackage || "Marketing Solution Package";
+    renderDealOfferOptions(solution?.id || "");
+    document.querySelector('#dealForm input[name="name"]').value = solution?.name || customer.solutionPackage || "ข้อเสนอเฉพาะสำหรับลูกค้า";
     document.querySelector('#dealForm input[name="value"]').value = solution?.price || 25000;
+    document.querySelector('#dealForm select[name="stage"]').value = solution?.pipelineStage || "Proposal";
     notify("เตรียมข้อมูลโอกาสขายจาก CRM แล้ว กดบันทึกเพื่อยืนยัน");
   }
 });
@@ -1538,10 +1704,18 @@ function analysisPayload(userPrompt) {
     businessProfile: state.businessProfile,
     targetRevenue: revenueTarget(),
     metrics: metrics(),
-    customers: state.customers.map(({ id, fullName, source, solutionPackage, interest, createdAt }) => ({ id, fullName, source, solutionPackage, interest, createdAt })),
+    customers: state.customers.map((customer) => ({
+      id: customer.id,
+      fullName: customer.fullName,
+      source: customer.source,
+      solutionPackageId: customer.solutionPackageId,
+      solutionPackage: customerOffer(customer)?.name || customer.solutionPackage,
+      interest: customer.interest,
+      createdAt: customer.createdAt
+    })),
     leads: state.leads,
-    deals: state.deals,
-    tasks: state.tasks,
+    deals: state.deals.map((deal) => ({ ...deal, offerName: state.products.find((product) => product.id === deal.productId)?.name || deal.offerName })),
+    tasks: state.tasks.map((task) => ({ ...task, offerName: state.products.find((product) => product.id === task.productId)?.name || task.offerName })),
     packages: state.products,
     recommendedCatalog: currentBusinessCatalog()
   };
@@ -1675,7 +1849,7 @@ const resetStepContent = {
   2: {
     label: "ป้องกันข้อมูลสูญหาย",
     title: "การคืนค่านี้จะไม่เก็บข้อมูลชุดเก่า",
-    description: "ต้องส่งออกข้อมูลเป็นไฟล์ JSON ก่อน จึงจะไปขั้นถัดไปได้ ไฟล์นี้สามารถนำกลับเข้าระบบภายหลัง"
+    description: "แนะนำให้ส่งออกข้อมูลเป็นไฟล์ JSON ก่อน แต่ไม่บังคับ คุณสามารถกดถัดไปได้ทันที"
   },
   3: {
     label: "ยืนยันครั้งสุดท้าย",
@@ -1698,10 +1872,10 @@ function setResetStep(step) {
   const confirmButton = document.querySelector("#resetConfirm");
   backButton.textContent = resetStep === 1 ? "ยกเลิก" : "ย้อนกลับ";
   exportButton.hidden = resetStep !== 2;
-  exportButton.textContent = resetExported ? "ส่งออกข้อมูลแล้ว" : "ส่งออกข้อมูลก่อน";
+  exportButton.textContent = resetExported ? "ส่งออกข้อมูลแล้ว" : "ส่งออกข้อมูล (ไม่บังคับ)";
   exportButton.disabled = resetExported;
   nextButton.hidden = resetStep === 3;
-  nextButton.disabled = resetStep === 2 && !resetExported;
+  nextButton.disabled = false;
   confirmButton.hidden = resetStep !== 3;
   requestAnimationFrame(() => document.querySelector("#resetDialogTitle").focus?.());
 }
@@ -1718,7 +1892,6 @@ document.querySelector("#resetBack").addEventListener("click", () => {
 });
 
 document.querySelector("#resetNext").addEventListener("click", () => {
-  if (resetStep === 2 && !resetExported) return;
   setResetStep(resetStep + 1);
 });
 
@@ -1728,7 +1901,7 @@ document.querySelector("#resetExport").addEventListener("click", () => {
 });
 
 document.querySelector("#resetConfirm").addEventListener("click", () => {
-  if (resetStep !== 3 || !resetExported) return;
+  if (resetStep !== 3) return;
   state = createZeroState();
   if (!saveState()) return;
   selectedLeadIds.clear();

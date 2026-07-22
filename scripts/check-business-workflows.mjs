@@ -12,6 +12,9 @@ const {
   buildProfileCatalog,
   packagesMissingFromCatalog,
   mergeCatalogWithProducts,
+  normalizeOfferRelations,
+  updateProductAcrossState,
+  detachProductRelations,
   createZeroState
 } = await import(pathToFileURL(workflowPath));
 
@@ -46,6 +49,43 @@ const editedCatalog = mergeCatalogWithProducts(creatorRetail, [
 ]);
 assert.equal(editedCatalog[0].price, 18000, "ราคา Package ที่แก้ไขต้องอัปเดตไปยังฟังก์ชันแนะนำลูกค้า");
 assert.equal(editedCatalog[0].cost, 5000, "ต้นทุน Package ที่แก้ไขต้องอัปเดตไปยัง AI และ Dashboard");
+
+const relatedState = normalizeOfferRelations({
+  products: [
+    { id: "p-offer", name: "Growth Offer", price: 25000, cost: 5000, status: "active", businessMode: "online", pipelineStage: "Proposal" }
+  ],
+  customers: [
+    { id: "c1", fullName: "ลูกค้า A", solutionPackage: "Growth Offer" }
+  ],
+  deals: [
+    { id: "d1", customerId: "c1", name: "ดีลเฉพาะของลูกค้า A", offerName: "Growth Offer", value: 23000, stage: "Proposal" }
+  ],
+  tasks: [
+    { id: "t1", title: "ติดตามเงื่อนไขเฉพาะ", offerName: "Growth Offer" }
+  ]
+});
+assert.equal(relatedState.customers[0].solutionPackageId, "p-offer", "Customer ต้องเชื่อม Offer ด้วย ID ไม่ใช่ชื่ออย่างเดียว");
+assert.equal(relatedState.deals[0].productId, "p-offer", "Deal ต้องเชื่อม Offer เดียวกับ Customer ใน Pipeline");
+
+const renamedState = updateProductAcrossState(relatedState, "p-offer", {
+  name: "Growth Offer Pro",
+  price: 32000,
+  pipelineStage: "Negotiation",
+  businessMode: "wholesale"
+});
+assert.equal(renamedState.customers[0].solutionPackage, "Growth Offer Pro", "แก้ชื่อ Offer แล้ว Customer และ CRM ต้องแสดงชื่อใหม่");
+assert.equal(renamedState.customers[0].solutionPackageId, "p-offer", "แก้ชื่อ Offer แล้ว ID ที่เชื่อมต้องไม่เปลี่ยน");
+assert.equal(renamedState.customers[0].businessMode, "wholesale", "แก้ Business Mode ของ Offer แล้ว Customer ต้องใช้บริบทเดียวกัน");
+assert.equal(renamedState.deals[0].name, "ดีลเฉพาะของลูกค้า A", "ชื่อดีลเฉพาะของ User ต้องไม่ถูกเขียนทับเมื่อแก้ชื่อ Offer");
+assert.equal(renamedState.deals[0].value, 23000, "ราคาดีลที่ตกลงแล้วต้องไม่ถูกเขียนทับเมื่อแก้ราคา Offer");
+assert.equal(renamedState.products[0].pipelineStage, "Negotiation", "Offer ต้องจำ Pipeline Stage ที่เกี่ยวข้อง");
+assert.equal(renamedState.tasks[0].offerName, "Growth Offer Pro", "แก้ชื่อ Offer แล้วงานติดตามที่เชื่อมต้องอัปเดตชื่ออ้างอิง");
+
+const detachedState = detachProductRelations(renamedState, "p-offer");
+assert.equal(detachedState.customers[0].solutionPackageId, "", "ลบ Offer แล้วต้องถอด ID ออกจาก Customer");
+assert.equal(detachedState.customers[0].solutionPackage, "Growth Offer Pro", "ลบ Offer แล้วยังคงชื่อ Snapshot เพื่ออ่านประวัติได้");
+assert.equal(detachedState.deals[0].productId, "", "ลบ Offer แล้วต้องถอด ID ออกจาก Deal");
+assert.equal(detachedState.tasks[0].productId, "", "ลบ Offer แล้วต้องถอด ID ออกจากงานติดตาม");
 
 const zero = createZeroState();
 for (const key of ["customers", "leads", "products", "deals", "tasks"]) {

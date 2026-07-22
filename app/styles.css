@@ -724,6 +724,14 @@ h3 {
   background: #fff;
 }
 
+.offer-entry-form {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.offer-entry-form > button {
+  min-height: 44px;
+}
+
 .entry-form label {
   display: grid;
   gap: 7px;
@@ -2266,6 +2274,20 @@ tbody tr:hover {
 
 .product-name-cell { display: grid; gap: 4px; min-width: 190px; }
 .product-name-cell span { max-width: 42ch; color: var(--muted); font-size: 11px; line-height: 1.45; }
+
+.pipeline-fit {
+  display: inline-flex;
+  width: max-content;
+  max-width: 190px;
+  padding: 5px 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line));
+  border-radius: 7px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.35;
+}
 
 .package-pill--fit {
   background: var(--accent-soft);

@@ -26,7 +26,10 @@ const requiredHtmlContracts = [
   "resetNext",
   "resetExport",
   "resetConfirm",
-  "resetProgress"
+  "resetProgress",
+  "productBusinessMode",
+  "productPipelineStage",
+  "dealProductSelect"
 ];
 
 for (const id of requiredHtmlContracts) {
@@ -46,6 +49,9 @@ assert.match(appJs, /aria-current/, "เมนู SPA ยังไม่ปร�
 assert.doesNotMatch(appJs, /^\s*saveState\(\);/m, "พบการบันทึกที่ไม่ตรวจผลสำเร็จ อาจแจ้งข้อมูลสำเร็จทั้งที่ localStorage เต็ม");
 assert.doesNotMatch(appJs, /#resetDemo[\s\S]{0,180}window\.confirm/, "Set Zero ยังใช้ confirm ชั้นเดียวแทนคำเตือน 3 ขั้น");
 assert.match(appJs, /createZeroState\(\)/, "Set Zero ยังไม่ได้ล้างข้อมูลจริงทุก collection");
+assert.doesNotMatch(appJs, /resetStep\s*===\s*2\s*&&\s*!resetExported/, "Set Zero ขั้น 2 ยังบังคับส่งออกข้อมูลก่อนกดถัดไป");
+assert.match(appJs, /solutionPackageId/, "Customer ยังเชื่อม Offer ด้วยชื่อแทน ID ถาวร");
+assert.match(appJs, /productId/, "Deal ยังไม่เชื่อมกับ Offer ใน Business Pipeline");
 const customerSubmitBlock = appJs.match(/#customerForm"\)\.addEventListener\("submit",\s*async[\s\S]*?\n}\);/)?.[0] || "";
 assert.match(customerSubmitBlock, /const\s+formElement\s*=\s*event\.currentTarget/, "ฟอร์มลูกค้ายังไม่ได้เก็บ reference ก่อน async upload");
 assert.match(customerSubmitBlock, /formElement\.reset\(\)/, "ฟอร์มลูกค้ายังไม่ได้ใช้ reference เดิมหลัง async upload");
