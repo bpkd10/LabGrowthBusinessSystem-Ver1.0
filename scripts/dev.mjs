@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { analyzeWithOpenAI } from "./ai-analysis.mjs";
 import { ASSET_FILES } from "./assets.mjs";
+import { SECURITY_HEADERS } from "./security-headers.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const port = Number(process.env.PORT || 4173);
@@ -32,7 +33,7 @@ createServer(async (request, response) => {
         if (body.length > 1_000_000) throw Object.assign(new Error("ข้อมูลมีขนาดใหญ่เกินไป"), { status: 413 });
       }
       const result = await analyzeWithOpenAI(JSON.parse(body), process.env.OPENAI_API_KEY);
-      response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+      response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...SECURITY_HEADERS });
       response.end(JSON.stringify(result));
       return;
     }
@@ -46,11 +47,13 @@ createServer(async (request, response) => {
     const [relativePath, contentType] = asset;
     const file = resolve(root, relativePath);
     const content = await readFile(file);
-    response.writeHead(200, { "content-type": contentType, "cache-control": "no-store", "x-content-type-options": "nosniff" });
+    // cache-control ตั้งใจต่างจาก production (no-store เสมอ) แต่ security header
+    // ต้องเหมือนกันเป๊ะ อ่านจากแหล่งเดียวกับที่ build.mjs ใช้สร้าง production Worker
+    response.writeHead(200, { "content-type": contentType, "cache-control": "no-store", ...SECURITY_HEADERS });
     response.end(content);
   } catch (error) {
     const status = Number(error.status) || 500;
-    response.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+    response.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...SECURITY_HEADERS });
     response.end(JSON.stringify({ error: error.message || "เกิดข้อผิดพลาดที่ server" }));
   }
 }).listen(port, "127.0.0.1", () => {

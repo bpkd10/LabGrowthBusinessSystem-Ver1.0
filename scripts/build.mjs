@@ -2,6 +2,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { BUSINESS_ANALYSIS_INSTRUCTIONS } from "./ai-analysis.mjs";
 import { ASSET_FILES } from "./assets.mjs";
+import { SECURITY_HEADERS } from "./security-headers.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const output = resolve(root, "dist/server/index.js");
@@ -16,6 +17,7 @@ for (const [pathname, [file, contentType]] of Object.entries(ASSET_FILES)) {
 
 const worker = `const assets = ${JSON.stringify(assets)};
 const analysisInstructions = ${JSON.stringify(BUSINESS_ANALYSIS_INSTRUCTIONS)};
+const securityHeaders = ${JSON.stringify(SECURITY_HEADERS)};
 
 function extractResponseText(response) {
   return response.output
@@ -84,9 +86,7 @@ export default {
       headers: {
         "content-type": asset.contentType,
         "cache-control": cacheControl,
-        "content-security-policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
-        "referrer-policy": "strict-origin-when-cross-origin",
-        "x-content-type-options": "nosniff"
+        ...securityHeaders
       }
     });
   }
