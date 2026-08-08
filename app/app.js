@@ -6,12 +6,12 @@ import {
   updateProductAcrossState,
   detachProductRelations,
   createZeroState
-} from "./business-workflows.js?v=21";
+} from "./business-workflows.js?v=22";
 import {
   parseImportFile,
   buildImportPlan,
   applyImportPlan
-} from "./data-import.js?v=21";
+} from "./data-import.js?v=22";
 import {
   DEFAULT_MODEL,
   DEFAULT_PROVIDER_ID,
@@ -20,7 +20,7 @@ import {
   maskApiKey,
   providerErrorMessage,
   validateKeyFormat
-} from "./ai-provider.js?v=21";
+} from "./ai-provider.js?v=22";
 // ข้อมูลโดเมนและค่าคงที่ย้ายไป business-config.js ส่วนตรรกะ state ย้ายไป state-model.js
 // เพื่อให้ทั้งสองส่วนทดสอบได้ใน Node โดยไม่ต้องมี DOM (scripts/check-app-model.mjs)
 import {
@@ -49,7 +49,9 @@ import {
   seedData,
   taskStatusLabels,
   taskStatuses
-} from "./business-config.js?v=21";
+} from "./business-config.js?v=22";
+import { buildInsightReport } from "./business-insights.js?v=22";
+import { downloadReport } from "./report-export.js?v=22";
 import {
   alignCustomerType,
   clone,
@@ -68,7 +70,7 @@ import {
   todayIso as today,
   uid,
   validIsoDate
-} from "./state-model.js?v=21";
+} from "./state-model.js?v=22";
 
 let state = loadStateFrom(localStorage, STORAGE_KEY);
 
@@ -180,7 +182,7 @@ function customerOffer(customer) {
 }
 
 function iconMarkup(name, className = "ui-icon") {
-  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=21#${escapeHTML(name)}"></use></svg>`;
+  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=22#${escapeHTML(name)}"></use></svg>`;
 }
 
 document.querySelector("#toastUndo").addEventListener("click", () => {
@@ -707,7 +709,144 @@ function renderTasks() {
   );
 }
 
+// ---------- ศูนย์วิเคราะห์ธุรกิจ ----------
+// ทุกการ์ดต้องแสดง "ที่มาของตัวเลข" เสมอ ตัวเลขที่ไม่บอกว่าคิดมาจากอะไรทำให้เจ้าของ
+// ธุรกิจตรวจสอบไม่ได้ว่าระบบคิดถูกหรือเปล่า และไม่กล้าใช้ตัดสินใจจริง
+
+function insightCard(title, kicker, bodyMarkup, reason) {
+  return `
+    <article class="insight-card">
+      <header>
+        <p class="eyebrow">${escapeHTML(kicker)}</p>
+        <h3>${escapeHTML(title)}</h3>
+      </header>
+      ${bodyMarkup}
+      <footer class="insight-reason">${escapeHTML(reason)}</footer>
+    </article>
+  `;
+}
+
+function insightStat(label, value, tone = "") {
+  return `<div class="insight-stat"${tone ? ` data-tone="${escapeHTML(tone)}"` : ""}><span>${escapeHTML(label)}</span><strong>${escapeHTML(value)}</strong></div>`;
+}
+
+function insightList(items) {
+  if (!items.length) return `<p class="muted insight-empty">ยังไม่มีข้อมูลในส่วนนี้</p>`;
+  return `<ul class="insight-list">${items.join("")}</ul>`;
+}
+
+function renderInsights() {
+  const container = document.querySelector("#insightCards");
+  if (!container) return;
+  const report = buildInsightReport(state);
+
+  const gapCard = insightCard("ช่องว่างถึงเป้ารายได้", "Revenue gap", `
+    <div class="insight-stats">
+      ${insightStat("ปิดได้แล้ว", currency(report.revenueGap.achieved), "good")}
+      ${insightStat("เป้าหมาย", currency(report.revenueGap.target))}
+      ${insightStat("ยังขาดอีก", currency(report.revenueGap.gap), report.revenueGap.gap > 0 ? "bad" : "good")}
+      ${insightStat("ทำได้แล้ว", percent(report.revenueGap.achievedPercent))}
+    </div>
+    ${report.revenueGap.gap > 0 && !report.revenueGap.coverableByOpenDeals
+      ? `<p class="insight-warning">ดีลที่เปิดอยู่ทั้งหมดรวมกันยังปิดช่องว่างนี้ไม่ได้ ต้องหา Lead ใหม่เพิ่ม ไม่ใช่แค่ตามดีลเดิม</p>`
+      : ""}
+    ${insightList(report.revenueGap.dealsToClose.slice(0, 5).map((deal) => `
+      <li><span>${escapeHTML(deal.name)} · ${escapeHTML(deal.customerName)}</span><b>${escapeHTML(currency(deal.value))} · โอกาส ${escapeHTML(percent(deal.probability))}</b></li>
+    `))}
+  `, report.revenueGap.reason);
+
+  const forecastCard = insightCard("คาดการณ์รายได้", "Weighted forecast", `
+    <div class="insight-stats">
+      ${insightStat("ปิดได้แล้ว", currency(report.forecast.banked), "good")}
+      ${insightStat("ที่ทีมรับปากได้", currency(report.forecast.committedCase))}
+      ${insightStat("ที่น่าจะเป็น", currency(report.forecast.likelyCase))}
+      ${insightStat("ถ้าทุกดีลชนะ", currency(report.forecast.bestCase))}
+    </div>
+    ${insightList(report.forecast.byStage.map((entry) => `
+      <li><span>${escapeHTML(dealStageLabels[entry.stage] || entry.stage)} · ${escapeHTML(String(entry.count))} ดีล</span><b>${escapeHTML(currency(entry.weighted))}</b></li>
+    `))}
+  `, report.forecast.reason);
+
+  const queueCard = insightCard("คิวที่ต้องติดตามก่อน", "Next best action", `
+    <div class="insight-stats">
+      ${insightStat("เลยนัดติดตาม", `${report.callQueue.overdueCount} ราย`, report.callQueue.overdueCount > 0 ? "bad" : "good")}
+      ${insightStat("ยังไม่มีผู้รับผิดชอบ", `${report.callQueue.unassignedCount} ราย`, report.callQueue.unassignedCount > 0 ? "warn" : "good")}
+    </div>
+    ${insightList(report.callQueue.queue.slice(0, 6).map((item, index) => `
+      <li class="insight-queue-item"${item.overdueDays > 0 ? ` data-tone="bad"` : ""}>
+        <span><b class="insight-rank">${index + 1}</b> ${escapeHTML(item.customerName)} · ${escapeHTML(item.statusLabel)}</span>
+        <small>${escapeHTML(item.reasons.join(" · "))}</small>
+      </li>
+    `))}
+  `, report.callQueue.reason);
+
+  const offerCard = insightCard("กำไรรายข้อเสนอ", "Offer margin", `
+    <div class="insight-stats">
+      ${insightStat("กำไรเฉลี่ย", percent(report.offers.averageMarginPercent))}
+      ${insightStat("ต้องรีบแก้ราคา", `${report.offers.thinMargin.length} รายการ`, report.offers.thinMargin.length > 0 ? "warn" : "good")}
+    </div>
+    ${insightList(report.offers.offers.slice(0, 6).map((offer) => `
+      <li${report.offers.thinMargin.some((thin) => thin.id === offer.id) ? ` data-tone="warn"` : ""}>
+        <span>${escapeHTML(offer.name)}</span><b>${escapeHTML(currency(offer.margin))} · ${escapeHTML(percent(offer.marginPercent))}</b>
+      </li>
+    `))}
+  `, report.offers.reason);
+
+  const channelCard = insightCard("ช่องทางไหนคุ้ม", "Channel performance", `
+    ${report.channels.noRevenueYet.length
+      ? `<p class="insight-warning">${escapeHTML(report.channels.noRevenueYet.map((channel) => channel.source).join(", "))} มีลูกค้าแล้วแต่ยังไม่เคยปิดรายได้เลย</p>`
+      : ""}
+    ${insightList(report.channels.channels.map((channel) => `
+      <li${channel.revenue > 0 ? ` data-tone="good"` : ""}>
+        <span>${escapeHTML(channel.source)} · ${escapeHTML(String(channel.customerCount))} ลูกค้า</span>
+        <b>${escapeHTML(currency(channel.revenue))} · ปิดได้ ${escapeHTML(percent(channel.conversionRate))}</b>
+      </li>
+    `))}
+  `, report.channels.reason);
+
+  const journeyCard = insightCard("คอขวดใน Customer Journey", "Funnel bottleneck", `
+    ${insightList(report.journey.stages.map((stage) => `
+      <li${stage.status === report.journey.bottleneck?.status ? ` data-tone="warn"` : ""}>
+        <span>${escapeHTML(stage.label)}${stage.journeyLabel ? ` · ${escapeHTML(stage.journeyLabel)}` : ""}</span>
+        <b>${escapeHTML(String(stage.count))} ราย · ${escapeHTML(percent(stage.sharePercent))}</b>
+      </li>
+    `))}
+  `, report.journey.reason);
+
+  const taskCard = insightCard("งานค้างและความเสี่ยง", "Delivery risk", `
+    <div class="insight-stats">
+      ${insightStat("งานค้าง", `${report.tasks.openCount} งาน`)}
+      ${insightStat("เลยกำหนด", `${report.tasks.overdueCount} งาน`, report.tasks.overdueCount > 0 ? "bad" : "good")}
+    </div>
+    ${insightList(report.tasks.overdue.slice(0, 5).map((task) => `
+      <li data-tone="bad"><span>${escapeHTML(task.title)} · ${escapeHTML(task.owner)}</span><b>ค้าง ${escapeHTML(String(task.lateDays))} วัน</b></li>
+    `))}
+  `, report.tasks.reason);
+
+  container.innerHTML = [gapCard, forecastCard, queueCard, offerCard, channelCard, journeyCard, taskCard].join("");
+}
+
+document.querySelector("#exportReport")?.addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  const status = document.querySelector("#exportReportStatus");
+  button.disabled = true;
+  button.textContent = "กำลังสร้างรายงาน...";
+  if (status) status.textContent = "";
+  try {
+    const fileName = await downloadReport(state);
+    if (status) status.textContent = `บันทึกไฟล์ ${fileName} แล้ว`;
+    notify("ดาวน์โหลดรายงาน Excel แล้ว");
+  } catch (error) {
+    if (status) status.textContent = error.message || "สร้างรายงานไม่สำเร็จ";
+    notify(error.message || "สร้างรายงานไม่สำเร็จ");
+  } finally {
+    button.disabled = false;
+    button.textContent = "ดาวน์โหลดรายงาน Excel";
+  }
+});
+
 function renderAll() {
+  renderInsights();
   renderDashboard();
   renderCustomers();
   renderCrm();
@@ -778,11 +917,12 @@ function roleInsight(data) {
 const viewConfig = {
   dashboard: ["ภาพรวมธุรกิจ", "ดูรายได้ งานขาย และสิ่งที่ต้องทำวันนี้", "เพิ่มลูกค้าใหม่", "customers"],
   customers: ["ข้อมูลลูกค้า", "เก็บข้อมูลลูกค้า รูปโปรไฟล์ และแพ็กเกจที่สนใจ", "ไปหน้า CRM", "crm"],
-  crm: ["CRM งานขาย", "ติดตาม Lead และเปลี่ยนความสนใจให้เป็นโอกาสขาย", "วิเคราะห์ด้วย AI", "ai"],
+  crm: ["CRM งานขาย", "ติดตาม Lead และเปลี่ยนความสนใจให้เป็นโอกาสขาย", "เปิดศูนย์วิเคราะห์", "insights"],
   products: ["สินค้าและข้อเสนอ", "จัดการสินค้า บริการ Subscription และ Package ให้ตรงกับรูปแบบธุรกิจ", "เพิ่มดีลธุรกิจ", "deals"],
   deals: ["Pipeline ธุรกิจ", "พัฒนาดีลตั้งแต่ตรวจความต้องการ ออกแบบข้อเสนอ จนเริ่มส่งมอบงาน", "ดูภาพรวม", "dashboard"],
   tasks: ["งานติดตาม", "จัดลำดับงานที่ต้องทำและป้องกัน Lead หลุด", "เปิด CRM", "crm"],
-  ai: ["วิเคราะห์ด้วย AI", "ใช้ข้อมูลจริงในระบบเพื่อหาโอกาสและวางแผนงานต่อ", "กลับภาพรวม", "dashboard"]
+  insights: ["ศูนย์วิเคราะห์ธุรกิจ", "คำตอบที่คำนวณจากข้อมูลในระบบโดยตรง พร้อมดาวน์โหลดเป็นรายงาน Excel", "ดาวน์โหลดรายงาน", "insights"],
+  ai: ["วิเคราะห์ด้วย AI", "ถามเป็นภาษาปกติเพื่อให้ AI เรียบเรียงข้อมูลในระบบ (ต้องใช้ API key ของคุณเอง)", "กลับภาพรวม", "dashboard"]
 };
 
 function showView(route, options = {}) {
@@ -1916,7 +2056,7 @@ function openImportReview(parsed, file) {
     ? '<option value="0">ข้อมูลสำรองทั้งระบบ</option>'
     : parsed.sheets.map((sheet, index) => `<option value="${index}">${escapeHTML(sheet.name)} · ${sheet.rows.length} แถว</option>`).join("");
   sheetSelect.disabled = parsed.kind === "state" || parsed.sheets.length <= 1;
-  document.querySelector("#importFileSummary").innerHTML = `<span><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=21#clipboard"></use></svg><strong>${escapeHTML(file.name)}</strong></span><span>${escapeHTML(parsed.format.toUpperCase())}</span><span>${escapeHTML(`${Math.max(1, Math.ceil(file.size / 1024))} KB`)}</span>`;
+  document.querySelector("#importFileSummary").innerHTML = `<span><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=22#clipboard"></use></svg><strong>${escapeHTML(file.name)}</strong></span><span>${escapeHTML(parsed.format.toUpperCase())}</span><span>${escapeHTML(`${Math.max(1, Math.ceil(file.size / 1024))} KB`)}</span>`;
   refreshImportPlan();
   document.querySelector("#importDialog").showModal();
 }

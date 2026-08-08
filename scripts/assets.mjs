@@ -1,4 +1,4 @@
-export const ASSET_VERSION = "21";
+export const ASSET_VERSION = "22";
 
 export const ASSET_FILES = Object.freeze({
   "/": ["app/index.html", "text/html; charset=utf-8"],
@@ -9,10 +9,13 @@ export const ASSET_FILES = Object.freeze({
   "/ai-provider.js": ["app/ai-provider.js", "text/javascript; charset=utf-8"],
   "/business-config.js": ["app/business-config.js", "text/javascript; charset=utf-8"],
   "/state-model.js": ["app/state-model.js", "text/javascript; charset=utf-8"],
+  "/business-insights.js": ["app/business-insights.js", "text/javascript; charset=utf-8"],
+  "/report-export.js": ["app/report-export.js", "text/javascript; charset=utf-8"],
   "/robots.txt": ["app/robots.txt", "text/plain; charset=utf-8"],
   "/styles.css": ["app/styles.css", "text/css; charset=utf-8"],
   "/vendor/xlsx.full.min.js": ["node_modules/xlsx/dist/xlsx.full.min.js", "text/javascript; charset=utf-8"],
   "/vendor/mammoth.browser.min.js": ["node_modules/mammoth/mammoth.browser.min.js", "text/javascript; charset=utf-8"],
+  "/vendor/exceljs.min.js": ["node_modules/exceljs/dist/exceljs.min.js", "text/javascript; charset=utf-8"],
   "/icons.svg": ["app/icons.svg", "image/svg+xml"],
   "/brand/logo-wordmark.svg": ["app/brand/logo-wordmark.svg", "image/svg+xml"],
   "/brand/logo-wordmark-dark.svg": ["app/brand/logo-wordmark-dark.svg", "image/svg+xml"],

@@ -283,4 +283,4 @@ export const AI_KEY_STORAGE_KEY = "bgc-ai-key";
 // ตอนปิดแท็บ (ต่างจาก key ที่ default เป็น sessionStorage)
 export const AI_MODEL_STORAGE_KEY = "bgc-ai-model";
 export const REVENUE_TARGET = 100000;
-export const VALID_VIEWS = ["dashboard", "customers", "crm", "products", "deals", "tasks", "ai"];
+export const VALID_VIEWS = ["dashboard", "customers", "crm", "products", "deals", "tasks", "insights", "ai"];

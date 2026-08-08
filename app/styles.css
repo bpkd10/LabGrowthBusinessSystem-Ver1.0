@@ -2971,3 +2971,198 @@ body[data-business-mode="retail"] .journey-icon { background: #fff0d7; color: #9
   .analysis-quick-questions { grid-template-columns: 1fr; }
   .analysis-evidence time { width: 100%; margin-left: 0; }
 }
+
+/* ---------- ศูนย์วิเคราะห์ธุรกิจ ---------- */
+/* ใช้โทนสีเดียวกับส่วนอื่นของแอป และไม่พึ่งสีเป็นสัญญาณเดียว ทุกการ์ดที่มีสีเตือน
+   จะมีข้อความกำกับเสมอ เพื่อให้ผู้ใช้ที่แยกสีไม่ได้ยังอ่านออก */
+
+.insight-intro {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 20px;
+  margin-bottom: 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.insight-intro h2 {
+  margin: 4px 0 6px;
+}
+
+.insight-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.insight-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 18px;
+}
+
+.insight-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
+}
+
+.insight-card h3 {
+  margin: 2px 0 0;
+  font-size: 1.05rem;
+}
+
+.insight-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.insight-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+}
+
+.insight-stat span {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.insight-stat strong {
+  font-size: 1.02rem;
+}
+
+.insight-stat[data-tone="good"] { border-color: #b6dcc4; background: #eef8f2; }
+.insight-stat[data-tone="warn"] { border-color: #e8cfa4; background: #fdf4e6; }
+.insight-stat[data-tone="bad"] { border-color: #e8b5b0; background: #fdeeed; }
+.insight-stat[data-tone="good"] strong { color: var(--success); }
+.insight-stat[data-tone="bad"] strong { color: var(--danger); }
+.insight-stat[data-tone="warn"] strong { color: #92400e; }
+
+.insight-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.insight-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: var(--bg);
+  border-left: 3px solid transparent;
+  font-size: 0.88rem;
+}
+
+.insight-list li b {
+  white-space: nowrap;
+}
+
+.insight-list li[data-tone="good"] { border-left-color: var(--success); }
+.insight-list li[data-tone="warn"] { border-left-color: #b45309; }
+.insight-list li[data-tone="bad"] { border-left-color: var(--danger); }
+
+.insight-queue-item {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.insight-queue-item small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.insight-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.75rem;
+}
+
+.insight-warning {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: #fdf4e6;
+  border: 1px solid #e8cfa4;
+  color: #7a4708;
+  font-size: 0.85rem;
+}
+
+.insight-reason {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.insight-empty {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 680px) {
+  .insight-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .insight-intro {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* ปุ่มที่ดูเหมือนลิงก์ ใช้ในประโยคที่ชี้ผู้ใช้ไปหน้าอื่น — ต้องเป็น <button> ไม่ใช่ <a>
+   เพราะการเปลี่ยนหน้าเกิดจาก JavaScript ไม่ใช่การเปิด URL ใหม่ */
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.link-button:hover,
+.link-button:focus-visible {
+  color: var(--brand-ink);
+}
+
+.ai-alternative-note {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
