@@ -6,12 +6,12 @@ import {
   updateProductAcrossState,
   detachProductRelations,
   createZeroState
-} from "./business-workflows.js?v=20";
+} from "./business-workflows.js?v=21";
 import {
   parseImportFile,
   buildImportPlan,
   applyImportPlan
-} from "./data-import.js?v=20";
+} from "./data-import.js?v=21";
 import {
   DEFAULT_MODEL,
   DEFAULT_PROVIDER_ID,
@@ -20,7 +20,7 @@ import {
   maskApiKey,
   providerErrorMessage,
   validateKeyFormat
-} from "./ai-provider.js?v=20";
+} from "./ai-provider.js?v=21";
 // ข้อมูลโดเมนและค่าคงที่ย้ายไป business-config.js ส่วนตรรกะ state ย้ายไป state-model.js
 // เพื่อให้ทั้งสองส่วนทดสอบได้ใน Node โดยไม่ต้องมี DOM (scripts/check-app-model.mjs)
 import {
@@ -49,7 +49,7 @@ import {
   seedData,
   taskStatusLabels,
   taskStatuses
-} from "./business-config.js?v=20";
+} from "./business-config.js?v=21";
 import {
   alignCustomerType,
   clone,
@@ -68,7 +68,7 @@ import {
   todayIso as today,
   uid,
   validIsoDate
-} from "./state-model.js?v=20";
+} from "./state-model.js?v=21";
 
 let state = loadStateFrom(localStorage, STORAGE_KEY);
 
@@ -180,7 +180,7 @@ function customerOffer(customer) {
 }
 
 function iconMarkup(name, className = "ui-icon") {
-  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=20#${escapeHTML(name)}"></use></svg>`;
+  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=21#${escapeHTML(name)}"></use></svg>`;
 }
 
 document.querySelector("#toastUndo").addEventListener("click", () => {
@@ -1916,7 +1916,7 @@ function openImportReview(parsed, file) {
     ? '<option value="0">ข้อมูลสำรองทั้งระบบ</option>'
     : parsed.sheets.map((sheet, index) => `<option value="${index}">${escapeHTML(sheet.name)} · ${sheet.rows.length} แถว</option>`).join("");
   sheetSelect.disabled = parsed.kind === "state" || parsed.sheets.length <= 1;
-  document.querySelector("#importFileSummary").innerHTML = `<span><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=20#clipboard"></use></svg><strong>${escapeHTML(file.name)}</strong></span><span>${escapeHTML(parsed.format.toUpperCase())}</span><span>${escapeHTML(`${Math.max(1, Math.ceil(file.size / 1024))} KB`)}</span>`;
+  document.querySelector("#importFileSummary").innerHTML = `<span><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=21#clipboard"></use></svg><strong>${escapeHTML(file.name)}</strong></span><span>${escapeHTML(parsed.format.toUpperCase())}</span><span>${escapeHTML(`${Math.max(1, Math.ceil(file.size / 1024))} KB`)}</span>`;
   refreshImportPlan();
   document.querySelector("#importDialog").showModal();
 }

@@ -67,13 +67,19 @@ export function extractResponseText(response) {
 }
 
 // PROVIDERS มีสมาชิกเดียววันนี้โดยตั้งใจ (ADR ข้อ 4.8) การเพิ่มรายที่สองในอนาคต
-// คือ "เพิ่มสมาชิกใน object นี้ + เพิ่ม host ใน AI_CONNECT_HOSTS ของ
-// scripts/security-headers.mjs" ไม่ใช่การผ่าตัดโค้ด
+// คือ "เพิ่มสมาชิกใน object นี้ + เพิ่มปลายทางที่อนุญาตใน scripts/ai-relay.mjs"
+// ไม่ใช่การผ่าตัดโค้ด และไม่ใช่การเปิด connect-src ให้เบราว์เซอร์ยิงตรง
 export const PROVIDERS = Object.freeze({
   openai: Object.freeze({
     id: "openai",
     label: "OpenAI",
-    endpoint: "https://api.openai.com/v1/responses",
+    // ยิงไปที่ตัวส่งต่อของเราเอง ไม่ใช่ api.openai.com โดยตรง
+    //
+    // ทดสอบจริงแล้ว: OpenAI ตอบ preflight ด้วย access-control-allow-origin: * แต่
+    // response ของคำขอจริงไม่มี header นั้น เบราว์เซอร์จึงบล็อกและอ่านคำตอบไม่ได้เลย
+    // การเรียกผ่าน path เดียวกับหน้าเว็บทำให้เป็น same-origin จึงไม่ติด CORS
+    // ส่วน key ยังเป็นของผู้ใช้เองและไม่ถูกเก็บที่ server (ดู scripts/ai-relay.mjs)
+    endpoint: "/api/ai-relay",
     keyPrefix: "sk-",
     keyHint: "คัดลอก key ทั้งบรรทัดจากหน้า API keys ของ OpenAI (ขึ้นต้นด้วย sk-)",
     consoleLabel: "OpenAI dashboard",

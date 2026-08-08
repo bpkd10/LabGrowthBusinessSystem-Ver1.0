@@ -23,10 +23,10 @@ const activeConfig = config
   .filter((line) => !line.trim().startsWith("#"))
   .join("\n");
 
-const declaredHosts = [
+const declaredHosts = [...new Set([
   ...activeConfig.matchAll(/(?:pattern|route|custom_domain)\s*=\s*["']([^"']+)["']/g),
   ...activeConfig.matchAll(/routes\s*=\s*\[([^\]]*)\]/g)
-].flatMap((match) => [...match[1].matchAll(/["']?([A-Za-z0-9.*-]+\.[A-Za-z]{2,})[^"',]*["']?/g)].map((host) => host[1]));
+].flatMap((match) => [...match[1].matchAll(/["']?([A-Za-z0-9.*-]+\.[A-Za-z]{2,})[^"',]*["']?/g)].map((host) => host[1])))];
 
 for (const host of declaredHosts) {
   const bare = host.replace(/^\*\./, "").replace(/\/.*$/, "").toLowerCase();

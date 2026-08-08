@@ -81,6 +81,47 @@ assert.ok(
 );
 console.log(`Production Worker POST /api/analyze passed: ตอบ ${prodAnalyzeResponse.status} ตามที่คาดไว้`);
 
+// ---------- 2c) ตัวส่งต่อ AI ต้องไม่กลายเป็น proxy ที่ใช้ key ของเจ้าของระบบ ----------
+// นี่คือเงื่อนไขที่ทำให้ /api/ai-relay ต่างจาก /api/analyze เดิมที่ถูกลบไป: มันส่งต่อ
+// เฉพาะคำขอที่ผู้ใช้แนบ key ของตัวเองมาเท่านั้น ถ้าวันหนึ่งมีคนเติม fallback ไปใช้
+// key ของเจ้าของ มันจะกลายเป็น proxy สาธารณะที่ใครก็เผาเครดิตได้ทันที
+// ทุกเคสด้านล่างถูกปฏิเสธก่อนถึงบรรทัด fetch จึงไม่มีการยิงออกไปหาผู้ให้บริการจริง
+// สแกนซอร์สก่อนยิง request จริง เพราะถ้ามีคนเติม env.OPENAI_API_KEY เข้ามา โค้ดจะ
+// crash ตอนเรียก worker.fetch (Workers ส่ง env มาให้ แต่ที่นี่เรียกตรง) แล้วเราจะได้
+// ReferenceError ที่ไม่ได้บอกว่าปัญหาจริงคืออะไร การตรวจซอร์สก่อนทำให้ได้ข้อความที่ตรงจุด
+const workerSource = await readFile(resolve(root, "dist/server/index.js"), "utf8");
+assert.doesNotMatch(workerSource, /sk-[A-Za-z0-9_-]{16,}/, "พบสิ่งที่ดูเหมือน API key ฝังอยู่ใน Worker bundle");
+assert.doesNotMatch(
+  workerSource,
+  /env\s*(\.|\[\s*["'])\s*[A-Z_]*(?:OPENAI|API_KEY|TOKEN|SECRET)/,
+  "Worker อ่าน key จาก env ของบัญชีเจ้าของ ซึ่งทำให้กลายเป็น proxy สาธารณะที่ใครก็เผาเครดิตได้ — key ต้องมาจาก header ของผู้ใช้เท่านั้น"
+);
+
+const relayCases = [
+  ["POST ที่ไม่มี key ของผู้ใช้", new Request("https://app.example/api/ai-relay", { method: "POST", body: "{}" }), 401],
+  ["POST ที่ส่ง Authorization ว่าง", new Request("https://app.example/api/ai-relay", { method: "POST", body: "{}", headers: { authorization: "Bearer " } }), 401],
+  ["GET ที่ไม่ใช่ POST", new Request("https://app.example/api/ai-relay"), 405],
+  ["POST ที่ body ใหญ่เกินขีดจำกัด", new Request("https://app.example/api/ai-relay", { method: "POST", body: "x".repeat(200 * 1024), headers: { authorization: "Bearer sk-test" } }), 413]
+];
+
+for (const [label, relayRequest, expectedStatus] of relayCases) {
+  const relayResponse = await worker.fetch(relayRequest, {});
+  assert.equal(
+    relayResponse.status,
+    expectedStatus,
+    `dist/server/index.js: ${label} ต้องได้ ${expectedStatus} แต่ได้ ${relayResponse.status}`
+  );
+  for (const [headerName, expectedValue] of Object.entries(SECURITY_HEADERS)) {
+    assert.equal(
+      relayResponse.headers.get(headerName),
+      expectedValue,
+      `คำตอบของ /api/ai-relay (${label}) ไม่ได้ส่ง header "${headerName}" — ทุกคำตอบต้องมี Security Header ครบ`
+    );
+  }
+}
+
+console.log(`Production Worker /api/ai-relay passed: ${relayCases.length} เคสถูกปฏิเสธถูกต้อง และ Worker ไม่มี key ของตัวเอง`);
+
 // ---------- 3) Dev server (child process จริง) ต้องส่ง header ชุดเดียวกัน ----------
 
 function findFreePort() {
@@ -161,6 +202,24 @@ try {
       (devStderr ? `\n[dev.mjs stderr]\n${devStderr}` : "")
   );
   console.log(`Dev server POST /api/analyze passed: ตอบ ${devAnalyzeResponse.status} ตามที่คาดไว้`);
+
+  // ตัวส่งต่อ AI ต้องปฏิเสธเคสเดียวกันกับฝั่ง production เป๊ะ ๆ ไม่งั้นจะเจอสถานการณ์ที่
+  // ทดสอบผ่านบนเครื่องแต่เปิดช่องโหว่เฉพาะตอนขึ้นจริง
+  const devRelayCases = [
+    ["POST ที่ไม่มี key ของผู้ใช้", { method: "POST", body: "{}" }, 401],
+    ["GET ที่ไม่ใช่ POST", { method: "GET" }, 405],
+    ["POST ที่ body ใหญ่เกินขีดจำกัด", { method: "POST", body: "x".repeat(200 * 1024), headers: { authorization: "Bearer sk-test" } }, 413]
+  ];
+  for (const [label, init, expectedStatus] of devRelayCases) {
+    const relayResponse = await fetch(`http://127.0.0.1:${devPort}/api/ai-relay`, init);
+    assert.equal(
+      relayResponse.status,
+      expectedStatus,
+      `scripts/dev.mjs: ${label} ต้องได้ ${expectedStatus} แต่ได้ ${relayResponse.status}` +
+        (devStderr ? `\n[dev.mjs stderr]\n${devStderr}` : "")
+    );
+  }
+  console.log(`Dev server /api/ai-relay passed: ${devRelayCases.length} เคสถูกปฏิเสธเหมือนฝั่ง production`);
 } finally {
   await shutdownDevProcess(devProcess);
 }

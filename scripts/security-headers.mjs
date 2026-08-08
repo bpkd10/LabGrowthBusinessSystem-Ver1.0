@@ -7,23 +7,22 @@
 // inline <script> ใน app/index.html) การรวมมาไว้ที่เดียวแล้วให้ทั้งสองฝั่ง import ทำให้
 // ความไม่ตรงกันแบบนี้เกิดขึ้นไม่ได้เชิงโครงสร้าง
 //
-// AI_CONNECT_HOSTS คือรายชื่อ host ที่ browser ได้รับอนุญาตให้ยิง request ออกไป
-// นอกจาก origin ตัวเอง (ADR-001 ข้อ 6.3 / ระยะ 1 งาน #4)
+// connect-src เหลือ 'self' อย่างเดียวตั้งแต่เปลี่ยนมาใช้ตัวส่งต่อ (scripts/ai-relay.mjs)
+// เบราว์เซอร์ยิงไปที่ path ของเราเองเท่านั้น ไม่ได้ยิงออกไป host ภายนอกอีกแล้ว
 //
-// ห้ามใช้ wildcard ในบรรทัด connect-src เด็ดขาด ภายใต้ BYOK ผู้ใช้เก็บ API key ของ
-// ตัวเองไว้ในเบราว์เซอร์ และบรรทัดนี้คือด่านสุดท้ายที่กันไม่ให้โค้ดแปลกปลอมบนหน้านี้
-// POST key ออกไปยัง host ของผู้โจมตี — ระบุ host ทีละตัวเสมอ
+// ห้ามเติม host ภายนอกหรือ wildcard กลับเข้ามาในบรรทัด connect-src เด็ดขาด
+// ภายใต้ BYOK ผู้ใช้เก็บ API key ของตัวเองไว้ในเบราว์เซอร์ และบรรทัดนี้คือด่านสุดท้าย
+// ที่กันไม่ให้โค้ดแปลกปลอมบนหน้านี้ POST key ออกไปยัง host ของผู้โจมตี
+// ตอนนี้แคบที่สุดเท่าที่จะเป็นไปได้แล้ว ทุกการเพิ่ม host คือการถอยหลัง
 //
-// การเพิ่มผู้ให้บริการรายใหม่ใน app/ai-provider.js ต้องเพิ่ม host ที่นี่ด้วย
-// มิฉะนั้น fetch จะถูก CSP บล็อกและได้ TypeError ที่ไม่บอกสาเหตุ
-export const AI_CONNECT_HOSTS = Object.freeze(["https://api.openai.com"]);
-
+// การเพิ่มผู้ให้บริการรายใหม่ให้เพิ่มปลายทางใน scripts/ai-relay.mjs ฝั่ง server
+// ไม่ใช่เปิด connect-src ให้เบราว์เซอร์ยิงตรง
 export const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data:",
-  `connect-src 'self' ${AI_CONNECT_HOSTS.join(" ")}`,
+  "connect-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",
   "frame-ancestors 'none'"

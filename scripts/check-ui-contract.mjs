@@ -7,6 +7,8 @@ const html = await readFile(resolve(root, "app/index.html"), "utf8");
 const appJs = await readFile(resolve(root, "app/app.js"), "utf8");
 const css = await readFile(resolve(root, "app/styles.css"), "utf8");
 const businessConfigJs = await readFile(resolve(root, "app/business-config.js"), "utf8");
+const aiProviderJs = await readFile(resolve(root, "app/ai-provider.js"), "utf8");
+const aiRelayJs = await readFile(resolve(root, "scripts/ai-relay.mjs"), "utf8");
 
 const requiredHtmlContracts = [
   "businessChangeSummary",
@@ -94,6 +96,25 @@ assert.match(html, /<label[^>]*for=["']aiModelInput["']/, "ช่องเลื
 assert.match(html, /id=["']aiKeyReveal["'][^>]*aria-pressed=/, "ปุ่มแสดง/ซ่อน key ต้องประกาศสถานะด้วย aria-pressed ให้ Screen Reader");
 assert.match(html, /id=["']aiKeyStatus["'][^>]*role=["']status["']/, "สถานะ key ต้องประกาศเป็น role=status เพื่ออ่านการเปลี่ยนแปลงแบบ async");
 assert.doesNotMatch(html, /API key ไม่แสดงใน browser/, "ข้อความความปลอดภัยเดิมเป็นเท็จภายใต้ BYOK เพราะ key อยู่ในเบราว์เซอร์ของผู้ใช้เอง");
+// ตั้งแต่เปลี่ยนมาใช้ตัวส่งต่อ (scripts/ai-relay.mjs) คำขอเดินผ่าน server ของระบบจริง
+// การบอกผู้ใช้ว่า "ไม่ผ่าน server" จึงกลายเป็นคำสัญญาที่ผิด และเป็นเรื่องความเป็นส่วนตัว
+// ที่ผู้ใช้ใช้ตัดสินใจว่าจะใส่ key กับข้อมูลลูกค้าลงไปหรือไม่ ห้ามพูดเกินจริงเด็ดขาด
+assert.doesNotMatch(html, /ไม่ผ่าน server/, "หน้าจอยังบอกว่าข้อมูลไม่ผ่าน server ซึ่งไม่จริงแล้วเมื่อใช้ตัวส่งต่อ");
+
+// endpoint ที่ browser ยิงต้องตรงกับ path ที่ฝั่ง server เปิดรับจริง ถ้าสองค่านี้หลุดจากกัน
+// หน้า AI จะพังทั้งหน้าโดยที่ไม่มีชุดตรวจไหนจับได้ เพราะแต่ละไฟล์ดูถูกต้องในตัวเอง
+const relayPath = aiRelayJs.match(/export\s+const\s+AI_RELAY_PATH\s*=\s*["']([^"']+)["']/)?.[1];
+assert.ok(relayPath, "หา AI_RELAY_PATH ใน scripts/ai-relay.mjs ไม่เจอ");
+assert.match(
+  aiProviderJs,
+  new RegExp(`endpoint:\\s*["']${relayPath}["']`),
+  `app/ai-provider.js ต้องยิงไปที่ ${relayPath} ให้ตรงกับ path ที่ scripts/ai-relay.mjs เปิดรับ`
+);
+assert.doesNotMatch(
+  aiProviderJs,
+  /endpoint:\s*["']https?:\/\//,
+  "app/ai-provider.js ต้องไม่ยิงไป host ภายนอกตรง ๆ เพราะ OpenAI ไม่ส่ง CORS header กลับมาในคำขอจริง เบราว์เซอร์จะบล็อก"
+);
 
 assert.match(appJs, /callProvider\(/, "app.js ยังไม่ได้เรียกผู้ให้บริการ AI ตรงด้วย key ของผู้ใช้");
 assert.doesNotMatch(appJs, /["']\/api\/analyze["']/, "app.js ยังเรียก endpoint ฝั่ง server อยู่ ต้องเรียกผู้ให้บริการตรงด้วย key ของผู้ใช้แทน");
