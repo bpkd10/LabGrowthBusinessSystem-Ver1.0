@@ -26,7 +26,7 @@ for (const [folder, profile] of Object.entries(fixtureProfiles)) {
   let state = { businessProfile: profile, customers: [], leads: [], products: [], deals: [], tasks: [] };
   const base = path.join(root, folder);
   const sequence = [
-    ["01-products.cvs", "products"],
+    ["01-products.csv", "products"],
     ["02-customers.md", "customers"],
     ["03-deals.doc", "deals"],
     ["04-tasks.txt", "tasks"]
@@ -48,4 +48,3 @@ for (const [folder, profile] of Object.entries(fixtureProfiles)) {
   assert.ok(state.tasks.every((task) => task.productId), `${folder} ทุก Task ที่ระบุ Package ต้องเชื่อม Package ได้`);
   console.log(`Fixture passed: ${folder} (${state.products.length} products, ${state.customers.length} customers, ${state.deals.length} deals, ${state.tasks.length} tasks)`);
 }
-
