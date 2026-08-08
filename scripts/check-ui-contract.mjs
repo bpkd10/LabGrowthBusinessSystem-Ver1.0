@@ -36,6 +36,15 @@ const requiredHtmlContracts = [
   ,"importConfirm"
   ,"productBusinessCategory"
   ,"productDescription"
+  ,"aiKeyForm"
+  ,"aiKeyInput"
+  ,"aiKeyReveal"
+  ,"aiKeyRemember"
+  ,"aiKeySave"
+  ,"aiKeyClear"
+  ,"aiKeyStatus"
+  ,"aiKeyWarning"
+  ,"aiModelInput"
 ];
 
 for (const id of requiredHtmlContracts) {
@@ -72,6 +81,29 @@ assert.match(html, /id=["']businessViewSwitch["'][^>]*role=["']group["']/, "ต�
 assert.match(html, /class=["']role-switch["'][^>]*role=["']group["']/, "ตัวเลือกมุมมองตามหน้าที่ยังไม่มี semantic group");
 assert.match(html, /id=["']toast["'][^>]*hidden/, "Toast ที่ยังไม่แสดงต้องออกจาก Tab order");
 assert.match(appJs, /const\s+evidenceMarkup\s*=\s*analysisEvidenceMarkup\(\)/, "ผล AI ยังไม่ได้ล็อก Evidence Snapshot ให้ตรงกับ Request");
+// --- Bring-Your-Own-Key (ADR-001 ระยะ 1) ---------------------------------
+// สัญญาเหล่านี้จับ regression ที่ "ดูเหมือนทำงาน" แต่ทำให้ผู้ใช้เสียความลับหรือ
+// ทำให้แอปพังทั้งหน้าเมื่อยังไม่มี key
+assert.match(html, /id=["']aiKeyInput["'][^>]*type=["']password["']/, "ช่องกรอก API key ต้องเป็น type=password ไม่ให้ key โผล่บนหน้าจอโดยไม่ตั้งใจ");
+assert.match(html, /<label[^>]*for=["']aiKeyInput["']/, "ช่องกรอก API key ยังไม่มี <label> ที่ผูกกับ input จริง");
+assert.match(html, /<label[^>]*for=["']aiModelInput["']/, "ช่องเลือกโมเดลยังไม่มี <label> ที่ผูกกับ input จริง");
+assert.match(html, /id=["']aiKeyReveal["'][^>]*aria-pressed=/, "ปุ่มแสดง/ซ่อน key ต้องประกาศสถานะด้วย aria-pressed ให้ Screen Reader");
+assert.match(html, /id=["']aiKeyStatus["'][^>]*role=["']status["']/, "สถานะ key ต้องประกาศเป็น role=status เพื่ออ่านการเปลี่ยนแปลงแบบ async");
+assert.doesNotMatch(html, /API key ไม่แสดงใน browser/, "ข้อความความปลอดภัยเดิมเป็นเท็จภายใต้ BYOK เพราะ key อยู่ในเบราว์เซอร์ของผู้ใช้เอง");
+
+assert.match(appJs, /callProvider\(/, "app.js ยังไม่ได้เรียกผู้ให้บริการ AI ตรงด้วย key ของผู้ใช้");
+assert.doesNotMatch(appJs, /["']\/api\/analyze["']/, "app.js ยังเรียก endpoint ฝั่ง server อยู่ ต้องเรียกผู้ให้บริการตรงด้วย key ของผู้ใช้แทน");
+assert.match(appJs, /function\s+renderAiKeyState\s*\(/, "ยังไม่มีฟังก์ชัน gating/empty state สำหรับกรณีที่ผู้ใช้ยังไม่ตั้งค่า key");
+assert.match(appJs, /const\s+AI_KEY_STORAGE_KEY\s*=\s*["']bgc-ai-key["']/, "API key ต้องเก็บใน storage key ของตัวเอง");
+assert.doesNotMatch(appJs, /STORAGE_KEY\s*\+[^\n]*ai-key|state\.(aiKey|apiKey)/, "ห้ามเก็บ API key ปนกับ state ที่ถูก Export เป็นไฟล์ JSON");
+assert.match(appJs, /clearStoredKey\(\)/, "Set Zero และปุ่มลบ key ต้องล้าง API key ออกจากเครื่อง");
+const resetConfirmBlock = appJs.match(/#resetConfirm"\)\.addEventListener\("click",[\s\S]*?\n}\);/)?.[0] || "";
+assert.match(resetConfirmBlock, /clearStoredKey\(\)/, "Set Zero ยังไม่ได้ลบ API key ของผู้ใช้ออกจากเครื่องนี้");
+assert.match(css, /\.ai-key-status\[data-key-state="ready"\]::before/, "สถานะ key ยังใช้สีเป็นสัญญาณเดียว ต้องมีข้อความกำกับด้วย");
+const analysisSubmitBlock = appJs.match(/#analysisChatForm"\)\.addEventListener\("submit",\s*async[\s\S]*?\n}\);/)?.[0] || "";
+assert.ok(analysisSubmitBlock, "ไม่พบ handler ส่งคำถามให้ AI");
+assert.doesNotMatch(analysisSubmitBlock, /await[\s\S]*event\.currentTarget/, "ห้ามใช้ event.currentTarget หลัง await เพราะค่าเป็น null แล้ว จะทำให้ finally พังและปุ่มค้างสถานะกำลังวิเคราะห์");
+
 assert.match(css, /summary:focus-visible/, "Summary control ยังไม่มี visible keyboard focus");
 assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*animation:\s*none/, "Reduced Motion ยังไม่ปิด animation ของการเปลี่ยนหน้า");
 assert.doesNotMatch(css, /transition:\s*width\b/, "ยังพบ transition: width ซึ่งทำให้ layout animation ไม่ลื่น");

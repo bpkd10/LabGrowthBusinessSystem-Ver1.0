@@ -6,14 +6,32 @@ import {
   updateProductAcrossState,
   detachProductRelations,
   createZeroState
-} from "./business-workflows.js?v=18";
+} from "./business-workflows.js?v=19";
 import {
   parseImportFile,
   buildImportPlan,
   applyImportPlan
-} from "./data-import.js?v=18";
+} from "./data-import.js?v=19";
+import {
+  DEFAULT_MODEL,
+  DEFAULT_PROVIDER_ID,
+  PROVIDERS,
+  callProvider,
+  maskApiKey,
+  providerErrorMessage,
+  validateKeyFormat
+} from "./ai-provider.js?v=19";
 
 const STORAGE_KEY = "business-growth-dashboard-demo";
+
+// API key ของผู้ใช้ต้องอยู่คนละ storage entry กับ STORAGE_KEY เด็ดขาด (ADR-001 ข้อ 4.5)
+// เหตุผลรูปธรรม: ปุ่ม "ส่งออกข้อมูล" และขั้นตอน Set Zero อ่าน/เขียน STORAGE_KEY
+// ทั้งก้อน ถ้าเก็บ key ไว้ในนั้น ผู้ใช้ที่กด Export แล้วส่งไฟล์ให้ที่ปรึกษาหรือโพสต์
+// ในกลุ่ม Workshop จะยกกุญแจบัญชีของตัวเองให้คนอื่นไปพร้อมไฟล์ทันที
+const AI_KEY_STORAGE_KEY = "bgc-ai-key";
+// ชื่อ model ไม่ใช่ความลับ จึงเก็บใน localStorage เสมอเพื่อให้ค่าที่ผู้ใช้แก้เองไม่หาย
+// ตอนปิดแท็บ (ต่างจาก key ที่ default เป็น sessionStorage)
+const AI_MODEL_STORAGE_KEY = "bgc-ai-model";
 const REVENUE_TARGET = 100000;
 const VALID_VIEWS = ["dashboard", "customers", "crm", "products", "deals", "tasks", "ai"];
 
@@ -489,7 +507,7 @@ function customerOffer(customer) {
 }
 
 function iconMarkup(name, className = "ui-icon") {
-  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=18#${escapeHTML(name)}"></use></svg>`;
+  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=19#${escapeHTML(name)}"></use></svg>`;
 }
 
 document.querySelector("#toastUndo").addEventListener("click", () => {
@@ -1755,6 +1773,215 @@ function renderAnalysisSnapshot() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Key store ของผู้ใช้ (Bring-Your-Own-Key) — ADR-001 ข้อ 4.5 / 4.6 / 4.7
+//
+// default = sessionStorage (หายเมื่อปิดแท็บ) เพื่อลดความเสียหายบนเครื่องที่ใช้
+// ร่วมกันใน Workshop เมื่อผู้ใช้ติ๊ก "จำ key ไว้ในเครื่องนี้" จึงย้ายไป localStorage
+// ค่า key ไม่ถูกเก็บใน state, ไม่ถูกใส่ลงใน innerHTML และไม่ถูกเขียนลง console
+// ---------------------------------------------------------------------------
+
+function readStoredKey() {
+  try {
+    return sessionStorage.getItem(AI_KEY_STORAGE_KEY) || localStorage.getItem(AI_KEY_STORAGE_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function keyIsRemembered() {
+  try {
+    return Boolean(localStorage.getItem(AI_KEY_STORAGE_KEY));
+  } catch {
+    return false;
+  }
+}
+
+function writeStoredKey(apiKey, remember) {
+  try {
+    if (remember) {
+      localStorage.setItem(AI_KEY_STORAGE_KEY, apiKey);
+      sessionStorage.removeItem(AI_KEY_STORAGE_KEY);
+    } else {
+      sessionStorage.setItem(AI_KEY_STORAGE_KEY, apiKey);
+      localStorage.removeItem(AI_KEY_STORAGE_KEY);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function clearStoredKey() {
+  try {
+    sessionStorage.removeItem(AI_KEY_STORAGE_KEY);
+    localStorage.removeItem(AI_KEY_STORAGE_KEY);
+  } catch {
+    // storage ถูกปิดใช้งานอยู่แล้ว ไม่มี key ค้างให้ลบ
+  }
+}
+
+function readStoredModel() {
+  try {
+    return (localStorage.getItem(AI_MODEL_STORAGE_KEY) || "").trim() || DEFAULT_MODEL;
+  } catch {
+    return DEFAULT_MODEL;
+  }
+}
+
+function writeStoredModel(model) {
+  try {
+    const value = String(model || "").trim();
+    if (!value || value === DEFAULT_MODEL) localStorage.removeItem(AI_MODEL_STORAGE_KEY);
+    else localStorage.setItem(AI_MODEL_STORAGE_KEY, value);
+  } catch {
+    // เก็บไม่ได้ก็ยังใช้ค่าที่พิมพ์ในช่องได้ในรอบนี้
+  }
+}
+
+// เก็บสถานะล่าสุดไว้ให้ #aiKeyStatus แสดง โดยแยก "รูปแบบถูกต้องและบันทึกแล้ว"
+// ออกจาก "ผู้ให้บริการปฏิเสธ key นี้" ตามข้อ 4.6 (ตรวจ 2 ชั้น)
+let aiKeyRejectedMessage = "";
+
+function currentAnalysisModel() {
+  const input = document.querySelector("#aiModelInput");
+  return (input?.value || "").trim() || readStoredModel();
+}
+
+function analysisEmptyStateMarkup(kind) {
+  if (kind === "no-key") {
+    return `<div class="chat-empty">
+      <strong>ยังใช้ AI ไม่ได้ เพราะยังไม่ได้ตั้งค่า API key</strong>
+      <span>ส่วนอื่นของระบบใช้งานได้ตามปกติทั้งหมด เฉพาะการวิเคราะห์ด้วย AI เท่านั้นที่ต้องใช้ key ของคุณเอง</span>
+      <span>ใส่ API key ของ ${escapeHTML(PROVIDERS[DEFAULT_PROVIDER_ID].label)} ในช่องด้านซ้ายแล้วกดบันทึก ระบบจะเรียกผู้ให้บริการจากเบราว์เซอร์ของคุณโดยตรง ค่าใช้จ่ายอยู่กับบัญชีของคุณ</span>
+      <div class="analysis-empty-actions"><button type="button" class="small-button" data-focus-ai-key>ไปที่ช่องใส่ API key</button></div>
+    </div>`;
+  }
+  return `<div class="chat-empty"><strong>เลือกคำถามแนะนำ หรือถามด้วยคำของคุณเอง</strong><span>คำตอบจะอ้างอิงเฉพาะข้อมูลที่มีอยู่ใน Web App</span></div>`;
+}
+
+// gating + empty state: ไม่มี key ต้องไม่ทำให้อะไรพัง (ADR ข้อ 4.7)
+// เมนู AI ยังกดเข้าได้ Snapshot/Prompt/Quick question ยังทำงาน มีแค่ปุ่มส่งที่ปิด
+function renderAiKeyState() {
+  const input = document.querySelector("#aiKeyInput");
+  const modelInput = document.querySelector("#aiModelInput");
+  const remember = document.querySelector("#aiKeyRemember");
+  const statusNode = document.querySelector("#aiKeyStatus");
+  const clearButton = document.querySelector("#aiKeyClear");
+  const analyzeButton = document.querySelector("#analyzeBusiness");
+  const analysisStatus = document.querySelector("#analysisStatus");
+  const result = document.querySelector("#analysisResult");
+  if (!input || !statusNode || !analyzeButton) return;
+
+  const storedKey = readStoredKey();
+  const hasKey = Boolean(storedKey);
+  if (document.activeElement !== modelInput) modelInput.value = readStoredModel();
+  remember.checked = hasKey ? keyIsRemembered() : remember.checked;
+  clearButton.disabled = !hasKey;
+
+  // ค่าใน #aiKeyStatus ตั้งด้วย textContent เสมอ ห้ามใช้ innerHTML เพราะมีเศษของ key อยู่
+  if (aiKeyRejectedMessage) {
+    statusNode.dataset.keyState = "error";
+    statusNode.textContent = aiKeyRejectedMessage;
+  } else if (hasKey) {
+    statusNode.dataset.keyState = "ready";
+    statusNode.textContent = `${maskApiKey(storedKey)} · ${keyIsRemembered() ? "จำไว้ในเครื่องนี้จนกว่าจะกดลบ" : "ใช้ได้จนกว่าจะปิดแท็บนี้"} · โมเดล ${readStoredModel()}`;
+  } else {
+    statusNode.dataset.keyState = "empty";
+    statusNode.textContent = "ยังไม่ได้ตั้งค่า key — ใส่ key ของคุณแล้วกดบันทึกเพื่อเปิดใช้การวิเคราะห์";
+  }
+
+  analyzeButton.disabled = !hasKey || analysisInFlight;
+  analyzeButton.setAttribute("aria-describedby", "aiKeyStatus");
+  if (!hasKey) {
+    analysisStatus.textContent = "ยังไม่ได้ตั้งค่า key";
+    if (!result.dataset.hasAnalysis) {
+      result.classList.add("empty-analysis");
+      result.innerHTML = analysisEmptyStateMarkup("no-key");
+    }
+  } else if (!result.dataset.hasAnalysis) {
+    analysisStatus.textContent = "พร้อมใช้งาน";
+    result.classList.add("empty-analysis");
+    result.innerHTML = analysisEmptyStateMarkup("ready");
+  }
+}
+
+document.querySelector("#aiKeyReveal").addEventListener("click", (event) => {
+  const button = event.currentTarget;
+  const input = document.querySelector("#aiKeyInput");
+  const reveal = button.getAttribute("aria-pressed") !== "true";
+  input.type = reveal ? "text" : "password";
+  button.setAttribute("aria-pressed", String(reveal));
+  button.textContent = reveal ? "ซ่อน key" : "แสดง key";
+  // ตั้งใจไม่ย้าย focus ไปที่ input เพราะผู้ใช้ที่กดปุ่มนี้ด้วยคีย์บอร์ดจะเสียตำแหน่ง
+  // และไม่ได้ยินการประกาศสถานะ aria-pressed ที่เพิ่งเปลี่ยน
+});
+
+document.querySelector("#aiKeyForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const input = document.querySelector("#aiKeyInput");
+  const statusNode = document.querySelector("#aiKeyStatus");
+  const remember = document.querySelector("#aiKeyRemember").checked;
+  const typedKey = input.value.trim();
+  const model = (document.querySelector("#aiModelInput").value || "").trim() || DEFAULT_MODEL;
+
+  // ผู้ใช้แก้เฉพาะชื่อโมเดลโดยไม่พิมพ์ key ใหม่ได้ ถ้ามี key เก็บไว้อยู่แล้ว
+  if (!typedKey && readStoredKey()) {
+    writeStoredModel(model);
+    aiKeyRejectedMessage = "";
+    renderAiKeyState();
+    notify(`บันทึกโมเดล ${model} แล้ว`);
+    return;
+  }
+
+  const format = validateKeyFormat(typedKey, DEFAULT_PROVIDER_ID);
+  if (!format.ok) {
+    aiKeyRejectedMessage = format.message;
+    renderAiKeyState();
+    statusNode.dataset.keyState = "error";
+    input.focus();
+    return;
+  }
+
+  if (!writeStoredKey(typedKey, remember)) {
+    aiKeyRejectedMessage = "บันทึก key ไม่สำเร็จ เบราว์เซอร์ปิดการใช้งานพื้นที่จัดเก็บอยู่ กรุณาเปิด storage ของเว็บนี้แล้วบันทึกใหม่";
+    renderAiKeyState();
+    input.focus();
+    return;
+  }
+  writeStoredModel(model);
+  aiKeyRejectedMessage = "";
+  input.value = "";
+  input.type = "password";
+  const revealButton = document.querySelector("#aiKeyReveal");
+  revealButton.setAttribute("aria-pressed", "false");
+  revealButton.textContent = "แสดง key";
+  renderAiKeyState();
+  notify(remember ? "บันทึก key ไว้ในเครื่องนี้แล้ว" : "บันทึก key สำหรับแท็บนี้แล้ว จะหายเมื่อปิดแท็บ");
+});
+
+document.querySelector("#aiKeyClear").addEventListener("click", () => {
+  clearStoredKey();
+  aiKeyRejectedMessage = "";
+  const input = document.querySelector("#aiKeyInput");
+  input.value = "";
+  input.type = "password";
+  document.querySelector("#aiKeyRemember").checked = false;
+  const revealButton = document.querySelector("#aiKeyReveal");
+  revealButton.setAttribute("aria-pressed", "false");
+  revealButton.textContent = "แสดง key";
+  renderAiKeyState();
+  notify("ลบ API key ออกจากเครื่องนี้แล้ว");
+  input.focus();
+});
+
+document.querySelector("#analysisResult").addEventListener("click", (event) => {
+  if (!event.target.closest("[data-focus-ai-key]")) return;
+  const input = document.querySelector("#aiKeyInput");
+  input.scrollIntoView({ block: "center", behavior: "smooth" });
+  input.focus();
+});
+
 function renderPromptPreview() {
   const preview = document.querySelector("#analysisPromptPreview");
   const prompt = document.querySelector("#analysisPrompt");
@@ -1789,6 +2016,11 @@ document.querySelector("#analysisQuickQuestions").addEventListener("click", (eve
 document.querySelector("#analysisChatForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   if (analysisInFlight) return;
+  // เก็บ reference ของ form ไว้ตั้งแต่ต้น เพราะ currentTarget ของ event จะกลายเป็น
+  // null ทันทีที่ handler คืน control ให้ event loop การอ้างถึงมันในบล็อก finally
+  // จึงโยน TypeError และทำให้ปุ่มค้างสถานะ "กำลังวิเคราะห์" ตลอดไป
+  // (เป็นรูปแบบเดียวกับที่ #customerForm แก้ไว้แล้ว)
+  const formElement = event.currentTarget;
   const button = document.querySelector("#analyzeBusiness");
   const result = document.querySelector("#analysisResult");
   const status = document.querySelector("#analysisStatus");
@@ -1798,43 +2030,86 @@ document.querySelector("#analysisChatForm").addEventListener("submit", async (ev
   const userPrompt = prompt.value.trim();
   if (!userPrompt) return prompt.focus();
   const evidenceMarkup = analysisEvidenceMarkup();
+
+  // ปุ่มถูก disable อยู่แล้วเมื่อไม่มี key แต่ Enter ในช่องคำถามเรียก requestSubmit()
+  // ได้โดยตรง จึงต้องกันซ้ำที่นี่ ไม่ปล่อยให้ยิงคำขอที่รู้อยู่แล้วว่าจะล้มเหลว
+  const apiKey = readStoredKey();
+  if (!apiKey) {
+    aiKeyRejectedMessage = providerErrorMessage("missing_key");
+    renderAiKeyState();
+    document.querySelector("#analysisTitle").textContent = "ยังตั้งค่า API key ไม่ครบ";
+    status.textContent = "ยังไม่ได้ตั้งค่า key";
+    document.querySelector("#aiKeyInput").focus();
+    notify(providerErrorMessage("missing_key"));
+    return;
+  }
+
+  // ล้างคำเตือนของรอบก่อนทุกครั้งที่เริ่มรอบใหม่ ไม่งั้นข้อความเช่น "โมเดลนี้ใช้ไม่ได้"
+  // จะค้างอยู่ใน #aiKeyStatus แม้รอบถัดไปจะล้มด้วยสาเหตุอื่น (เช่นเน็ตหลุด)
+  // ทำให้ผู้ใช้ไล่แก้ผิดจุด
+  aiKeyRejectedMessage = "";
   analysisInFlight = true;
   button.disabled = true;
   prompt.readOnly = true;
   focusSelect.disabled = true;
   quickButtons.forEach((quickButton) => { quickButton.disabled = true; });
-  event.currentTarget.setAttribute("aria-busy", "true");
+  formElement.setAttribute("aria-busy", "true");
   button.textContent = "กำลังวิเคราะห์...";
   status.textContent = "กำลังประมวลผล";
   result.classList.remove("empty-analysis");
   result.innerHTML = `${evidenceMarkup}<article class="chat-message user-message"><span>คำถามของคุณ</span><p>${escapeHTML(userPrompt)}</p></article><article class="chat-message assistant-message loading-message"><span>AI Business Analyst</span><p>กำลังอ่านข้อมูลในระบบและตรวจตัวเลขที่เกี่ยวข้อง...</p></article>`;
 
   try {
-    const response = await fetch("/api/analyze", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(analysisPayload(userPrompt))
+    // เรียกผู้ให้บริการตรงจากเบราว์เซอร์ด้วย key ของผู้ใช้ (ADR-001 ข้อ 4.2)
+    // ทั้งข้อมูลธุรกิจและ key ไม่วิ่งผ่าน server ของเจ้าของระบบอีกต่อไป
+    const data = await callProvider(DEFAULT_PROVIDER_ID, apiKey, analysisPayload(userPrompt), {
+      model: currentAnalysisModel()
     });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "วิเคราะห์ไม่สำเร็จ");
+    aiKeyRejectedMessage = "";
     document.querySelector("#analysisTitle").textContent = "ข้อเสนอจาก AI สำหรับธุรกิจนี้";
     result.innerHTML = `${evidenceMarkup}<article class="chat-message user-message"><span>คำถามของคุณ</span><p>${escapeHTML(userPrompt)}</p></article><article class="chat-message assistant-message"><span>AI Business Analyst</span><p>${escapeHTML(data.analysis)}</p></article>`;
+    result.dataset.hasAnalysis = "true";
     status.textContent = "วิเคราะห์แล้ว";
   } catch (error) {
-    document.querySelector("#analysisTitle").textContent = "ยังเชื่อมต่อ AI ไม่สำเร็จ";
-    const errorText = error.message === "Failed to fetch"
-      ? "ระบบยังเชื่อมต่อบริการวิเคราะห์ไม่ได้ กรุณาลองใหม่"
-      : error.message;
-    result.innerHTML = `${evidenceMarkup}<article class="chat-message user-message"><span>คำถามของคุณ</span><p>${escapeHTML(userPrompt)}</p></article><article class="chat-message assistant-message error-message"><span>ระบบวิเคราะห์</span><p>${escapeHTML(errorText)} ข้อมูล Snapshot ด้านบนยังอยู่ครบ คุณสามารถแก้คำถามแล้วลองอีกครั้ง</p></article>`;
+    // ข้อความไทยทุกกรณีมาจาก app/ai-provider.js ที่เดียว และแยกกันตามสาเหตุจริง
+    // (key ผิดรูปแบบ / ถูกปฏิเสธ / ไม่มีสิทธิ์ใช้โมเดล / เครดิตหมด / เน็ตล่ม / ตอบว่าง)
+    const code = error?.code || "provider_error";
+    const errorText = error?.message || providerErrorMessage("provider_error");
+    const titles = {
+      unauthorized: "API key ถูกปฏิเสธ",
+      invalid_key_format: "รูปแบบ API key ไม่ถูกต้อง",
+      missing_key: "ยังตั้งค่า API key ไม่ครบ",
+      model_not_found: "บัญชีนี้ยังใช้โมเดลที่เลือกไม่ได้",
+      forbidden: "บัญชีนี้ไม่มีสิทธิ์เรียกใช้บริการ",
+      rate_limited: "ใช้งานถึงขีดจำกัดของบัญชี",
+      network: "เชื่อมต่อบริการ AI ไม่สำเร็จ",
+      empty_analysis: "AI ตอบกลับมาแบบไม่มีเนื้อหา"
+    };
+    document.querySelector("#analysisTitle").textContent = titles[code] || "ยังวิเคราะห์ไม่สำเร็จ";
+    result.innerHTML = `${evidenceMarkup}<article class="chat-message user-message"><span>คำถามของคุณ</span><p>${escapeHTML(userPrompt)}</p></article><article class="chat-message assistant-message error-message"><span>ระบบวิเคราะห์</span><p>${escapeHTML(errorText)}</p><p>ข้อมูล Snapshot ด้านบนและคำถามของคุณยังอยู่ครบ แก้ตามคำแนะนำแล้วส่งใหม่ได้ทันที</p></article>`;
+    result.dataset.hasAnalysis = "true";
     status.textContent = "เกิดข้อผิดพลาด";
+
+    // ชั้นตรวจที่สองของ ADR ข้อ 4.6: key ที่ผ่านชั้นรูปแบบแล้วแต่ถูกปฏิเสธจริง
+    // ต้องล้างสถานะ "พร้อมใช้งาน" แล้วพา focus กลับไปที่ช่องกรอก key
+    if (code === "unauthorized" || code === "invalid_key_format" || code === "missing_key" || code === "forbidden") {
+      aiKeyRejectedMessage = errorText;
+      renderAiKeyState();
+      document.querySelector("#aiKeyInput").focus();
+    } else if (code === "model_not_found") {
+      aiKeyRejectedMessage = errorText;
+      renderAiKeyState();
+      document.querySelector("#aiModelInput").focus();
+      document.querySelector("#aiModelInput").select();
+    }
   } finally {
     analysisInFlight = false;
-    button.disabled = false;
     prompt.readOnly = false;
     focusSelect.disabled = false;
     quickButtons.forEach((quickButton) => { quickButton.disabled = false; });
-    event.currentTarget.removeAttribute("aria-busy");
+    formElement.removeAttribute("aria-busy");
     button.textContent = "ส่งคำถามให้ AI";
+    renderAiKeyState();
   }
 });
 
@@ -1917,11 +2192,22 @@ document.querySelector("#resetConfirm").addEventListener("click", () => {
   state = createZeroState();
   if (!saveState()) return;
   selectedLeadIds.clear();
+  // Set Zero ต้องลบ API key ของผู้ใช้ทั้ง sessionStorage และ localStorage ด้วย
+  // (ADR-001 ข้อ 4.5) เพราะเหตุผลหลักที่คนกด Set Zero คือ "ส่งเครื่องนี้ให้คนอื่นใช้ต่อ"
+  clearStoredKey();
+  aiKeyRejectedMessage = "";
+  document.querySelector("#aiKeyInput").value = "";
+  document.querySelector("#aiKeyInput").type = "password";
+  document.querySelector("#aiKeyRemember").checked = false;
+  document.querySelector("#aiKeyReveal").setAttribute("aria-pressed", "false");
+  document.querySelector("#aiKeyReveal").textContent = "แสดง key";
+  delete document.querySelector("#analysisResult").dataset.hasAnalysis;
   document.querySelector("#resetDialog").close();
   renderAll();
+  renderAiKeyState();
   resetCustomerFormDefaults();
   showView("dashboard", { focusHeading: true });
-  notify("Set Zero เรียบร้อย ข้อมูลธุรกิจทั้งหมดเริ่มต้นที่ศูนย์");
+  notify("Set Zero เรียบร้อย ข้อมูลธุรกิจทั้งหมดเริ่มต้นที่ศูนย์ และลบ API key ออกจากเครื่องนี้แล้ว");
 });
 
 document.querySelector("#exportData").addEventListener("click", exportStateData);
@@ -1984,7 +2270,7 @@ function openImportReview(parsed, file) {
     ? '<option value="0">ข้อมูลสำรองทั้งระบบ</option>'
     : parsed.sheets.map((sheet, index) => `<option value="${index}">${escapeHTML(sheet.name)} · ${sheet.rows.length} แถว</option>`).join("");
   sheetSelect.disabled = parsed.kind === "state" || parsed.sheets.length <= 1;
-  document.querySelector("#importFileSummary").innerHTML = `<span><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=18#clipboard"></use></svg><strong>${escapeHTML(file.name)}</strong></span><span>${escapeHTML(parsed.format.toUpperCase())}</span><span>${escapeHTML(`${Math.max(1, Math.ceil(file.size / 1024))} KB`)}</span>`;
+  document.querySelector("#importFileSummary").innerHTML = `<span><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=19#clipboard"></use></svg><strong>${escapeHTML(file.name)}</strong></span><span>${escapeHTML(parsed.format.toUpperCase())}</span><span>${escapeHTML(`${Math.max(1, Math.ceil(file.size / 1024))} KB`)}</span>`;
   refreshImportPlan();
   document.querySelector("#importDialog").showModal();
 }
@@ -2056,4 +2342,5 @@ function setDefaultDueDate() {
 
 setDefaultDueDate();
 renderAll();
+renderAiKeyState();
 showView(location.hash.slice(1) || "dashboard/owner", { historyMode: "replace" });

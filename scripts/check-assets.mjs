@@ -57,6 +57,12 @@ assert.ok(html.includes(`styles.css?v=${ASSET_VERSION}`), "HTML ยังไม�
 assert.ok(html.includes(`app.js?v=${ASSET_VERSION}`), "HTML ยังไม่ได้ใช้ JavaScript Asset Version ปัจจุบัน");
 assert.ok(appJs.includes(`business-workflows.js?v=${ASSET_VERSION}`), "JavaScript workflow ยังไม่ได้ใช้ Asset Version ปัจจุบัน");
 
+// app/ai-provider.js เป็น ES module ที่ app.js import โดยตรง ถ้าไม่ลงทะเบียนใน manifest
+// ไฟล์จะหายตอน deploy และหน้า AI จะพังทั้งหน้า (ADR-001 ข้อ 4.4)
+assert.ok(ASSET_FILES["/ai-provider.js"], "Asset manifest ไม่มี route /ai-provider.js");
+assert.match(ASSET_FILES["/ai-provider.js"][1], /text\/javascript/, "/ai-provider.js ต้องใช้ JavaScript content type");
+assert.ok(appJs.includes(`ai-provider.js?v=${ASSET_VERSION}`), "app.js ยังไม่ได้ import ai-provider.js ด้วย Asset Version ปัจจุบัน");
+
 const symbolIds = new Set([...sprite.matchAll(/<symbol\s+id="([^"]+)"/g)].map((match) => match[1]));
 const referencedSymbols = new Set([
   ...[...html.matchAll(/icons\.svg\?v=\d+#([a-z0-9-]+)/g)].map((match) => match[1]),
@@ -82,6 +88,6 @@ for (const match of css.matchAll(/url\(["']?([^"')]+)["']?\)/g)) {
   if (route.startsWith("/")) assert.ok(ASSET_FILES[route], `CSS อ้าง Asset ${route} ที่ไม่มีใน manifest`);
 }
 
-assert.equal(ASSET_VERSION, "18", "ต้องเพิ่ม Asset Version หลังแก้ UI/Logo/Icon เพื่อป้องกัน cache เก่า");
+assert.equal(ASSET_VERSION, "19", "ต้องเพิ่ม Asset Version หลังแก้ UI/Logo/Icon เพื่อป้องกัน cache เก่า");
 
 console.log(`Asset contract passed: ${requiredRoutes.length} required routes, ${referencedSymbols.size} referenced vector symbols, version ${ASSET_VERSION}`);
