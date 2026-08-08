@@ -1,0 +1,22 @@
+# Cloudflare Workers config สำหรับ deploy public link (ADR-001 ข้อ 5.2)
+#
+# Worker ตัวนี้ทำหน้าที่แค่ 2 อย่าง: เสิร์ฟไฟล์ static และส่ง security header
+# ไม่มี secret, ไม่มี env binding ใด ๆ โดยเจตนา — ถ้าวันหนึ่งมีคนเพิ่ม
+# OPENAI_API_KEY หรือ [vars] กลับเข้ามาในไฟล์นี้ แปลว่าการตัดสินใจใน ADR-001
+# ถูกย้อน ต้องกลับไปแก้เอกสารก่อน
+#
+# ตรวจกับเอกสาร Cloudflare แล้ว (https://developers.cloudflare.com/workers/wrangler/configuration/):
+# name, main, compatibility_date เป็น field ที่จำเป็นขั้นต่ำในการ deploy Worker
+# workers_dev เป็น field ที่ไม่บังคับ ค่า default อยู่แล้วคือ true — ใส่ไว้ตรง ๆ
+# เพื่อให้อ่านง่ายว่าตั้งใจให้ใช้ *.workers.dev subdomain
+
+name = "business-growth-crm"
+main = "dist/server/index.js"
+
+# ต้องรันคำสั่ง `npm run build` ก่อนเสมอ เพื่อสร้างไฟล์ dist/server/index.js
+# จาก scripts/build.mjs — ไฟล์นี้ไม่ได้ถูก commit เข้า repo (อยู่ใน .gitignore)
+
+# ยืนยันกับ Wrangler เวอร์ชันที่ใช้จริงตอน deploy อีกครั้ง (ADR-001 ข้อ 10.4)
+compatibility_date = "2026-08-08"
+
+workers_dev = true

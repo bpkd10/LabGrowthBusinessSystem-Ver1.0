@@ -66,6 +66,21 @@ for (const [headerName, expectedValue] of Object.entries(SECURITY_HEADERS)) {
 
 console.log(`Production Worker headers passed: ${Object.keys(SECURITY_HEADERS).length} security headers ตรงกับ scripts/security-headers.mjs`);
 
+// ---------- 2b) ป้องกันการย้อนกลับของ /api/analyze (ADR-001 ข้อ 6.1, 6.2, ระยะ 2 งาน #9) ----------
+// server-side AI path ถูกลบไปแล้วโดยตั้งใจ (BYOK เรียก OpenAI ตรงจาก browser) ถ้าใครเผลอ
+// เติม endpoint นี้กลับมา จะไม่มี body limit และไม่มี rate limit เหมือนเดิม — เป็น proxy
+// สาธารณะที่ไม่มี auth ให้ใครก็เผาเครดิตของเจ้าของได้ ต้อง assert ว่าเส้นทางนี้ไม่มีอยู่จริง
+// ทั้งสองฝั่ง ไม่ใช่แค่ scan source code
+const prodAnalyzeResponse = await worker.fetch(
+  new Request("https://app.example/api/analyze", { method: "POST", body: "{}" }),
+  {}
+);
+assert.ok(
+  [404, 405].includes(prodAnalyzeResponse.status),
+  `dist/server/index.js (Production Worker) ต้องตอบ 404 หรือ 405 ต่อ POST /api/analyze (เส้นทาง server-side AI ถูกลบแล้วตาม ADR-001 ข้อ 4.3 ถ้ามีคนเผลอเติมกลับมา นี่คือ public proxy ที่ไม่มี auth/rate limit) แต่ตอบ ${prodAnalyzeResponse.status}`
+);
+console.log(`Production Worker POST /api/analyze passed: ตอบ ${prodAnalyzeResponse.status} ตามที่คาดไว้`);
+
 // ---------- 3) Dev server (child process จริง) ต้องส่ง header ชุดเดียวกัน ----------
 
 function findFreePort() {
@@ -134,6 +149,18 @@ try {
     );
   }
   console.log(`Dev server headers passed: ${Object.keys(SECURITY_HEADERS).length} security headers ตรงกับ scripts/security-headers.mjs`);
+
+  // ป้องกันการย้อนกลับของ /api/analyze ฝั่ง dev เช่นเดียวกับฝั่ง production ข้างบน
+  const devAnalyzeResponse = await fetch(`http://127.0.0.1:${devPort}/api/analyze`, {
+    method: "POST",
+    body: "{}"
+  });
+  assert.ok(
+    [404, 405].includes(devAnalyzeResponse.status),
+    `scripts/dev.mjs ต้องตอบ 404 หรือ 405 ต่อ POST /api/analyze (เส้นทาง server-side AI ถูกลบแล้วตาม ADR-001 ข้อ 4.3) แต่ตอบ ${devAnalyzeResponse.status}` +
+      (devStderr ? `\n[dev.mjs stderr]\n${devStderr}` : "")
+  );
+  console.log(`Dev server POST /api/analyze passed: ตอบ ${devAnalyzeResponse.status} ตามที่คาดไว้`);
 } finally {
   await shutdownDevProcess(devProcess);
 }

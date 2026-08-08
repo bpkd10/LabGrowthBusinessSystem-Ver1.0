@@ -15,7 +15,8 @@
     "precheck:smoke": "npm run build",
     "check:smoke": "node scripts/smoke-build.mjs",
     "check:headers": "node scripts/check-security-headers.mjs",
-    "check": "npm run check:assets && npm run check:ui && npm run check:import && npm run check:fixtures && npm run check:workflows && npm run check:syntax && npm run check:smoke && npm run check:headers"
+    "check": "npm run check:assets && npm run check:ui && npm run check:import && npm run check:fixtures && npm run check:workflows && npm run check:syntax && npm run check:smoke && npm run check:headers",
+    "deploy": "echo '=== manual-only: ต้องรันด้วยมือโดยเจ้าของระบบเท่านั้น ห้าม CI/agent เรียกสคริปต์นี้ — จะเผยแพร่ URL สาธารณะถาวรและถอนคืนไม่ได้ ทำรายการตรวจก่อน deploy ใน docs/adr-001-byok-and-public-link.md ข้อ 8 ระยะ 3 ให้ครบก่อนเสมอ ===' && npm run check && npx wrangler deploy"
   },
   "dependencies": {
     "mammoth": "^1.12.0",
