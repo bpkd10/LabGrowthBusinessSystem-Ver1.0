@@ -1,0 +1,36 @@
+# CI: รันชุดตรวจสอบระบบ (npm run check) ทุกครั้งที่ push หรือเปิด pull request
+# ครอบคลุม check:assets, check:ui, check:import, check:fixtures, check:workflows,
+# check:syntax และ check:smoke (ซึ่งจะ build ก่อนอัตโนมัติผ่าน precheck:smoke)
+#
+# หมายเหตุ: ไม่มีขั้นตอน deploy/publish ในไฟล์นี้ การ deploy จัดการแยกต่างหาก
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    name: npm run check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout โค้ด
+        uses: actions/checkout@v7
+
+      # ต้อง pin เวอร์ชัน Node ให้ตรงกับที่ทดสอบจริง เพราะโค้ดใช้ import.meta.dirname
+      # (scripts/*.mjs) ซึ่งต้องการ Node 20.11+ / 21.2+ ขึ้นไป — ที่นี่ pin เป็น 22.17.1
+      # ซึ่งเป็นเวอร์ชัน LTS ที่ยังได้รับการดูแล (Node 20 หมดอายุซัพพอร์ตแล้ว)
+      - name: ตั้งค่า Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22.17.1"
+          cache: "npm"
+
+      # xlsx ถูกติดตั้งจาก tarball URL ตรง (ไม่ใช่ npm registry) แต่ package-lock.json
+      # บันทึก resolved URL และ integrity hash ไว้แล้ว ทำให้ `npm ci` ดึงและตรวจสอบ
+      # ความถูกต้องของไฟล์ได้ตามปกติ โดยไม่ต้องตั้งค่าเพิ่มเติม
+      - name: ติดตั้ง dependencies (npm ci)
+        run: npm ci
+
+      - name: รันชุดตรวจสอบระบบ (npm run check)
+        run: npm run check

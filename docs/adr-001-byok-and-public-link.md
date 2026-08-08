@@ -1,0 +1,489 @@
+# ADR-001: Bring-Your-Own-Key และ Public Link
+
+สถานะ: เสนอเพื่ออนุมัติ (Proposed)
+วันที่: 8 สิงหาคม 2026
+Branch: `improve/hardening-byok-publiclink`
+ขอบเขต: เอกสารออกแบบเท่านั้น ยังไม่มีการแก้ Application Code
+
+---
+
+## 1. บริบท
+
+Business Growth CRM เป็น Single-Page App แบบ vanilla JavaScript ไม่มี framework ไม่มี bundler เก็บ State ทั้งหมดใน `localStorage` ของ browser ใช้เป็น Workshop Demo และให้เจ้าของธุรกิจรายย่อยใช้งานจริง
+
+สถาปัตยกรรม AI ปัจจุบัน:
+
+1. Browser POST snapshot ข้อมูลธุรกิจไปที่ `/api/analyze` (`app/app.js` บรรทัด 1813)
+2. Server แนบ `OPENAI_API_KEY` **ของเจ้าของระบบ** — dev อ่านจาก `.env.local` (`scripts/dev.mjs` บรรทัด 10-23) ส่วน Production อ่านจาก `env.OPENAI_API_KEY` (`scripts/build.mjs` บรรทัด 31-37)
+3. Server เรียก `https://api.openai.com/v1/responses` แล้วส่งผลกลับ
+
+แรงกดดันที่ทำให้ต้องเปลี่ยน:
+
+- **ต้นทุนและความรับผิด** เจ้าของระบบต้องการให้บัญชี OpenAI ของตัวเอง "ไม่เกี่ยวกับของผม" ผู้ใช้แต่ละคนต้องจ่ายค่าใช้งานเอง
+- **ต้องมี URL สาธารณะ** เพื่อให้ใช้งานและแชร์ได้จริง ตอนนี้รันได้แค่ `127.0.0.1:4173`
+- **มีข้อบกพร่องค้างอยู่ 3 ข้อ** ที่ต้องแก้ไปพร้อมกัน (ดูหัวข้อ 6)
+
+ข้อจำกัดที่ห้ามละเมิด:
+
+- ไม่เพิ่ม framework ไม่เพิ่ม bundler ไม่เพิ่ม build step นอกเหนือจาก Node script ที่มีอยู่
+- ทุกอย่างที่ผู้ใช้เห็นเป็นภาษาไทย
+- แอปต้องทำงานได้ปกติเมื่อปิดฟีเจอร์ AI
+- **นอกขอบเขต**: ระบบ Login, ฐานข้อมูล, backend แบบ multi-tenant
+
+---
+
+## 2. สมมติฐานที่ตั้งไว้
+
+ระบุไว้ตรง ๆ เพื่อให้คนอ่านโต้แย้งได้:
+
+1. ผู้ใช้เป้าหมายมีบัญชี OpenAI ของตัวเอง หรือสมัครได้ และยอมรับว่าต้องจ่ายค่า API เอง
+2. จำนวนผู้ใช้พร้อมกันอยู่ในหลักสิบ ไม่ใช่หลักพัน (Workshop + ธุรกิจรายย่อย)
+3. เจ้าของระบบมีบัญชี Cloudflare อยู่แล้วหรือสมัครได้ และยอมรับ Workers Free plan
+4. ผู้ใช้ 1 คนต่อ 1 browser profile ไม่มีการแชร์ข้อมูลข้ามเครื่อง (ตรงกับข้อจำกัด `localStorage` เดิม)
+5. ข้อมูลใน seed array ของ `app/app.js` บรรทัด 184-187 เป็นข้อมูลสมมติ ไม่ใช่ลูกค้าจริง — **ข้อนี้ต้องยืนยันด้วยตาก่อน deploy สาธารณะ**
+
+---
+
+## 3. ข้อเท็จจริงที่ตรวจสอบจริงแล้ว
+
+ตรวจเมื่อ 8 สิงหาคม 2026 ด้วย CORS preflight (`OPTIONS`) จริง ไม่ได้อ้างจากความจำหรือบทความ
+
+### 3.1 OpenAI อนุญาตให้ browser เรียกตรงได้
+
+```
+OPTIONS https://api.openai.com/v1/responses
+Origin: https://example.com
+Access-Control-Request-Method: POST
+Access-Control-Request-Headers: authorization,content-type
+
+→ HTTP/2 200
+   access-control-allow-origin: *
+   access-control-allow-headers: authorization,content-type
+   access-control-allow-methods: DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT
+   access-control-max-age: 600
+```
+
+**สรุป: CORS ไม่ใช่อุปสรรค** OpenAI ตอบ `Access-Control-Allow-Origin: *` และยอมรับ header `authorization` อย่างชัดเจน
+
+ข้อควรระวัง: `ACAO: *` ใช้ร่วมกับ `credentials: "include"` ไม่ได้ ดังนั้น `fetch()` **ต้องไม่** ตั้ง `credentials` (ค่า default ปลอดภัยอยู่แล้ว)
+
+**สิ่งที่ยังไม่ได้ยืนยัน**: การทดสอบนี้ยืนยันแค่ preflight ผ่าน ไม่ได้ยืนยันว่า POST จริงพร้อม key ที่ใช้งานได้จะสำเร็จ (ต้องใช้ key จริงจึงจะทดสอบได้) ให้ยืนยันในขั้นตอนที่ 6 ของแผนลงมือทำ
+
+### 3.2 ผู้ให้บริการรายอื่น (ตรวจด้วยวิธีเดียวกัน)
+
+| ผู้ให้บริการ | ผลตรวจ preflight | เรียกจาก browser ได้ไหม |
+|---|---|---|
+| OpenAI `/v1/responses` | 200, `ACAO: *`, ยอมรับ `authorization` | ได้ ไม่ต้องทำอะไรเพิ่ม |
+| Google Gemini `generativelanguage.googleapis.com` | 200, `ACAO` สะท้อน Origin, ยอมรับ `x-goog-api-key` | ได้ |
+| Anthropic `/v1/messages` | **400 และไม่มี `ACAO`** ถ้าไม่ opt-in | ต้องส่ง header `anthropic-dangerous-direct-browser-access` จึงจะได้ 200 + `ACAO: *` |
+
+### 3.3 CSP ปัจจุบันจะบล็อกการเรียกตรง
+
+`scripts/build.mjs` บรรทัด 87 ส่ง:
+
+```
+default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
+```
+
+**ไม่มี `connect-src`** จึง fallback ไปใช้ `default-src 'self'` แปลว่า `fetch()` ไปหา `api.openai.com` จะถูก CSP บล็อกใน Production ทันที ต้องเพิ่ม `connect-src` (ดูหัวข้อ 6.3)
+
+### 3.4 ขนาด Worker ที่ build ได้ อยู่ในเกณฑ์
+
+Build ปัจจุบัน inline ทุก asset เป็น JS object ก้อนเดียว:
+
+| รายการ | ขนาด |
+|---|---|
+| `dist/server/index.js` (raw) | 1,959,772 bytes |
+| `dist/server/index.js` (gzip) | 540,802 bytes |
+| Cloudflare Workers limit — Free | 3 MB (compressed) |
+| Cloudflare Workers limit — Paid | 10 MB (compressed) |
+
+ตัวการหลักคือ vendor 2 ตัว: `xlsx.full.min.js` 951 KB และ `mammoth.browser.min.js` 635 KB **ยังผ่านสบาย ๆ แม้บน Free plan** แต่ให้ใส่ตัวเลขนี้ไว้ในเอกสารเพื่อไม่ให้ใครต้องเดาในอนาคต
+
+---
+
+## 4. Decision 1 — Bring-Your-Own-Key
+
+### 4.1 ทางเลือกที่พิจารณา
+
+| | A. Browser เรียก OpenAI ตรง | B. Browser ส่ง key ของผู้ใช้ให้ server proxy | C. คงระบบเดิม (key ของเจ้าของ) |
+|---|---|---|---|
+| key ของผู้ใช้ผ่าน server เจ้าของไหม | **ไม่ผ่านเลย** | ผ่านทุกครั้ง | ไม่มี key ผู้ใช้ |
+| ข้อมูลธุรกิจผ่าน server เจ้าของไหม | **ไม่ผ่าน** | ผ่าน | ผ่าน |
+| ความรับผิดของเจ้าของ | ต่ำสุด | สูง — ถือครองความลับของผู้ใช้ | สูง — จ่ายค่า AI เอง |
+| CORS | **ตรวจแล้วว่าผ่าน** (3.1) | ไม่เกี่ยว | ไม่เกี่ยว |
+| ต้องแก้ CSP | ต้องเพิ่ม `connect-src` | ไม่ต้อง | ไม่ต้อง |
+| คุณภาพ Error | ได้ status จริงจาก OpenAI ครบ แต่ CORS/network fail จะเป็น `TypeError` ที่ไม่มี status | server แปลง error ได้สวยที่สุด | เท่ากับ B |
+| โค้ดที่ต้องดูแล | ลบ endpoint ทิ้ง — น้อยลง | เท่าเดิม + ต้องระวังไม่ log key | เท่าเดิม |
+| ตอบโจทย์ "ไม่เกี่ยวกับของผม" | **ใช่** | ไม่ — key ผู้ใช้ยังวิ่งผ่านเครื่องเจ้าของ | ไม่ |
+
+### 4.2 การตัดสินใจ: เลือก A — Browser เรียก OpenAI โดยตรง และ **ลบ `/api/analyze` ทิ้งทั้งหมด**
+
+เหตุผลที่ชี้ขาด: ทางเลือก B ดูเหมือนประนีประนอม แต่จริง ๆ แล้วแย่ที่สุดในแง่ความรับผิด — เจ้าของระบบจะกลายเป็นผู้ถือครองความลับ (API key) ของผู้ใช้ทุกคนโดยไม่ได้อะไรกลับมา ต่อให้ไม่เขียน log เลย ตัว key ก็ยังปรากฏใน memory ของ Worker และใน error trace ที่อาจหลุดได้ คำสั่งของเจ้าของคือ "ไม่เกี่ยวกับของผม" ทางเลือก B ไม่ตอบโจทย์นั้น
+
+ผลพลอยได้ที่สำคัญ: ข้อมูลธุรกิจของผู้ใช้ (ชื่อลูกค้า ยอดขาย Pipeline) จะ **ไม่วิ่งผ่านเครื่องของเจ้าของอีกต่อไป** เดินทางจาก browser ไป OpenAI ตรง ๆ นี่คือการยกระดับความเป็นส่วนตัวที่ชัดเจน ไม่ใช่แค่การย้ายต้นทุน
+
+ข้อแลกเปลี่ยนที่ยอมรับ: คุณภาพ error จะแย่ลงเล็กน้อยในกรณี network ล้มเหลว เพราะ browser จะได้ `TypeError: Failed to fetch` โดยไม่มี status code แยกไม่ออกว่าเป็นเน็ตหลุด, CSP บล็อก, หรือ OpenAI ล่ม — ต้องออกแบบข้อความไทยให้ครอบคลุมทุกกรณีในข้อความเดียว (ดู 4.6)
+
+### 4.3 คงหรือลบ server-key path — **ลบทิ้งทั้งหมด**
+
+ไม่เก็บไว้เป็น fallback ด้วยเหตุผลตรงไปตรงมา: fallback ที่ใช้ key ของเจ้าของ **คือ** ปัญหาที่เรากำลังแก้ ถ้าเก็บไว้ ใครก็ตามที่เจอ URL สาธารณะจะเผาเครดิตของเจ้าของได้ตามเดิม การมี fallback เท่ากับไม่ได้แก้อะไรเลย
+
+สิ่งที่ถูกลบ:
+
+- branch `/api/analyze` ใน `scripts/dev.mjs` (บรรทัด 28-38) และ `scripts/build.mjs` (บรรทัด 30-70)
+- `loadLocalEnv()` ใน `scripts/dev.mjs` (บรรทัด 10-23) — ไม่มีอะไรต้องอ่านจาก `.env.local` แล้ว
+- `scripts/ai-analysis.mjs` ทั้งไฟล์ (เนื้อหาย้ายไปฝั่ง browser ดู 4.4)
+
+### 4.4 โครงสร้างโค้ดฝั่ง browser
+
+สร้างไฟล์ใหม่ `app/ai-provider.js` เป็น ES module ธรรมดา (ไม่ต้อง bundle) ทำหน้าที่:
+
+- เก็บ `BUSINESS_ANALYSIS_INSTRUCTIONS` (ย้ายมาจาก `scripts/ai-analysis.mjs` แบบยกก้อน ไม่แก้เนื้อหา)
+- `createAnalysisRequest(payload)` และ `extractResponseText(response)` (ย้ายมาเช่นกัน)
+- `PROVIDERS` — object ที่วันนี้มี key เดียวคือ `openai`
+- `callProvider(providerId, apiKey, payload)` — ยิง `fetch` และแปลง error เป็นข้อความไทย
+
+**เหตุผลที่ต้องย้ายไม่ใช่ copy**: วันนี้ `scripts/build.mjs` บรรทัด 20-27 มีสำเนา `extractResponseText` เขียนซ้ำเป็น string อยู่แล้ว ซึ่งเป็นหนี้ทางเทคนิคที่รอวันแตกต่างจากต้นฉบับ การย้ายไปไว้ที่ `app/ai-provider.js` ที่เดียวทำให้ทั้ง browser และ Node check script import จากแหล่งเดียวกันได้ เพราะเป็น plain ESM เหมือนกัน
+
+ต้องเพิ่ม route `/ai-provider.js` ใน `scripts/assets.mjs` ด้วย มิฉะนั้นไฟล์จะหายตอน deploy
+
+### 4.5 เก็บ key ไว้ที่ไหน และข้อแลกเปลี่ยนที่ต้องพูดตรง ๆ
+
+**การตัดสินใจ**:
+
+| | ค่า default | เมื่อผู้ใช้ติ๊ก "จำ key ไว้ในเครื่องนี้" |
+|---|---|---|
+| ที่เก็บ | `sessionStorage` key `bgc-ai-key` | `localStorage` key `bgc-ai-key` |
+| อายุ | หายเมื่อปิด tab | อยู่จนกว่าจะกดลบ |
+
+**ห้ามเก็บ key ไว้ใน `STORAGE_KEY` (`business-growth-dashboard-demo`) เด็ดขาด** เหตุผลรูปธรรม: แอปมีปุ่ม Export JSON และขั้นตอน Set Zero ที่อ่าน/เขียน `STORAGE_KEY` ทั้งก้อน ถ้าเอา key ไปยัดรวมไว้ ผู้ใช้กด Export แล้วส่งไฟล์ให้ที่ปรึกษาหรือโพสต์ในกลุ่ม Workshop = ยกกุญแจให้คนอื่นทันที แยก key ออกมาเป็นอีก storage key หนึ่งจึงเป็นข้อกำหนดด้านความปลอดภัย ไม่ใช่แค่ความสะอาดของโค้ด
+
+**เหตุผลที่ default เป็น `sessionStorage`**: กรณีที่อันตรายที่สุดของแอปนี้คือโน้ตบุ๊กที่ใช้ร่วมกันใน Workshop `sessionStorage` หายเมื่อปิด tab ทำให้คนถัดไปไม่ได้ key ของคนก่อนไปฟรี ๆ ส่วนเจ้าของธุรกิจที่ใช้เครื่องตัวเองติ๊ก checkbox ครั้งเดียวจบ เรายอมแลกความสะดวกเล็กน้อยกับการลดความเสียหายในกรณีที่แย่ที่สุด
+
+**ข้อแลกเปลี่ยนด้านความปลอดภัยที่ต้องพูดให้ตรง — ห้ามกลบ**:
+
+1. key ที่อยู่ใน `localStorage` หรือ `sessionStorage` **อ่านได้โดย JavaScript ทุกตัวที่รันบน origin นั้น** ไม่มีข้อยกเว้น ถ้ามี XSS ที่ไหนสักแห่งบนหน้านี้ key หลุดทันที
+2. ปัจจุบัน `app/app.js` มี `escapeHTML()` (บรรทัด 384-392) ที่ครอบคลุม `& < > ' "` ครบ และถูกเรียกใช้อย่างสม่ำเสมอในจุดที่เขียน `innerHTML` — **แต่ในไฟล์มีจุดที่เขียน `innerHTML` ถึง 47 แห่ง และการออกแบบนี้ไม่ได้ตรวจครบทุกแห่ง** การ interpolate ที่ลืม escape เพียงจุดเดียวในอนาคตก็เพียงพอที่จะทำให้ key ถูกขโมย ความเสี่ยงนี้ยังคงอยู่จริง ไม่ได้หายไปเพราะโค้ดวันนี้ดูดี
+3. `sessionStorage` **ไม่ได้** ป้องกัน XSS ดีกว่า `localStorage` เลย มันป้องกันแค่ "คนถัดไปที่มานั่งเครื่องนี้" เท่านั้น
+4. Browser extension ที่มีสิทธิ์อ่านหน้าเว็บก็อ่าน key ได้เช่นกัน ซึ่งอยู่นอกการควบคุมของแอปทั้งหมด
+5. **สิ่งที่จะไม่ทำเพราะมันคือ security theater**: เข้ารหัส key ก่อนเก็บ, ซ่อนใน closure, obfuscate โค้ด — ทุกวิธีเก็บกุญแจถอดรหัสไว้ในหน้าเดียวกัน ไม่ได้เพิ่มความปลอดภัยจริงแม้แต่นิดเดียว มีแต่จะหลอกให้ผู้ใช้ประมาท
+
+**สิ่งที่ช่วยได้จริงและจะทำ**:
+
+- key ไม่เคยออกจาก browser ไปที่ไหนนอกจาก `api.openai.com` (บังคับด้วย `connect-src` ที่ระบุ host ชัดเจน)
+- แนะนำผู้ใช้ในหน้า UI ให้สร้าง **Project API key แยก** และตั้ง **spend limit** ในหน้า OpenAI dashboard เพื่อจำกัดความเสียหายสูงสุดเป็นตัวเงิน
+- Set Zero ต้องลบ `bgc-ai-key` ทั้งใน `sessionStorage` และ `localStorage` ด้วย
+- มีปุ่ม "ลบ key ออกจากเครื่องนี้" ที่เห็นชัดตลอดเวลา
+
+### 4.6 UI: กรอก ตรวจสอบ และลบ key
+
+วางไว้ใน `#aiView` ฝั่ง `aside.ai-control-card` เหนือส่วนเลือกมิติวิเคราะห์ ทุกข้อความเป็นภาษาไทย ตาม WCAG 2.1 AA (label ผูกกับ input, พื้นที่กดอย่างน้อย 44px, ไม่ใช้สีเป็นสัญญาณเดียว)
+
+DOM contract ที่ต้องเพิ่ม:
+
+| id | หน้าที่ |
+|---|---|
+| `aiKeyForm` | form ครอบ |
+| `aiKeyInput` | `<input type="password" autocomplete="off" spellcheck="false">` |
+| `aiKeyReveal` | ปุ่มสลับแสดง/ซ่อน key |
+| `aiKeyRemember` | checkbox "จำ key ไว้ในเครื่องนี้" |
+| `aiKeySave` | ปุ่มบันทึก |
+| `aiKeyClear` | ปุ่ม "ลบ key ออกจากเครื่องนี้" |
+| `aiKeyStatus` | สถานะ (`role="status"`) เช่น "ยังไม่ได้ตั้งค่า key" / "พร้อมใช้งาน (sk-…4f2a)" |
+| `aiKeyWarning` | คำเตือนความปลอดภัยแบบถาวร ไม่ใช่ tooltip |
+
+**การตรวจสอบ (validation)** แบ่ง 2 ชั้น:
+
+1. **ชั้นรูปแบบ (ทันที ไม่เรียกเน็ต)** — ไม่ว่าง, ไม่มีช่องว่าง, ขึ้นต้นด้วย `sk-` ตรวจแค่นี้พอ **จงใจไม่ตรวจความยาวหรือ prefix ที่ละเอียดกว่านี้** เพราะ OpenAI มีทั้ง `sk-`, `sk-proj-`, `sk-svcacct-` และเปลี่ยนรูปแบบได้ตลอด การตรวจเข้มเกินจะบล็อก key ที่ใช้ได้จริง
+2. **ชั้นใช้งานจริง** — ให้การเรียกวิเคราะห์ครั้งแรกเป็นตัวตรวจ ถ้าได้ `401` ให้แสดงข้อความไทย ล้างสถานะ "พร้อมใช้งาน" และ focus กลับไปที่ `#aiKeyInput`
+
+**ตั้งใจไม่ทำปุ่ม "ทดสอบ key" แยก** เพราะต้องเพิ่ม endpoint ที่สอง (`/v1/models`) เข้าไปในความรับผิดชอบ และเราไม่ได้ตรวจ CORS ของ endpoint นั้น การใช้การเรียกจริงเป็นตัวตรวจให้ผลเหมือนกันโดยไม่เพิ่มพื้นผิว หากภายหลังต้องการปุ่มนี้ ต้องตรวจ preflight ของ `/v1/models` ก่อน
+
+**แผนที่ error → ข้อความไทย** (ใน `app/ai-provider.js`):
+
+| สาเหตุ | ข้อความ |
+|---|---|
+| ไม่มี key | "ยังไม่ได้ตั้งค่า API key ของคุณ กรุณาใส่ key ในช่องด้านซ้ายก่อนเริ่มวิเคราะห์" |
+| `401` | "API key ใช้งานไม่ได้ กรุณาตรวจสอบ key หรือสร้างใหม่ใน OpenAI dashboard" |
+| `429` | "บัญชี OpenAI ของคุณถึงขีดจำกัดการใช้งาน กรุณาตรวจสอบเครดิตหรือ Usage limit" |
+| `4xx` อื่น | "คำขอไม่ถูกต้อง กรุณาลดปริมาณข้อมูลหรือแก้คำถามแล้วลองใหม่" |
+| `5xx` | "ระบบของ OpenAI ยังตอบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง" |
+| `TypeError` (network/CORS/offline) | "เชื่อมต่อบริการ AI ไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่" — ต้องรวมทุกสาเหตุไว้ในข้อความเดียวเพราะ browser ไม่บอกว่าสาเหตุใด |
+
+โครงเดิมที่ `app/app.js` บรรทัด 1823-1829 ทำอยู่ (คง evidence snapshot ไว้ ไม่ทิ้งคำถามผู้ใช้) ให้คงไว้ทั้งหมด
+
+**ต้องแก้ข้อความเดิมที่จะกลายเป็นเท็จ**: `app/index.html` บรรทัด 349 เขียนว่า `"...และ API key ไม่แสดงใน browser"` — ภายใต้ BYOK ประโยคนี้ผิด ต้องเปลี่ยนเป็นการบอกความจริงว่า key เก็บอยู่ในเครื่องผู้ใช้และไม่ถูกส่งไปที่ server ของระบบ
+
+### 4.7 พฤติกรรมเมื่อไม่มี key — ต้องเสื่อมอย่างนุ่มนวล
+
+หลักการ: **ไม่มี key ต้องไม่ทำให้อะไรพัง** เพราะทุกอย่างนอกจากการเรียก AI คำนวณในเครื่องทั้งหมดอยู่แล้ว
+
+| ส่วน | เมื่อไม่มี key |
+|---|---|
+| เมนู "วิเคราะห์ด้วย AI" | ยังกดเข้าได้ตามปกติ **ห้ามซ่อนหรือ disable** |
+| `#analysisFreshness`, `#analysisMetricsSummary` | แสดงตามปกติ (ข้อมูลในเครื่องล้วน) |
+| `#analysisPromptPreview`, `#analysisQuickQuestions` | แสดงตามปกติ ยังกดเลือกใส่ช่องคำถามได้ |
+| `#analysisPrompt` | พิมพ์ได้ตามปกติ |
+| `#analyzeBusiness` | `disabled` + `aria-describedby` ชี้ไปที่ `#aiKeyStatus` |
+| `#analysisResult` | แสดง empty state ไทยที่อธิบายว่าต้องใส่ key ก่อน พร้อมปุ่มพาไปที่ `#aiKeyInput` |
+| `#analysisStatus` | "ยังไม่ได้ตั้งค่า key" |
+| หน้าอื่นทั้งหมด | ไม่กระทบเลย |
+
+### 4.8 รองรับหลายผู้ให้บริการหรือไม่ — **แนะนำ: รายเดียว (OpenAI) แต่แยกโค้ดไว้**
+
+**เหตุผลที่ไม่ทำหลายรายตอนนี้**: ราคาของ provider ที่สองไม่ใช่แค่ dropdown ตัวเดียว มันคือ request builder ตัวที่สอง, response parser ตัวที่สอง (`extractResponseText` ใช้กับ Gemini ไม่ได้เลย), รูปแบบ key ตัวที่สอง, host ใน `connect-src` เพิ่ม, ตาราง error mapping ชุดที่สอง และเส้นทางทดสอบที่คูณสอง ในแอปที่ไม่มี bundler และมี `app.js` ยาว 2,059 บรรทัด นั่นคือต้นทุนจริงที่จ่ายทุกครั้งที่แก้ระบบ AI ขณะที่ผู้ใช้เป้าหมายส่วนใหญ่มีบัญชีเดียวและมักเป็น OpenAI
+
+**สิ่งที่ทำแทน (ราคาเกือบศูนย์)**: กำหนดโครง `PROVIDERS` เป็น object ใน `app/ai-provider.js` ที่วันนี้มีสมาชิกเดียว โดยแต่ละสมาชิกมี `{ id, label, endpoint, buildHeaders, buildBody, extractText, keyHint }` ทำให้การเพิ่ม Gemini ในอนาคตเป็นการ "เพิ่มสมาชิก + เพิ่ม host ใน `connect-src`" ไม่ใช่การผ่าตัดโค้ด
+
+หมายเหตุจากข้อ 3.2: ถ้าอนาคตจะเพิ่ม Anthropic ต้องส่ง header `anthropic-dangerous-direct-browser-access: true` ด้วย มิฉะนั้น preflight จะล้ม — บันทึกไว้เพื่อไม่ต้องเสียเวลา debug ซ้ำ
+
+### 4.9 Migration จาก `.env.local` และ README
+
+| สิ่งที่มีอยู่ | ทำอย่างไร |
+|---|---|
+| `.env.local` (มีอยู่จริงในเครื่อง สิทธิ์ 600, อยู่ใน `.gitignore` แล้ว) | หยุดอ่านโดยโค้ด แนะนำเจ้าของ **เพิกถอน (revoke) key ตัวนั้นใน OpenAI dashboard** แล้วลบไฟล์ทิ้ง เพราะเมื่อ key เคยอยู่ในเครื่องที่ใช้ demo หลายรอบ การ revoke ปลอดภัยกว่าการเก็บไว้เฉย ๆ |
+| `.env.example` (มีบรรทัด `OPENAI_API_KEY=`) | ลบไฟล์ทิ้ง ไม่มี env var ฝั่ง server เหลืออยู่แล้ว |
+| `README.md` บรรทัด 31 ("ระบบจะอ่าน `OPENAI_API_KEY` จาก `.env.local`…") | เขียนใหม่ทั้งย่อหน้า อธิบายว่าผู้ใช้ใส่ key เองในหน้า AI, key เก็บในเครื่องผู้ใช้, และแนะนำให้ตั้ง spend limit |
+| `README.md` บรรทัด 44-45 (รายการฟังก์ชัน AI) | เพิ่มบรรทัดว่าใช้ key ของผู้ใช้เอง ค่าใช้จ่ายเป็นของผู้ใช้ |
+| `README.md` บรรทัด 19 ("เวอร์ชันนี้มี AI Analysis จึงควรเปิดผ่าน local server") | เหตุผลเปลี่ยนแล้ว — ตอนนี้ต้องใช้ local server เพราะ asset manifest และ CSP ไม่ใช่เพราะ AI |
+| `docs/dev-audit-2026-07-22.md` บรรทัด 17 ("ใช้งานได้เมื่อ Server มี API key") | ล้าสมัย ต้องแก้เป็น "ใช้งานได้เมื่อผู้ใช้ตั้งค่า API key ของตนเอง" |
+
+---
+
+## 5. Decision 2 — Public Link
+
+### 5.1 ทางเลือกที่พิจารณา
+
+| | Cloudflare Workers | Netlify | GitHub Pages / static host ล้วน |
+|---|---|---|---|
+| ตรงกับสิ่งที่ build สร้างอยู่แล้ว | **ตรงเป๊ะ** — `dist/server/index.js` เป็น `export default { async fetch(request, env) }` อยู่แล้ว | ไม่ตรง ต้องเขียน Netlify Function ใหม่คนละรูปแบบ | ไม่ตรง ต้องเปลี่ยน build ให้ปล่อยไฟล์เป็น directory |
+| ตั้ง CSP header เองได้ | ได้ในโค้ดที่มีอยู่แล้ว | ต้องใช้ `_headers` หรือ `netlify.toml` แยกอีกที่ | ทำไม่ได้บน GitHub Pages |
+| config ที่ต้องเพิ่ม | `wrangler.toml` 3 บรรทัด | ต้องรื้อ `netlify.toml` ที่เสียอยู่ + เพิ่ม functions | ต้องแก้ `build.mjs` |
+| งานที่ต้องทำเพิ่ม | เกือบศูนย์ | ปานกลาง | ปานกลาง แถมเสีย security header |
+
+### 5.2 การตัดสินใจ: Cloudflare Workers
+
+เหตุผลชี้ขาดคือ **build ปัจจุบันสร้าง Cloudflare Worker อยู่แล้วโดยตั้งใจ** การเลือกอย่างอื่นแปลว่าต้องเขียน build ใหม่เพื่อความสะดวกที่ไม่มีจริง และจะเสียความสามารถที่สำคัญที่สุดของ Worker ในบริบทนี้ไป นั่นคือการเป็นแหล่งเดียวที่ควบคุม security header ทั้งหมดในโค้ดที่ตรวจได้ด้วย `npm run check`
+
+หมายเหตุสำคัญ: หลังลบ `/api/analyze` แล้ว Worker ตัวนี้ทำหน้าที่แค่ 2 อย่าง — เสิร์ฟไฟล์ static และส่ง security header **มันไม่ถือ secret อะไรเลย ไม่มี env binding ใด ๆ** ซึ่งคือสิ่งที่เจ้าของต้องการพอดี
+
+ไฟล์ config ที่ต้องเพิ่ม — `wrangler.toml` ที่ root:
+
+```toml
+name = "business-growth-crm"
+main = "dist/server/index.js"
+compatibility_date = "2026-01-01"
+workers_dev = true
+```
+
+ไม่มีส่วน `[vars]` และไม่มี secret ใด ๆ **โดยเจตนา** ถ้าวันหนึ่งมีคนเพิ่ม `OPENAI_API_KEY` กลับเข้ามาในไฟล์นี้ แปลว่าการตัดสินใจใน ADR นี้ถูกย้อน ต้องกลับมาแก้เอกสาร
+
+เพิ่ม script ใน `package.json`: `"deploy": "npm run check && npx wrangler deploy"` — บังคับให้ทุกการ deploy ผ่านชุดตรวจ
+
+**ลบ `app/.netlify/` ทั้ง directory** ไฟล์ `netlify.toml` ในนั้นชี้ `publish` ไปที่ absolute path บนเครื่องของนักพัฒนาคนเดียว (`/Users/computer/Desktop/...`) ซึ่งใช้ที่อื่นไม่ได้เลย และตอนนี้ก็ขัดกับเป้าหมายการ deploy ที่เลือก การเก็บไว้มีแต่จะทำให้คนอ่านสับสนว่าตกลง deploy ที่ไหน (`.netlify/` อยู่ใน `.gitignore` อยู่แล้วจึงเป็นการลบไฟล์ในเครื่องเท่านั้น)
+
+**ทางเลือกอนาคต (ยังไม่ทำตอนนี้)**: Cloudflare Workers Static Assets จะเหมาะกว่าในระยะยาว (ไฟล์แยก, cache ดีกว่า, ไม่ inline vendor 1.5 MB เข้า script) แต่ต้องแก้ `build.mjs` ให้ปล่อย directory ซึ่งขัดกับข้อจำกัด "อย่าเปลี่ยน stack" ในรอบนี้ และตัวเลขในข้อ 3.4 ยืนยันว่ายังไม่จำเป็น
+
+### 5.3 อะไรกลายเป็นสาธารณะ อะไรไม่
+
+**สิ่งที่เปิดสาธารณะจริง** (ใครก็โหลดได้ ไม่ต้อง login):
+
+- source code ทั้งหมดฝั่ง client: `index.html`, `app.js`, `business-workflows.js`, `data-import.js`, `ai-provider.js`, `styles.css`
+- asset: `icons.svg`, โลโก้ทั้ง 4 แบบ, vendor `xlsx` และ `mammoth`
+- **ข้อมูลตัวอย่างที่ hardcode อยู่ใน `app/app.js` บรรทัด 184-200** — มีชื่อและเบอร์โทรอยู่ในนั้น (`สมชาย ใจดี` / `0811111111` ฯลฯ) ต้องยืนยันด้วยตาว่าเป็นข้อมูลสมมติล้วนก่อน deploy **นี่คือรายการตรวจก่อนเผยแพร่ที่สำคัญที่สุดข้อเดียวในเอกสารนี้**
+
+**สิ่งที่ไม่ถูกเปิด**:
+
+- ข้อมูลลูกค้าจริงทั้งหมด (ชื่อ เบอร์โทร รูปโปรไฟล์ ดีล งาน) — อยู่ใน `localStorage` ของ browser แต่ละคน ไม่มีฐานข้อมูลกลาง ไม่มีอะไรถูก upload ไปที่ Worker เลย
+- API key ของผู้ใช้ — อยู่ในเครื่องผู้ใช้ ส่งไปที่ `api.openai.com` เท่านั้น
+- ผู้ใช้ A **มองไม่เห็น** ข้อมูลของผู้ใช้ B แม้จะเข้า URL เดียวกัน เพราะ `localStorage` แยกตาม browser profile
+
+**ความเสี่ยงจริงที่เกิดจากการเผยแพร่ ต้องพูดตรง ๆ**:
+
+1. **เครื่องที่ใช้ร่วมกัน** — ถ้าเปิดบนโน้ตบุ๊ก Workshop หรือเครื่อง demo คนถัดไปที่เข้า URL เดิมบน browser profile เดิมจะเห็นข้อมูลลูกค้าจริงของคนก่อนทั้งหมด นี่ไม่ใช่ช่องโหว่ของแอป แต่เป็นผลโดยตรงจากการเลือกใช้ `localStorage` ที่ต้องบอกผู้ใช้
+2. **origin เดียวถาวร** — เมื่อมี URL สาธารณะ ข้อมูลของผู้ใช้จะผูกกับ origin นั้นไปตลอด ใครที่รัน script บน origin นั้นได้ (XSS หรือ extension) อ่านได้ทั้งข้อมูล CRM และ API key
+3. **PDPA** — เมื่อผู้ใช้จริงเริ่มกรอกชื่อและเบอร์โทรลูกค้าจริง ประเด็นนี้เป็นของจริง สอดคล้องกับ `docs/dev-audit-2026-07-22.md` ข้อ 5 ที่ระบุไว้แล้ว
+
+### 5.4 เรื่องการควบคุมการเข้าถึง
+
+**การตัดสินใจ: ไม่ทำระบบ login (อยู่นอกขอบเขต)** แต่ต้องมีคำตอบเรื่อง access ให้ชัด 4 ข้อ:
+
+1. **ค่า default = เปิดสาธารณะ** เหมาะสมแล้ว เพราะไม่มีข้อมูลฝั่ง server ให้ป้องกัน
+2. **`X-Robots-Tag: noindex, nofollow` + `/robots.txt`** — เพิ่มใน security header ชุดเดียวกัน เพื่อไม่ให้ demo ไปโผล่ใน search result ต้นทุนแทบศูนย์ (`/robots.txt` ต้องเพิ่มใน `scripts/assets.mjs`)
+3. **ถ้าเจ้าของอยากให้เป็นส่วนตัว ให้ใช้ Cloudflare Access** — ตั้งค่าในหน้า dashboard ของ Cloudflare ล้วน ๆ ใช้ email OTP ไม่ต้องเขียนโค้ดในแอปแม้แต่บรรทัดเดียว **นี่คือวิธีเดียวที่ให้ access control ได้โดยไม่ละเมิดข้อจำกัด "ห้ามทำ login system"** ให้ระบุเป็นทางเลือกในเอกสาร ไม่ต้องเปิดใช้ตั้งแต่แรก
+4. **แจ้งผู้ใช้ในแอป** — ข้อความไทยครั้งแรกที่เข้าใช้ อธิบายว่าข้อมูลเก็บในเครื่องนี้เท่านั้น, ไม่ sync ข้ามอุปกรณ์, ถ้าใช้เครื่องร่วมกับคนอื่นให้กด Set Zero ก่อนออก
+
+---
+
+## 6. การแก้ข้อบกพร่องที่ค้างอยู่
+
+### 6.1 (a) Worker ไม่จำกัดขนาด body ขณะที่ dev จำกัด 1 MB
+
+`scripts/dev.mjs` บรรทัด 32 จำกัด 1,000,000 bytes แต่ Worker ใน `scripts/build.mjs` เรียก `request.json()` ตรง ๆ โดยไม่จำกัด
+
+**การแก้: ลบ `/api/analyze` ทั้งสองฝั่ง** เมื่อไม่มี endpoint ที่รับ body ก็ไม่มีอะไรให้ต่างกัน ความไม่ตรงกันหายไปเพราะโค้ดหายไป ไม่ใช่เพราะไปแปะ limit เพิ่ม
+
+ป้องกันการย้อนกลับ: `scripts/check-security-headers.mjs` (ข้อ 6.3) ต้อง assert ว่าทั้ง `dev.mjs` และ worker ที่ build ออกมาตอบ `405` หรือ `404` ต่อ `POST /api/analyze` เพื่อให้ใครก็ตามที่เผลอเติม endpoint กลับมาโดยไม่มี body limit เจอ check ตัวแดงทันที
+
+### 6.2 (b) ไม่มี rate limit และไม่มี auth บน `/api/analyze`
+
+**BYOK ขจัดความเสี่ยงนี้สำหรับเจ้าของหรือแค่ย้ายที่? — ต้องตอบให้ตรง:**
+
+- **สำหรับเจ้าของระบบ: ขจัดจริง** เพราะไม่มี key ของเจ้าของอยู่ที่ไหนอีกเลย และไม่มี endpoint ให้ยิง คนที่เจอ URL สาธารณะจะเผาเครดิตของเจ้าของไม่ได้ เพราะไม่มีเครดิตของเจ้าของอยู่ในระบบ
+- **สำหรับผู้ใช้: ย้ายที่ ไม่ได้หายไป** ความเสี่ยงกลายเป็น "key ของผู้ใช้เองถูกใช้เกินตั้งใจ" ซึ่งเกิดได้จาก key หลุด (XSS, เครื่องที่ใช้ร่วมกัน, แชร์หน้าจอตอน Workshop) หรือจากการกดวิเคราะห์รัว ๆ เอง
+- **มาตรการที่จะทำ และไม่โม้ว่ามันคือ security**: คง `analysisInFlight` guard เดิม (`app/app.js` บรรทัด 282) ไว้ และเพิ่ม cooldown ฝั่ง client สั้น ๆ นี่คือกันการกดพลาด **ไม่ใช่การควบคุมความปลอดภัย** เพราะผู้ใช้เปิด devtools ข้ามได้ทันที การควบคุมจริงมีอยู่ 2 อย่างและอยู่นอกแอปทั้งคู่ คือ rate limit ฝั่ง OpenAI และ spend limit ที่ผู้ใช้ตั้งเอง — ซึ่งเป็นเหตุผลที่ข้อ 4.5 กำหนดให้ UI แนะนำเรื่อง spend limit อย่างชัดเจน
+
+### 6.3 (c) dev ไม่ส่ง CSP แต่ production ส่ง
+
+นี่คือข้อที่อันตรายที่สุดในสามข้อ เพราะมัน **เงียบ** — วันนี้ `app/index.html` บังเอิญไม่มี inline script จึงไม่มีใครเจอปัญหา แต่ถ้าวันหนึ่งมีคนเติม `<script>` inline เข้าไป มันจะผ่าน `npm run dev` ผ่าน `npm run check` ทุกตัว แล้วไปพังเอาตอน production เท่านั้น
+
+**การแก้ 2 ชั้น:**
+
+**ชั้นที่ 1 — parity โดยโครงสร้าง** สร้าง `scripts/security-headers.mjs` เป็นแหล่งความจริงเดียว:
+
+```js
+export const AI_CONNECT_HOSTS = ["https://api.openai.com"];
+
+export const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  `connect-src 'self' ${AI_CONNECT_HOSTS.join(" ")}`,
+  "object-src 'none'",
+  "base-uri 'self'",
+  "frame-ancestors 'none'"
+].join("; ");
+
+export const SECURITY_HEADERS = Object.freeze({
+  "content-security-policy": CONTENT_SECURITY_POLICY,
+  "referrer-policy": "strict-origin-when-cross-origin",
+  "x-content-type-options": "nosniff",
+  "x-robots-tag": "noindex, nofollow"
+});
+```
+
+`scripts/dev.mjs` spread object นี้ลงใน `writeHead` ทุกครั้ง ส่วน `scripts/build.mjs` inline ด้วย `JSON.stringify(SECURITY_HEADERS)` แบบเดียวกับที่ทำกับ instructions อยู่แล้ว **ทั้งสองฝั่งอ่านจากไฟล์เดียวกัน ความไม่ตรงกันจึงเกิดขึ้นไม่ได้เชิงโครงสร้าง** ไม่ใช่แค่ "จำไว้ว่าต้องแก้สองที่"
+
+ผลข้างเคียงที่ตั้งใจ: เมื่อ dev ส่ง CSP จริง inline script ที่เผลอเติมจะพังใน `npm run dev` ทันทีในวินาทีแรก ซึ่งคือจุดที่ควรพัง
+
+หมายเหตุ: `connect-src` ต้องระบุ `https://api.openai.com` ชัดเจน ห้ามใช้ wildcard เพราะมันทำหน้าที่เป็นด่านสุดท้ายที่กัน key ไม่ให้ถูกส่งไป host อื่นถ้ามีโค้ดแปลกปลอมหลุดเข้ามา
+
+**ชั้นที่ 2 — check ที่จับ regression** สร้าง `scripts/check-security-headers.mjs` เพิ่มเข้า `npm run check`:
+
+1. import worker ที่ build แล้ว → `fetch("/")` → assert ทุก header ใน `SECURITY_HEADERS` มีครบและค่าตรงกันเป๊ะ
+2. เปิด `scripts/dev.mjs` เป็น child process บน port เฉพาะ → `fetch` จริง → assert header ชุดเดียวกัน → ปิด process (**ตรวจของจริง ดีกว่าการ regex หา source code**)
+3. assert `POST /api/analyze` ตอบ 404/405 ทั้งสองฝั่ง (ผูกกับข้อ 6.1)
+4. scan หา pattern ที่จะละเมิด CSP ใน `app/index.html` และ `app/*.js`:
+   - `<script>` ที่ไม่มี `src`
+   - inline event handler (`onclick=`, `onload=` ฯลฯ) ใน HTML
+   - URL แบบ `javascript:`
+   - `eval(` และ `new Function(`
+   - **ทุก absolute URL ที่ปรากฏใน `fetch()` ต้องอยู่ใน `AI_CONNECT_HOSTS`** — ข้อนี้จับได้ทั้งการเพิ่ม provider โดยลืมแก้ CSP และการส่ง key ไป host แปลกปลอม
+
+ข้อ 4 คือ check ที่จะจับ regression ตามสถานการณ์ที่ระบุไว้ในข้อบกพร่อง (c) ได้จริง
+
+---
+
+## 7. ไฟล์ที่ต้องแก้
+
+| ไฟล์ | ประเภท | สิ่งที่ทำ |
+|---|---|---|
+| `scripts/security-headers.mjs` | **ใหม่** | แหล่งความจริงเดียวของ CSP + security header + `AI_CONNECT_HOSTS` |
+| `scripts/check-security-headers.mjs` | **ใหม่** | ตรวจ parity dev/prod + scan pattern ที่ละเมิด CSP (ข้อ 6.3) |
+| `app/ai-provider.js` | **ใหม่** | instructions, `PROVIDERS`, `callProvider()`, error→ไทย (ย้ายจาก `scripts/ai-analysis.mjs`) |
+| `wrangler.toml` | **ใหม่** | config Cloudflare Worker ไม่มี secret ใด ๆ |
+| `app/robots.txt` | **ใหม่** | `Disallow: /` |
+| `scripts/ai-analysis.mjs` | **ลบ** | เนื้อหาย้ายไป `app/ai-provider.js` |
+| `.env.example` | **ลบ** | ไม่มี env var ฝั่ง server เหลือแล้ว |
+| `app/.netlify/` | **ลบ** | config เสีย ชี้ absolute path เครื่องเดียว ขัดกับ target ที่เลือก |
+| `scripts/dev.mjs` | แก้ | ลบ branch `/api/analyze` (28-38), ลบ `loadLocalEnv()` (10-23), ลบ import `analyzeWithOpenAI`, ใส่ `SECURITY_HEADERS` ในทุก response |
+| `scripts/build.mjs` | แก้ | ลบ `analyzeBusiness()` + branch `/api/analyze` (30-70), ลบสำเนา `extractResponseText` (20-27), ลบ import instructions, ใช้ `SECURITY_HEADERS` แทน header ที่ hardcode (87-89) |
+| `scripts/assets.mjs` | แก้ | เพิ่ม route `/ai-provider.js` และ `/robots.txt`, bump `ASSET_VERSION` `"18"` → `"19"` |
+| `scripts/check-assets.mjs` | แก้ | บรรทัด 85 assert `ASSET_VERSION === "18"` **ต้องแก้เป็น `"19"` ใน commit เดียวกัน มิฉะนั้น `npm run check` แดงทันที** |
+| `scripts/check-ui-contract.mjs` | แก้ | เพิ่ม DOM contract ของ `aiKey*` ทั้งหมด, assert ว่า `app.js` ไม่มี `"/api/analyze"` แล้ว, assert ว่ามีฟังก์ชัน gating เมื่อไม่มี key |
+| `scripts/smoke-build.mjs` | แก้ | เพิ่ม assert security header ในทุก route (มี worker instance อยู่แล้ว) |
+| `app/app.js` | แก้ | บรรทัด 1813-1817 เปลี่ยนจาก `fetch("/api/analyze")` เป็นเรียก provider, เพิ่ม key store (`sessionStorage`/`localStorage` key `bgc-ai-key`), เพิ่ม gating + empty state, แก้ error mapping (1823-1829), ให้ Set Zero ลบ key ด้วย |
+| `app/index.html` | แก้ | เพิ่มบล็อกตั้งค่า key ใน `#aiView`, **แก้บรรทัด 349 ที่อ้างว่า "API key ไม่แสดงใน browser" ซึ่งจะกลายเป็นเท็จ**, เพิ่ม `?v=19` ทุก asset, เพิ่ม `<script src="/ai-provider.js?v=19">` |
+| `app/styles.css` | แก้ | style ของบล็อกตั้งค่า key ให้ผ่าน WCAG 2.1 AA (touch target 44px, focus-visible, contrast) |
+| `package.json` | แก้ | เพิ่ม `check:headers` เข้า chain `check`, เพิ่ม `deploy` script, เพิ่ม `ai-provider.js` ใน `check:syntax` |
+| `README.md` | แก้ | เขียนใหม่ส่วน `OPENAI_API_KEY` (บรรทัด 31), ปรับบรรทัด 19, 44-45, เพิ่มหัวข้อวิธี deploy |
+| `docs/dev-audit-2026-07-22.md` | แก้ | บรรทัด 17 สถานะ AI Analysis ล้าสมัยแล้ว |
+
+---
+
+## 8. ลำดับการลงมือทำ
+
+จัดลำดับให้ทุกขั้นตอนจบด้วยสถานะที่ `npm run check` ผ่าน และแอปยังใช้งานได้
+
+### ระยะ 0 — ปูพื้นความปลอดภัย (ยังไม่เปลี่ยนพฤติกรรม)
+
+| # | งาน | ความเสี่ยง |
+|---|---|---|
+| 1 | สร้าง `scripts/security-headers.mjs` แล้วให้ `dev.mjs` กับ `build.mjs` import ไปใช้ (ยังไม่ใส่ `connect-src`) | ต่ำ |
+| 2 | สร้าง `scripts/check-security-headers.mjs` + เพิ่มเข้า `npm run check` | ต่ำ |
+
+จบระยะนี้ ข้อบกพร่อง (c) ถูกแก้แล้ว และมี check กันย้อนกลับ ทำก่อนเป็นอันดับแรกเพราะขั้นถัดไปพึ่ง CSP ที่ถูกต้อง
+
+### ระยะ 1 — BYOK (ส่วนที่เสี่ยงที่สุด)
+
+| # | งาน | ความเสี่ยง |
+|---|---|---|
+| 3 | สร้าง `app/ai-provider.js` ย้ายเนื้อหาจาก `scripts/ai-analysis.mjs` (ยังไม่มีใครเรียก), ลงทะเบียน route, bump `ASSET_VERSION` → `"19"` **พร้อมแก้ `check-assets.mjs` บรรทัด 85 ใน commit เดียวกัน** | **ปานกลาง** — ลืมแก้ assertion = check แดงทั้งชุด |
+| 4 | เพิ่ม `connect-src 'self' https://api.openai.com` ใน `security-headers.mjs` | **ปานกลาง** — ถ้าผิด AI จะพังเฉพาะ production เท่านั้น แต่ขั้นที่ 1 ทำให้ dev ส่ง CSP เดียวกันแล้ว จึงพังให้เห็นตั้งแต่ในเครื่อง |
+| 5 | เพิ่ม UI ตั้งค่า key ใน `index.html` + key store + gating/empty state ใน `app.js` (**ยังไม่แตะการเรียก API**) | ปานกลาง |
+| 6 | สลับ `fetch("/api/analyze")` → `callProvider()` + เขียน error mapping ใหม่ | **สูง** — จุดเปลี่ยนพฤติกรรมจริง ต้องทดสอบด้วยมือ 5 กรณี: ไม่มี key / key ผิด / key ถูก / ตัดเน็ต / บัญชีหมดเครดิต และต้องยืนยัน POST จริงที่ยังค้างจากข้อ 3.1 ในขั้นนี้ |
+| 7 | แก้ข้อความ `index.html` บรรทัด 349 ที่กลายเป็นเท็จ | ต่ำ แต่ **ห้ามลืม** — ปล่อยไว้คือให้ข้อมูลผิดเรื่องความปลอดภัยกับผู้ใช้ |
+
+### ระยะ 2 — ตัดระบบ AI ฝั่ง server ทิ้ง
+
+| # | งาน | ความเสี่ยง |
+|---|---|---|
+| 8 | ลบ `/api/analyze` จาก `dev.mjs` + `build.mjs`, ลบ `loadLocalEnv()`, ลบ `scripts/ai-analysis.mjs` | **ปานกลาง** — ทำหลังขั้นที่ 6 ยืนยันผ่านแล้วเท่านั้น ไม่งั้นจะไม่เหลือเส้นทาง AI ที่ใช้ได้เลย |
+| 9 | เพิ่ม assert ใน check ว่า `POST /api/analyze` ตอบ 404/405 (ปิดข้อบกพร่อง a, b) | ต่ำ |
+| 10 | อัปเดต `README.md`, ลบ `.env.example`, แก้ `docs/dev-audit-2026-07-22.md`; แจ้งเจ้าของให้ **revoke key เดิม** แล้วลบ `.env.local` | ต่ำ |
+
+### ระยะ 3 — เผยแพร่
+
+| # | งาน | ความเสี่ยง |
+|---|---|---|
+| 11 | เพิ่ม `wrangler.toml` + `app/robots.txt`, ลบ `app/.netlify/` | ต่ำ |
+| 12 | **รายการตรวจก่อน deploy**: `npm run check` ผ่านทั้งชุด / ยืนยันด้วยตาว่า seed data บรรทัด 184-200 ไม่มีข้อมูลลูกค้าจริง / ยืนยันไม่มี secret ใน `wrangler.toml` / ยืนยันขนาด worker ยังต่ำกว่า 3 MB | **สูง** — เมื่อ deploy แล้ว URL เป็นสาธารณะและถอนคืนไม่ได้ ข้อมูลจริงที่หลุดไปกับ seed data จะกู้กลับไม่ได้ |
+| 13 | `npx wrangler deploy` | ปานกลาง |
+| 14 | ตรวจหลัง deploy: header CSP มาครบ / AI ทำงานได้ด้วย key จริงจาก URL สาธารณะ / เมื่อไม่มี key แอปเสื่อมอย่างนุ่มนวลไม่พัง / `robots.txt` เข้าถึงได้ | ปานกลาง |
+| 15 | ตัดสินใจว่าจะเปิด Cloudflare Access หรือไม่ (ข้อ 5.4) | ต่ำ |
+
+---
+
+## 9. ผลที่ตามมา
+
+### สิ่งที่ง่ายขึ้น
+
+- เจ้าของระบบไม่มีต้นทุน AI และไม่ถือความลับของผู้ใช้เลย — ตรงกับ "ไม่เกี่ยวกับของผม"
+- ข้อมูลธุรกิจของผู้ใช้ไม่วิ่งผ่าน server เจ้าของอีกต่อไป เป็นการยกระดับความเป็นส่วนตัวจริง
+- Worker ไม่ถือ secret ใด ๆ จึงไม่มี key rotation ไม่มี env binding ให้ตั้งผิด
+- โค้ดฝั่ง server หดลงเหลือแค่ static server + header ทดสอบและให้เหตุผลง่ายขึ้นมาก
+- เพิ่ม provider ที่สองในอนาคตเป็นงานเพิ่มสมาชิกใน object ไม่ใช่การผ่าตัด
+
+### สิ่งที่ยากขึ้นและสิ่งที่ถูกล็อกไว้
+
+- **ผู้ใช้ต้องมีบัญชี OpenAI เอง** เป็นอุปสรรคใหม่ที่แท้จริงในการเริ่มใช้งาน ผู้เข้าอบรมที่ไม่มี key จะใช้ฟีเจอร์ AI ในห้องไม่ได้ — ต้องเตรียมแผนสำรองสำหรับ Workshop (เช่น ให้ผู้สอนสาธิตด้วย key ของตัวเองบนเครื่องตัวเอง)
+- **API key อยู่ในเครื่องผู้ใช้และอ่านได้ด้วย JavaScript ใด ๆ บนหน้านั้น** ความเสี่ยงนี้ไม่มีทางลบทิ้งได้ในสถาปัตยกรรมนี้ ทำได้แค่จำกัดขอบเขต ตั้งแต่นี้ไป XSS ทุกตัวในแอปนี้ยกระดับจาก "ข้อมูลรั่ว" เป็น "ขโมยความลับที่ผูกกับเงินของผู้ใช้" การ review เรื่อง escaping จึงสำคัญกว่าเดิมอย่างมีนัยสำคัญ
+- **คุณภาพ error แย่ลงในกรณี network** browser ไม่บอกความต่างระหว่าง offline, CSP บล็อก และ OpenAI ล่ม
+- **ผูกกับ Cloudflare Workers** ในระดับรูปร่างของ build (`export default { fetch }`) การย้ายผู้ให้บริการภายหลังต้องแก้ `build.mjs`
+- **ผูกกับรูปแบบ OpenAI Responses API** ทั้ง `createAnalysisRequest` และ `extractResponseText` อิงโครงสร้างนี้ ถ้า OpenAI เปลี่ยน จะพังในเครื่องผู้ใช้ทุกคนพร้อมกันโดยไม่มี server ให้ patch ตรงกลาง — นี่คือราคาที่จ่ายจริงจากการเรียกตรง และควรรับรู้ไว้
+- ข้อจำกัดเดิมยังอยู่ครบ: `localStorage` ผู้ใช้เดียว เครื่องเดียว ไม่ sync ไม่มี audit log
+
+---
+
+## 10. สิ่งที่ยังไม่ยืนยัน ต้องตรวจก่อนปิดงาน
+
+รายการเหล่านี้จงใจไม่ฟันธง เพราะยังตรวจจริงไม่ได้ในขั้นออกแบบ
+
+1. **POST จริงพร้อม key ที่ใช้งานได้** — ข้อ 3.1 ยืนยันแค่ preflight ผ่าน ต้องยิงจริงจาก browser ในขั้นตอนที่ 6
+2. **ชื่อ model `gpt-5.6-sol`** — ใช้อยู่ใน `scripts/ai-analysis.mjs` บรรทัด 24 และ `build.mjs` บรรทัด 41 ยังไม่ได้ตรวจว่าบัญชีทั่วไปเข้าถึง model นี้ได้ ถ้าเป็น model เฉพาะ ผู้ใช้ BYOK อาจได้ `404 model_not_found` ทั้งที่ key ถูกต้อง **ต้องตรวจข้อนี้และเตรียมข้อความไทยเฉพาะกรณีนี้**
+3. **`form-action 'none'`** — น่าจะเพิ่มได้เพราะทุก form ใช้ `preventDefault()` แต่ยังไม่ได้ตรวจทุก form ให้ทดลองแยกจากงานหลัก
+4. **compatibility_date ของ Wrangler** — ค่า `2026-01-01` เป็นค่าเริ่มต้นที่สมเหตุสมผล ควรยืนยันกับ Wrangler เวอร์ชันที่ใช้จริงตอน deploy
+5. **`escapeHTML` ครบทุกจุดหรือไม่** — มีจุดเขียน `innerHTML` 47 แห่งใน `app/app.js` การออกแบบนี้ตรวจแบบสุ่มเท่านั้น เมื่อ API key เข้ามาอยู่ในหน้าเดียวกัน **ควรทำ audit escaping เต็มรูปแบบเป็นงานแยกก่อนเปิดสาธารณะ**
+6. **CORS ของ `/v1/models`** — ยังไม่ตรวจ ต้องตรวจก่อนถ้าจะเพิ่มปุ่ม "ทดสอบ key" ในอนาคต

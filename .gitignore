@@ -4,3 +4,9 @@ dist/
 node_modules/
 .DS_Store
 .netlify/
+
+# เครื่องมือตรวจงานและผลลัพธ์ที่สร้างใหม่ได้ ไม่ต้องเก็บใน repo
+.impeccable/
+audit-captures/
+outputs/
+*.zip
