@@ -1,4 +1,4 @@
-export const ASSET_VERSION = "19";
+export const ASSET_VERSION = "20";
 
 export const ASSET_FILES = Object.freeze({
   "/": ["app/index.html", "text/html; charset=utf-8"],
@@ -7,6 +7,8 @@ export const ASSET_FILES = Object.freeze({
   "/business-workflows.js": ["app/business-workflows.js", "text/javascript; charset=utf-8"],
   "/data-import.js": ["app/data-import.js", "text/javascript; charset=utf-8"],
   "/ai-provider.js": ["app/ai-provider.js", "text/javascript; charset=utf-8"],
+  "/business-config.js": ["app/business-config.js", "text/javascript; charset=utf-8"],
+  "/state-model.js": ["app/state-model.js", "text/javascript; charset=utf-8"],
   "/robots.txt": ["app/robots.txt", "text/plain; charset=utf-8"],
   "/styles.css": ["app/styles.css", "text/css; charset=utf-8"],
   "/vendor/xlsx.full.min.js": ["node_modules/xlsx/dist/xlsx.full.min.js", "text/javascript; charset=utf-8"],

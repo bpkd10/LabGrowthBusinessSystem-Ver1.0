@@ -6,6 +6,7 @@ const root = resolve(import.meta.dirname, "..");
 const html = await readFile(resolve(root, "app/index.html"), "utf8");
 const appJs = await readFile(resolve(root, "app/app.js"), "utf8");
 const css = await readFile(resolve(root, "app/styles.css"), "utf8");
+const businessConfigJs = await readFile(resolve(root, "app/business-config.js"), "utf8");
 
 const requiredHtmlContracts = [
   "businessChangeSummary",
@@ -51,9 +52,12 @@ for (const id of requiredHtmlContracts) {
   assert.match(html, new RegExp(`id=["']${id}["']`), `HTML contract #${id} ยังไม่มี`);
 }
 
-for (const functionName of ["registerUndo", "setLeadStatus", "analysisEvidenceMarkup", "validIsoDate", "resetCustomerFormDefaults", "setResetStep"]) {
+for (const functionName of ["registerUndo", "setLeadStatus", "analysisEvidenceMarkup", "resetCustomerFormDefaults", "setResetStep"]) {
   assert.match(appJs, new RegExp(`function\\s+${functionName}\\s*\\(`), `JavaScript contract ${functionName}() ยังไม่มี`);
 }
+// validIsoDate ย้ายไป state-model.js แล้ว และตอนนี้มีการทดสอบพฤติกรรมจริงใน
+// scripts/check-app-model.mjs — ที่นี่เหลือแค่ตรวจว่า app.js ยัง import มาใช้อยู่
+assert.match(appJs, /\bvalidIsoDate\b/, "app.js ไม่ได้ใช้ validIsoDate แล้ว วันที่จาก Import อาจเข้าระบบโดยไม่ผ่านการตรวจ");
 
 assert.match(html, /accept=["'][^"']*\.csv[^"']*\.xlsx[^"']*\.docx[^"']*["']/, "ตัวเลือกไฟล์ยังไม่ประกาศ format ที่รองรับ");
 assert.match(appJs, /parseImportFile/, "Import UI ยังไม่ได้เรียก File Parser กลาง");
@@ -94,7 +98,12 @@ assert.doesNotMatch(html, /API key ไม่แสดงใน browser/, "ข้
 assert.match(appJs, /callProvider\(/, "app.js ยังไม่ได้เรียกผู้ให้บริการ AI ตรงด้วย key ของผู้ใช้");
 assert.doesNotMatch(appJs, /["']\/api\/analyze["']/, "app.js ยังเรียก endpoint ฝั่ง server อยู่ ต้องเรียกผู้ให้บริการตรงด้วย key ของผู้ใช้แทน");
 assert.match(appJs, /function\s+renderAiKeyState\s*\(/, "ยังไม่มีฟังก์ชัน gating/empty state สำหรับกรณีที่ผู้ใช้ยังไม่ตั้งค่า key");
-assert.match(appJs, /const\s+AI_KEY_STORAGE_KEY\s*=\s*["']bgc-ai-key["']/, "API key ต้องเก็บใน storage key ของตัวเอง");
+assert.match(businessConfigJs, /export\s+const\s+AI_KEY_STORAGE_KEY\s*=\s*["']bgc-ai-key["']/, "API key ต้องเก็บใน storage key ของตัวเอง");
+assert.notEqual(
+  businessConfigJs.match(/export\s+const\s+AI_KEY_STORAGE_KEY\s*=\s*["']([^"']+)["']/)?.[1],
+  businessConfigJs.match(/export\s+const\s+STORAGE_KEY\s*=\s*["']([^"']+)["']/)?.[1],
+  "API key ต้องอยู่คนละ storage entry กับ state ที่ถูก Export เป็นไฟล์ JSON"
+);
 assert.doesNotMatch(appJs, /STORAGE_KEY\s*\+[^\n]*ai-key|state\.(aiKey|apiKey)/, "ห้ามเก็บ API key ปนกับ state ที่ถูก Export เป็นไฟล์ JSON");
 assert.match(appJs, /clearStoredKey\(\)/, "Set Zero และปุ่มลบ key ต้องล้าง API key ออกจากเครื่อง");
 const resetConfirmBlock = appJs.match(/#resetConfirm"\)\.addEventListener\("click",[\s\S]*?\n}\);/)?.[0] || "";

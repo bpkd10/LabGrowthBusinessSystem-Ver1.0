@@ -6,6 +6,10 @@ import { ASSET_FILES, ASSET_VERSION } from "./assets.mjs";
 const root = resolve(import.meta.dirname, "..");
 const html = await readFile(resolve(root, "app/index.html"), "utf8");
 const appJs = await readFile(resolve(root, "app/app.js"), "utf8");
+// ข้อมูลโดเมนที่ประกาศชื่อ icon (businessModes, avatarPresets, contactChannelIcons,
+// roleIcons) ย้ายจาก app.js ไป business-config.js แล้ว ต้องอ่านไฟล์นี้ด้วย ไม่งั้น
+// การสแกนชื่อ icon ด้านล่างจะกลายเป็นสแกนไฟล์เปล่าและผ่านทุกกรณีโดยไม่ตรวจอะไรเลย
+const businessConfigJs = await readFile(resolve(root, "app/business-config.js"), "utf8");
 const css = await readFile(resolve(root, "app/styles.css"), "utf8");
 const sprite = await readFile(resolve(root, "app/icons.svg"), "utf8");
 
@@ -63,10 +67,21 @@ assert.ok(ASSET_FILES["/ai-provider.js"], "Asset manifest ไม่มี route 
 assert.match(ASSET_FILES["/ai-provider.js"][1], /text\/javascript/, "/ai-provider.js ต้องใช้ JavaScript content type");
 assert.ok(appJs.includes(`ai-provider.js?v=${ASSET_VERSION}`), "app.js ยังไม่ได้ import ai-provider.js ด้วย Asset Version ปัจจุบัน");
 
+// business-config.js และ state-model.js ถูกแยกออกจาก app.js เป็น ES module ที่ import
+// ตรง ๆ เหมือนกัน ถ้าลืมลงทะเบียนใน manifest แอปจะขึ้นหน้าขาวทั้งหน้าตอน deploy
+// เพราะ browser โหลด module ไม่เจอ — เช็คทั้ง route และเวอร์ชันที่ import
+for (const moduleRoute of ["/business-config.js", "/state-model.js"]) {
+  const fileName = moduleRoute.slice(1);
+  assert.ok(ASSET_FILES[moduleRoute], `Asset manifest ไม่มี route ${moduleRoute}`);
+  assert.match(ASSET_FILES[moduleRoute][1], /text\/javascript/, `${moduleRoute} ต้องใช้ JavaScript content type`);
+  assert.ok(appJs.includes(`${fileName}?v=${ASSET_VERSION}`), `app.js ยังไม่ได้ import ${fileName} ด้วย Asset Version ปัจจุบัน`);
+}
+
 const symbolIds = new Set([...sprite.matchAll(/<symbol\s+id="([^"]+)"/g)].map((match) => match[1]));
 const referencedSymbols = new Set([
   ...[...html.matchAll(/icons\.svg\?v=\d+#([a-z0-9-]+)/g)].map((match) => match[1]),
-  ...[...appJs.matchAll(/icon:\s*["']([a-z0-9-]+)["']/g)].map((match) => match[1])
+  ...[...appJs.matchAll(/icon:\s*["']([a-z0-9-]+)["']/g)].map((match) => match[1]),
+  ...[...businessConfigJs.matchAll(/icon:\s*["']([a-z0-9-]+)["']/g)].map((match) => match[1])
 ]);
 
 for (const call of appJs.matchAll(/iconMarkup\(([^)]*)\)/g)) {
@@ -75,7 +90,8 @@ for (const call of appJs.matchAll(/iconMarkup\(([^)]*)\)/g)) {
 }
 
 for (const objectName of ["contactChannelIcons", "roleIcons"]) {
-  const block = appJs.match(new RegExp(`const ${objectName} = \\{([\\s\\S]*?)\\};`))?.[1] || "";
+  const block = businessConfigJs.match(new RegExp(`export const ${objectName} = \\{([\\s\\S]*?)\\};`))?.[1];
+  assert.ok(block, `หา ${objectName} ใน app/business-config.js ไม่เจอ — การสแกน icon จะไม่ตรวจอะไรเลย`);
   for (const match of block.matchAll(/:\s*"([a-z0-9-]+)"/g)) referencedSymbols.add(match[1]);
 }
 
@@ -88,6 +104,6 @@ for (const match of css.matchAll(/url\(["']?([^"')]+)["']?\)/g)) {
   if (route.startsWith("/")) assert.ok(ASSET_FILES[route], `CSS อ้าง Asset ${route} ที่ไม่มีใน manifest`);
 }
 
-assert.equal(ASSET_VERSION, "19", "ต้องเพิ่ม Asset Version หลังแก้ UI/Logo/Icon เพื่อป้องกัน cache เก่า");
+assert.equal(ASSET_VERSION, "20", "ต้องเพิ่ม Asset Version หลังแก้ UI/Logo/Icon เพื่อป้องกัน cache เก่า");
 
 console.log(`Asset contract passed: ${requiredRoutes.length} required routes, ${referencedSymbols.size} referenced vector symbols, version ${ASSET_VERSION}`);

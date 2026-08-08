@@ -6,12 +6,12 @@ import {
   updateProductAcrossState,
   detachProductRelations,
   createZeroState
-} from "./business-workflows.js?v=19";
+} from "./business-workflows.js?v=20";
 import {
   parseImportFile,
   buildImportPlan,
   applyImportPlan
-} from "./data-import.js?v=19";
+} from "./data-import.js?v=20";
 import {
   DEFAULT_MODEL,
   DEFAULT_PROVIDER_ID,
@@ -20,276 +20,57 @@ import {
   maskApiKey,
   providerErrorMessage,
   validateKeyFormat
-} from "./ai-provider.js?v=19";
+} from "./ai-provider.js?v=20";
+// ข้อมูลโดเมนและค่าคงที่ย้ายไป business-config.js ส่วนตรรกะ state ย้ายไป state-model.js
+// เพื่อให้ทั้งสองส่วนทดสอบได้ใน Node โดยไม่ต้องมี DOM (scripts/check-app-model.mjs)
+import {
+  AI_KEY_STORAGE_KEY,
+  AI_MODEL_STORAGE_KEY,
+  REVENUE_TARGET,
+  STORAGE_KEY,
+  VALID_VIEWS,
+  avatarPresets,
+  businessCatalogs,
+  businessCategories,
+  businessModes,
+  contactChannelIcons,
+  contactSources,
+  dealStageGroups,
+  dealStageLabels,
+  dealStages,
+  leadStatusLabels,
+  leadStatuses,
+  marketingPackages,
+  pipelineModeLabels,
+  priorityLabels,
+  productCategories,
+  roleIcons,
+  roleViews,
+  seedData,
+  taskStatusLabels,
+  taskStatuses
+} from "./business-config.js?v=20";
+import {
+  alignCustomerType,
+  clone,
+  computeMetrics,
+  countBy,
+  currency,
+  currentBusinessCatalogOf,
+  currentBusinessModeOf,
+  escapeHTML,
+  initials,
+  loadStateFrom,
+  normalizeState,
+  percent,
+  revenueTargetOf,
+  sumDealsBySource as sumDealsBySourceOf,
+  todayIso as today,
+  uid,
+  validIsoDate
+} from "./state-model.js?v=20";
 
-const STORAGE_KEY = "business-growth-dashboard-demo";
-
-// API key ของผู้ใช้ต้องอยู่คนละ storage entry กับ STORAGE_KEY เด็ดขาด (ADR-001 ข้อ 4.5)
-// เหตุผลรูปธรรม: ปุ่ม "ส่งออกข้อมูล" และขั้นตอน Set Zero อ่าน/เขียน STORAGE_KEY
-// ทั้งก้อน ถ้าเก็บ key ไว้ในนั้น ผู้ใช้ที่กด Export แล้วส่งไฟล์ให้ที่ปรึกษาหรือโพสต์
-// ในกลุ่ม Workshop จะยกกุญแจบัญชีของตัวเองให้คนอื่นไปพร้อมไฟล์ทันที
-const AI_KEY_STORAGE_KEY = "bgc-ai-key";
-// ชื่อ model ไม่ใช่ความลับ จึงเก็บใน localStorage เสมอเพื่อให้ค่าที่ผู้ใช้แก้เองไม่หาย
-// ตอนปิดแท็บ (ต่างจาก key ที่ default เป็น sessionStorage)
-const AI_MODEL_STORAGE_KEY = "bgc-ai-model";
-const REVENUE_TARGET = 100000;
-const VALID_VIEWS = ["dashboard", "customers", "crm", "products", "deals", "tasks", "ai"];
-
-const businessModes = {
-  online: {
-    code: "EC",
-    icon: "shopping-bag",
-    label: "Online",
-    description: "ขายผ่าน Social, Website และ Marketplace",
-    customerTypeLabel: "กลุ่มลูกค้าออนไลน์",
-    customerTypes: ["ผู้ติดตามใหม่", "ผู้ซื้อครั้งแรก", "ลูกค้าซื้อซ้ำ", "ลูกค้า VIP"],
-    journey: [
-      ["New Lead", "เห็นสินค้า", "Reach / Visit"],
-      ["Contacted", "เริ่มสนทนา", "Chat / Inbox"],
-      ["Interested", "สนใจสินค้า", "Intent"],
-      ["Proposal Sent", "เช็กเอาต์", "Cart / Order"],
-      ["Won", "ชำระเงิน", "Paid"]
-    ]
-  },
-  onsite: {
-    code: "SV",
-    icon: "map-pin",
-    label: "Onsite",
-    description: "บริการที่สาขา นัดหมาย หรือพบลูกค้านอกสถานที่",
-    customerTypeLabel: "ประเภทผู้รับบริการ",
-    customerTypes: ["ผู้สอบถาม", "ผู้นัดหมาย", "ผู้เข้ารับบริการ", "สมาชิกประจำ"],
-    journey: [
-      ["New Lead", "รู้จักบริการ", "Awareness"],
-      ["Contacted", "สอบถาม", "Inquiry"],
-      ["Interested", "นัดหมาย", "Booking"],
-      ["Proposal Sent", "รับบริการ", "Visit"],
-      ["Won", "ชำระเงิน", "Complete"]
-    ]
-  },
-  wholesale: {
-    code: "B2B",
-    icon: "warehouse",
-    label: "Wholesale",
-    description: "ขายส่ง ตัวแทนจำหน่าย และลูกค้าองค์กร",
-    customerTypeLabel: "ประเภทคู่ค้า",
-    customerTypes: ["Prospect", "ร้านค้าปลีก", "ตัวแทนจำหน่าย", "Key Account"],
-    journey: [
-      ["New Lead", "รับรายชื่อคู่ค้า", "Prospect"],
-      ["Contacted", "ตรวจคุณสมบัติ", "Qualify"],
-      ["Interested", "ขอราคา", "RFQ"],
-      ["Proposal Sent", "เจรจา PO", "Quote / PO"],
-      ["Won", "ส่งมอบสินค้า", "Fulfillment"]
-    ]
-  },
-  retail: {
-    code: "RT",
-    icon: "store",
-    label: "Retail",
-    description: "หน้าร้าน POS สมาชิก และการซื้อซ้ำ",
-    customerTypeLabel: "กลุ่มลูกค้าหน้าร้าน",
-    customerTypes: ["Walk-in", "สมาชิกใหม่", "ลูกค้าซื้อซ้ำ", "VIP / High Value"],
-    journey: [
-      ["New Lead", "เข้าร้าน", "Visit"],
-      ["Contacted", "เลือกสินค้า", "Browse"],
-      ["Interested", "รับคำแนะนำ", "Assist"],
-      ["Proposal Sent", "ชำระเงิน", "Checkout"],
-      ["Won", "สมาชิกซื้อซ้ำ", "Retention"]
-    ]
-  }
-};
-
-const businessCatalogs = {
-  online: [
-    { name: "Social Commerce Starter", category: "Online Offer", price: 12000, cost: 3000, description: "จัดระบบ Social, Chat และการรับออเดอร์" },
-    { name: "Marketplace Growth", category: "Online Offer", price: 25000, cost: 7000, description: "ปรับหน้าร้าน Marketplace และแคมเปญขาย" },
-    { name: "Content & Ads Growth", category: "Online Offer", price: 35000, cost: 11000, description: "Content, Ads และระบบเก็บ Lead" },
-    { name: "Omnichannel Commerce", category: "Online Offer", price: 59000, cost: 18000, description: "เชื่อม Social, Website, Marketplace และ CRM" }
-  ],
-  onsite: [
-    { name: "Booking Starter", category: "Onsite Offer", price: 15000, cost: 4000, description: "ระบบสอบถาม นัดหมาย และแจ้งเตือน" },
-    { name: "Service Experience", category: "Onsite Offer", price: 28000, cost: 8000, description: "ออกแบบขั้นตอนรับบริการและ Follow-up" },
-    { name: "Member Retention", category: "Onsite Offer", price: 39000, cost: 12000, description: "สมาชิก การกลับมาใช้ซ้ำ และ Referral" },
-    { name: "Multi-branch Service", category: "Onsite Offer", price: 79000, cost: 25000, description: "จัดการลูกค้าและมาตรฐานบริการหลายสาขา" }
-  ],
-  wholesale: [
-    { name: "Dealer Starter", category: "Wholesale Offer", price: 25000, cost: 7000, description: "รับสมัครและจัดกลุ่มตัวแทนจำหน่าย" },
-    { name: "Volume Order Growth", category: "Wholesale Offer", price: 50000, cost: 16000, description: "ราคาแบบขั้นบันได MOQ และ Repeat Order" },
-    { name: "Distributor Pro", category: "Wholesale Offer", price: 95000, cost: 32000, description: "Pipeline คู่ค้า ใบเสนอราคา และ PO" },
-    { name: "Key Account Program", category: "Wholesale Offer", price: 150000, cost: 52000, description: "แผนดูแลลูกค้าองค์กรและ Forecast" }
-  ],
-  retail: [
-    { name: "POS & Member Starter", category: "Retail Offer", price: 15000, cost: 4500, description: "เก็บสมาชิกและประวัติซื้อจากหน้าร้าน" },
-    { name: "Repeat Purchase", category: "Retail Offer", price: 25000, cost: 7500, description: "Coupon, Point และแคมเปญซื้อซ้ำ" },
-    { name: "Store Campaign", category: "Retail Offer", price: 35000, cost: 11000, description: "แคมเปญหน้าร้านร่วมกับ Social" },
-    { name: "Multi-branch Retail", category: "Retail Offer", price: 79000, cost: 26000, description: "สมาชิกกลางและรายงานหลายสาขา" }
-  ]
-};
-
-const businessCategories = {
-  creator: "Creator / ธุรกิจออนไลน์",
-  service: "บริการ / ที่ปรึกษา",
-  retail: "ร้านค้า / Retail",
-  restaurant: "ร้านอาหาร / คาเฟ่",
-  health: "สุขภาพ / คลินิก",
-  education: "การศึกษา / Training",
-  factory: "โรงงาน / Wholesale",
-  property: "อสังหาริมทรัพย์"
-};
-
-const pipelineModeLabels = {
-  online: "Online · Social / Website / Marketplace",
-  onsite: "Onsite · นัดหมาย / หน้าสาขา",
-  wholesale: "Wholesale · B2B / ตัวแทน / องค์กร",
-  retail: "Retail · หน้าร้าน / POS / สมาชิก"
-};
-
-const avatarPresets = {
-  creator: { code: "ON", label: "Online Creator", tone: "violet", icon: "globe" },
-  service: { code: "SV", label: "Professional Service", tone: "teal", icon: "handshake" },
-  retail: { code: "RT", label: "Retail Store", tone: "orange", icon: "store" },
-  restaurant: { code: "FD", label: "Food & Cafe", tone: "red", icon: "shopping-bag" },
-  health: { code: "HC", label: "Health & Clinic", tone: "blue", icon: "target" },
-  education: { code: "ED", label: "Education", tone: "indigo", icon: "users" },
-  factory: { code: "WH", label: "Wholesale & Factory", tone: "slate", icon: "warehouse" },
-  property: { code: "RE", label: "Real Estate", tone: "gold", icon: "map-pin" }
-};
-
-const contactChannelIcons = {
-  Facebook: "facebook", "LINE OA": "message", Website: "globe", Marketplace: "shopping-bag",
-  "Walk-in": "map-pin", "หน้าร้าน / POS": "store", "โทรศัพท์": "phone",
-  "ตัวแทนจำหน่าย": "warehouse", "Google Form": "clipboard", Event: "calendar", Referral: "users"
-};
-const contactSources = Object.keys(contactChannelIcons);
-
-const roleIcons = { owner: "crown", sales: "handshake", marketing: "megaphone", ops: "settings" };
-
-const leadStatuses = ["New Lead", "Contacted", "Interested", "Proposal Sent"];
-const dealStages = ["New", "Qualified", "Proposal", "Negotiation", "Won", "Lost"];
-const productCategories = ["สินค้า", "บริการ", "Package", "Subscription", "Bundle"];
-const taskStatuses = ["todo", "in_progress", "done", "overdue"];
-const leadStatusLabels = { "New Lead": "ลูกค้าใหม่", Contacted: "ติดต่อแล้ว", Interested: "สนใจ", "Proposal Sent": "ส่งข้อเสนอแล้ว" };
-const dealStageLabels = {
-  New: "รับโอกาสธุรกิจใหม่",
-  Qualified: "ตรวจคุณภาพและความต้องการ",
-  Proposal: "ออกแบบและส่งข้อเสนอ",
-  Negotiation: "เจรจาเพื่อการตัดสินใจ",
-  Won: "ชนะดีล / เริ่มส่งมอบ",
-  Lost: "ไม่เดินหน้าต่อ"
-};
-const dealStageGroups = [
-  ["กำลังพัฒนาดีล", ["New", "Qualified", "Proposal", "Negotiation"]],
-  ["ผลลัพธ์ของดีล", ["Won", "Lost"]]
-];
-const taskStatusLabels = { todo: "รอดำเนินการ", in_progress: "กำลังทำ", done: "เสร็จแล้ว", overdue: "เลยกำหนด" };
-const priorityLabels = { High: "สูง", Medium: "ปานกลาง", Low: "ต่ำ" };
-const marketingPackages = [
-  { name: "Marketing Starter", price: 15000, description: "วางแผนช่องทางและ Content 30 วัน" },
-  { name: "Content Growth", price: 25000, description: "ระบบผลิต Content และวัดผลรายเดือน" },
-  { name: "Lead Generation", price: 35000, description: "แคมเปญหาลูกค้าและระบบเก็บ Lead" },
-  { name: "Full Funnel Solution", price: 59000, description: "วางระบบ Marketing + CRM ครบ Funnel" }
-];
-
-const seedData = {
-  meta: { updatedAt: "2026-07-22T00:00:00.000Z" },
-  businessProfile: {
-    businessName: "Uncle Tung Business Lab",
-    businessMode: "online",
-    businessCategory: "creator",
-    businessAvatar: "creator",
-    revenueTarget: 100000
-  },
-  customers: [
-    { id: "c1", fullName: "สมชาย ใจดี", phone: "0811111111", source: "Facebook", solutionPackage: "Marketing Starter", interest: "ต้องการเริ่มทำ Content อย่างเป็นระบบ", avatar: "", avatarPreset: "creator", createdAt: "2026-07-01" },
-    { id: "c2", fullName: "วราภรณ์ ดีมาก", phone: "0822222222", source: "LINE OA", solutionPackage: "Lead Generation", interest: "ต้องการเพิ่มจำนวนลูกค้าองค์กร", avatar: "", avatarPreset: "service", createdAt: "2026-07-01" },
-    { id: "c3", fullName: "บริษัท ABC จำกัด", phone: "0833333333", source: "Website", solutionPackage: "Full Funnel Solution", interest: "ต้องการเชื่อม Marketing กับ CRM", avatar: "", avatarPreset: "factory", createdAt: "2026-07-02" },
-    { id: "c4", fullName: "คลินิก Bright Care", phone: "0844444444", source: "Referral", solutionPackage: "Content Growth", interest: "ต้องการ Content ที่สร้างความน่าเชื่อถือ", avatar: "", avatarPreset: "health", createdAt: "2026-07-02" }
-  ],
-  leads: [
-    { id: "l1", customerId: "c1", status: "Interested", assignedTo: "Sales Team", leadScore: 72, nextFollowUp: "2026-07-05" },
-    { id: "l2", customerId: "c2", status: "Proposal Sent", assignedTo: "Uncle Tung AI", leadScore: 88, nextFollowUp: "2026-07-04" },
-    { id: "l3", customerId: "c3", status: "Contacted", assignedTo: "Sales Team", leadScore: 65, nextFollowUp: "2026-07-06" },
-    { id: "l4", customerId: "c4", status: "New Lead", assignedTo: "Admin", leadScore: 43, nextFollowUp: "2026-07-07" }
-  ],
-  products: [
-    { id: "p1", name: "AI Fundamentals Course", category: "สินค้า", price: 5900, cost: 1500, status: "active", businessMode: "online", pipelineStage: "Qualified" },
-    { id: "p2", name: "Corporate AI Training", category: "บริการ", price: 85000, cost: 25000, status: "active", businessMode: "onsite", pipelineStage: "Proposal" },
-    { id: "p3", name: "AI Consulting Package", category: "Package", price: 45000, cost: 12000, status: "active", businessMode: "onsite", pipelineStage: "Negotiation" },
-    { id: "mp1", name: "Marketing Starter", category: "Package", price: 15000, cost: 3500, status: "active", businessMode: "online", pipelineStage: "Qualified" },
-    { id: "mp2", name: "Content Growth", category: "Subscription", price: 25000, cost: 7000, status: "active", businessMode: "online", pipelineStage: "Proposal" },
-    { id: "mp3", name: "Lead Generation", category: "บริการ", price: 35000, cost: 11000, status: "active", businessMode: "online", pipelineStage: "Proposal" },
-    { id: "mp4", name: "Full Funnel Solution", category: "Bundle", price: 59000, cost: 18000, status: "active", businessMode: "online", pipelineStage: "Negotiation" }
-  ],
-  deals: [
-    { id: "d1", customerId: "c1", name: "Public course enrollment", value: 5900, stage: "Won", probability: 100 },
-    { id: "d2", customerId: "c2", name: "Corporate training batch 1", value: 85000, stage: "Proposal", probability: 65 },
-    { id: "d3", customerId: "c3", name: "Monthly consulting package", value: 45000, stage: "Negotiation", probability: 75 }
-  ],
-  tasks: [
-    { id: "t1", title: "โทรติดตามข้อเสนอ บริษัท ABC", owner: "ทีมขาย", dueDate: "2026-07-04", priority: "High", status: "todo" },
-    { id: "t2", title: "ส่งตัวอย่าง curriculum ให้คุณวราภรณ์", owner: "Uncle Tung AI", dueDate: "2026-07-04", priority: "High", status: "in_progress" },
-    { id: "t3", title: "ออกใบแจ้งหนี้คอร์ส", owner: "ฝ่ายดูแลระบบ", dueDate: "2026-07-03", priority: "Medium", status: "done" }
-  ]
-};
-
-let state = loadState();
-const roleViews = {
-  owner: {
-    label: "เจ้าของธุรกิจ",
-    kicker: "Owner command center",
-    title: "ภาพรวมสำหรับเจ้าของธุรกิจ",
-    description: "ตัดสินใจจากรายได้ Pipeline และเรื่องที่ต้องแก้วันนี้",
-    pageDescription: "ดูรายได้ ความเสี่ยง และสิ่งที่ต้องตัดสินใจของทั้งธุรกิจ",
-    action: "ตรวจ Pipeline",
-    target: "deals",
-    focus: ["รายได้เทียบเป้า", "มูลค่า Pipeline", "งานเสี่ยงหลุด"],
-    priorityTitle: "เรื่องที่ต้องตัดสินใจก่อน",
-    priorityKicker: "Decision queue",
-    signalTitle: "สัญญาณสุขภาพธุรกิจ",
-    signalKicker: "Business health"
-  },
-  sales: {
-    label: "ฝ่ายขาย",
-    kicker: "Sales workspace",
-    title: "พื้นที่ทำงานของฝ่ายขาย",
-    description: "เห็น Lead ที่ควรโทร ดีลที่ควรตาม และขั้นตอนถัดไปทันที",
-    pageDescription: "โฟกัส Lead, Follow-up และดีลที่มีโอกาสปิดการขาย",
-    action: "เปิด CRM Board",
-    target: "crm",
-    focus: ["Lead คะแนนสูง", "ข้อเสนอรอตอบ", "Follow-up วันนี้"],
-    priorityTitle: "Lead ที่ควรติดตามก่อน",
-    priorityKicker: "Sales action queue",
-    signalTitle: "สัญญาณช่วยปิดการขาย",
-    signalKicker: "Sales signals"
-  },
-  marketing: {
-    label: "การตลาด",
-    kicker: "Marketing performance",
-    title: "ภาพรวมสำหรับทีมการตลาด",
-    description: "เชื่อมช่องทางที่มาของ Lead กับคุณภาพและมูลค่าที่สร้างได้",
-    pageDescription: "ดูช่องทาง แคมเปญ คุณภาพ Lead และรายได้ที่การตลาดมีส่วนสร้าง",
-    action: "ดูลูกค้าตามช่องทาง",
-    target: "customers",
-    focus: ["ช่องทางสร้าง Lead", "Lead เป็นลูกค้า", "มูลค่าจากแคมเปญ"],
-    priorityTitle: "Lead จากการตลาดที่ควรดู",
-    priorityKicker: "Campaign response",
-    signalTitle: "โอกาสปรับช่องทางและข้อเสนอ",
-    signalKicker: "Marketing signals"
-  },
-  ops: {
-    label: "ทีมปฏิบัติการ",
-    kicker: "Operations desk",
-    title: "พื้นที่ทำงานของทีมปฏิบัติการ",
-    description: "จัดลำดับงานค้าง งานส่งมอบ และลูกค้าที่ต้องดูแลต่อ",
-    pageDescription: "ดูงานค้าง กำหนดส่งมอบ และความเสี่ยงที่กระทบลูกค้า",
-    action: "เปิดงานติดตาม",
-    target: "tasks",
-    focus: ["งานครบกำหนด", "งานส่งมอบใหม่", "ลูกค้ารอดำเนินการ"],
-    priorityTitle: "งานลูกค้าที่ต้องจัดการก่อน",
-    priorityKicker: "Operations queue",
-    signalTitle: "สัญญาณความเสี่ยงในการส่งมอบ",
-    signalKicker: "Delivery health"
-  }
-};
+let state = loadStateFrom(localStorage, STORAGE_KEY);
 
 let activeRole = "owner";
 let toastTimer;
@@ -301,88 +82,6 @@ let analysisInFlight = false;
 let resetStep = 1;
 let resetExported = false;
 let importSession = null;
-
-function clone(value) {
-  return typeof structuredClone === "function"
-    ? structuredClone(value)
-    : JSON.parse(JSON.stringify(value));
-}
-
-function loadState() {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (!saved) return normalizeState(clone(seedData));
-  try {
-    const parsed = JSON.parse(saved);
-    const isValid = ["customers", "leads", "products", "deals", "tasks"]
-      .every((key) => Array.isArray(parsed[key]));
-    return isValid ? normalizeState(parsed) : normalizeState(clone(seedData));
-  } catch {
-    return normalizeState(clone(seedData));
-  }
-}
-
-function validIsoDate(value) {
-  if (typeof value !== "string") return new Date().toISOString();
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
-}
-
-function alignCustomerType(customer) {
-  const mode = businessModes[customer.businessMode] || businessModes.online;
-  return {
-    ...customer,
-    customerType: mode.customerTypes.includes(customer.customerType) ? customer.customerType : mode.customerTypes[0]
-  };
-}
-
-function normalizeState(data) {
-  data.meta = {
-    updatedAt: validIsoDate(data.meta?.updatedAt)
-  };
-  data.businessProfile = {
-    ...clone(seedData.businessProfile),
-    ...(data.businessProfile || {})
-  };
-  const catalog = buildProfileCatalog(data.businessProfile, businessCatalogs);
-  const legacyPackageNames = marketingPackages.map((item) => item.name);
-  const needsLegacyMapping = Number(data.schemaVersion || 0) < 4;
-  data.customers = data.customers.map((customer, index) => {
-    const solutionPackage = needsLegacyMapping && legacyPackageNames.includes(customer.solutionPackage)
-      ? catalog[Math.max(0, legacyPackageNames.indexOf(customer.solutionPackage))]?.name || catalog[0].name
-      : customer.solutionPackage || catalog[0].name;
-    const matchedMode = Object.entries(businessCatalogs)
-      .find(([, offers]) => offers.some((offer) => offer.name === solutionPackage))?.[0];
-    const businessMode = businessModes[customer.businessMode]
-      ? customer.businessMode
-      : matchedMode || data.businessProfile.businessMode || "online";
-    const customerMode = businessModes[businessMode] || businessModes.online;
-    return {
-      ...customer,
-      solutionPackage,
-      businessMode,
-      businessCategory: customer.businessCategory || data.businessProfile.businessCategory || "service",
-      avatar: customer.avatar || "",
-      avatarPreset: customer.avatarPreset || data.businessProfile.businessCategory || "service",
-      customerType: customer.customerType || customerMode.customerTypes[Math.min(index, customerMode.customerTypes.length - 1)]
-    };
-  });
-  data.products = data.products.map((product) => ({
-    ...product,
-    category: productCategories.includes(product.category)
-      ? product.category
-      : /course|product/i.test(product.category) ? "สินค้า"
-        : /training|consulting|service/i.test(product.category) ? "บริการ"
-          : /subscription/i.test(product.category) ? "Subscription"
-            : /bundle/i.test(product.category) ? "Bundle" : "Package",
-    businessMode: businessModes[product.businessMode] ? product.businessMode : data.businessProfile.businessMode,
-    businessCategory: product.businessCategory || data.businessProfile.businessCategory,
-    pipelineStage: dealStages.includes(product.pipelineStage) ? product.pipelineStage : "Proposal"
-  }));
-  data.schemaVersion = 8;
-  const relatedState = normalizeOfferRelations(data);
-  relatedState.customers = relatedState.customers.map(alignCustomerType);
-  return relatedState;
-}
 
 function saveState() {
   try {
@@ -397,16 +96,6 @@ function saveState() {
     notify("บันทึกข้อมูลไม่สำเร็จ พื้นที่จัดเก็บของ browser อาจเต็ม");
     return false;
   }
-}
-
-function escapeHTML(value) {
-  return String(value ?? "").replace(/[&<>'"]/g, (character) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    "'": "&#39;",
-    '"': "&quot;"
-  })[character]);
 }
 
 function notify(message, action = null) {
@@ -455,36 +144,20 @@ function setLeadStatus(leadId, nextStatus) {
   return true;
 }
 
-function currency(value) {
-  return new Intl.NumberFormat("th-TH", { style: "currency", currency: "THB", maximumFractionDigits: 0 }).format(value);
-}
-
-function percent(value) {
-  return `${Math.round(value)}%`;
-}
-
-function uid(prefix) {
-  return `${prefix}${Date.now()}${Math.floor(Math.random() * 1000)}`;
-}
-
 function customerById(id) {
   return state.customers.find((customer) => customer.id === id);
 }
 
-function initials(name) {
-  return String(name || "ลูกค้า").trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
-}
-
 function revenueTarget() {
-  return Math.max(0, Number(state.businessProfile?.revenueTarget) || 0);
+  return revenueTargetOf(state);
 }
 
 function currentBusinessMode() {
-  return businessModes[state.businessProfile?.businessMode] || businessModes.online;
+  return currentBusinessModeOf(state);
 }
 
 function currentBusinessCatalog() {
-  return mergeCatalogWithProducts(buildProfileCatalog(state.businessProfile, businessCatalogs), state.products);
+  return currentBusinessCatalogOf(state);
 }
 
 function offerByReference(reference) {
@@ -507,7 +180,7 @@ function customerOffer(customer) {
 }
 
 function iconMarkup(name, className = "ui-icon") {
-  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=19#${escapeHTML(name)}"></use></svg>`;
+  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=20#${escapeHTML(name)}"></use></svg>`;
 }
 
 document.querySelector("#toastUndo").addEventListener("click", () => {
@@ -543,38 +216,11 @@ function avatarMarkup(customer, size = "normal") {
 }
 
 function metrics() {
-  const totalLeads = state.leads.length;
-  const wonDeals = state.deals.filter((deal) => deal.stage === "Won");
-  const revenue = wonDeals.reduce((sum, deal) => sum + Number(deal.value), 0);
-  const openDeals = state.deals.filter((deal) => !["Won", "Lost"].includes(deal.stage));
-  const pendingTasks = state.tasks.filter((task) => task.status !== "done").length;
-  const overdueTasks = state.tasks.filter((task) => task.status !== "done" && task.dueDate < today()).length;
-  const conversionRate = totalLeads ? (wonDeals.length / totalLeads) * 100 : 0;
-  const pipelineValue = openDeals.reduce((sum, deal) => sum + Number(deal.value), 0);
-  const sourceCounts = countBy(state.customers, "source");
-  const topSource = Object.entries(sourceCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "-";
-
-  return { totalLeads, revenue, openDeals: openDeals.length, pendingTasks, overdueTasks, conversionRate, pipelineValue, topSource };
-}
-
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function countBy(items, key) {
-  return items.reduce((acc, item) => {
-    acc[item[key]] = (acc[item[key]] || 0) + 1;
-    return acc;
-  }, {});
+  return computeMetrics(state);
 }
 
 function sumDealsBySource() {
-  return state.deals.reduce((acc, deal) => {
-    const customer = customerById(deal.customerId);
-    const source = customer?.source || "Unknown";
-    acc[source] = (acc[source] || 0) + Number(deal.value);
-    return acc;
-  }, {});
+  return sumDealsBySourceOf(state);
 }
 
 function dealStageOptionMarkup(selectedStage) {
@@ -2270,7 +1916,7 @@ function openImportReview(parsed, file) {
     ? '<option value="0">ข้อมูลสำรองทั้งระบบ</option>'
     : parsed.sheets.map((sheet, index) => `<option value="${index}">${escapeHTML(sheet.name)} · ${sheet.rows.length} แถว</option>`).join("");
   sheetSelect.disabled = parsed.kind === "state" || parsed.sheets.length <= 1;
-  document.querySelector("#importFileSummary").innerHTML = `<span><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=19#clipboard"></use></svg><strong>${escapeHTML(file.name)}</strong></span><span>${escapeHTML(parsed.format.toUpperCase())}</span><span>${escapeHTML(`${Math.max(1, Math.ceil(file.size / 1024))} KB`)}</span>`;
+  document.querySelector("#importFileSummary").innerHTML = `<span><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=20#clipboard"></use></svg><strong>${escapeHTML(file.name)}</strong></span><span>${escapeHTML(parsed.format.toUpperCase())}</span><span>${escapeHTML(`${Math.max(1, Math.ceil(file.size / 1024))} KB`)}</span>`;
   refreshImportPlan();
   document.querySelector("#importDialog").showModal();
 }
