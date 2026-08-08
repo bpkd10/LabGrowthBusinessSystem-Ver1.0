@@ -10,7 +10,14 @@
 # workers_dev เป็น field ที่ไม่บังคับ ค่า default อยู่แล้วคือ true — ใส่ไว้ตรง ๆ
 # เพื่อให้อ่านง่ายว่าตั้งใจให้ใช้ *.workers.dev subdomain
 
-name = "business-growth-crm"
+# ชื่อนี้กลายเป็น subdomain ของ URL สาธารณะ: utai-business-growth-system.<บัญชี>.workers.dev
+#
+# ตั้งใจไม่ประกาศ routes หรือ custom_domain ไว้ในไฟล์นี้ เพราะ uncletungai.site และ
+# www.uncletungai.site เป็นเว็บธุรกิจจริงที่ให้บริการอยู่บน Netlify การใส่ route ครอบ
+# โดเมนนั้นจะทำให้ Worker ดัก traffic ของเว็บจริงทั้งหมดทันทีที่ deploy
+# scripts/check-deploy-target.mjs บังคับกฎนี้ไว้แล้ว ถ้าจะผูกโดเมนเองให้ใช้ subdomain
+# ที่ยังว่าง เช่น crm.uncletungai.site แล้วรัน npm run check ก่อนเสมอ
+name = "utai-business-growth-system"
 main = "dist/server/index.js"
 
 # ต้องรันคำสั่ง `npm run build` ก่อนเสมอ เพื่อสร้างไฟล์ dist/server/index.js
