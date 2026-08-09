@@ -3285,3 +3285,14 @@ body[data-business-mode="retail"] .journey-icon { background: #fff0d7; color: #9
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.95em;
 }
+
+/* ข้อความดิบจากผู้ให้บริการ AI — แยกให้เห็นชัดว่าไม่ใช่คำอธิบายของเรา
+   เมื่อคำอธิบายภาษาไทยกับข้อความจริงไม่ตรงกัน ผู้ใช้ต้องเห็นได้ทันที */
+.error-upstream {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(180, 35, 24, 0.08);
+  font-size: 0.85rem;
+  line-height: 1.55;
+}

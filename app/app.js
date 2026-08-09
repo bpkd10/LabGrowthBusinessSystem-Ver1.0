@@ -2091,18 +2091,28 @@ document.querySelector("#analysisChatForm").addEventListener("submit", async (ev
     // (key ผิดรูปแบบ / ถูกปฏิเสธ / ไม่มีสิทธิ์ใช้โมเดล / เครดิตหมด / เน็ตล่ม / ตอบว่าง)
     const code = error?.code || "provider_error";
     const errorText = error?.message || providerErrorMessage("provider_error");
+    // แสดงข้อความดิบของผู้ให้บริการควบคู่กับคำอธิบายภาษาไทย
+    //
+    // คำอธิบายของเราคือการตีความ ส่วนบรรทัดนี้คือสิ่งที่ผู้ให้บริการพูดจริง
+    // เมื่อทั้งสองไม่ตรงกัน ผู้ใช้จะเห็นทันทีว่าเราตีความพลาด แทนที่จะไล่แก้ผิดทาง
+    // ตามคำแนะนำที่ผิดของเราไปเรื่อย ๆ โดยไม่มีทางรู้ตัว
+    const upstreamDetail = error?.upstreamMessage
+      ? `<p class="error-upstream"><strong>ข้อความจากผู้ให้บริการ:</strong> ${escapeHTML(error.upstreamMessage)}${error.upstreamCode ? ` (${escapeHTML(error.upstreamCode)})` : ""}</p>`
+      : "";
     const titles = {
       unauthorized: "API key ถูกปฏิเสธ",
       invalid_key_format: "รูปแบบ API key ไม่ถูกต้อง",
       missing_key: "ยังตั้งค่า API key ไม่ครบ",
       model_not_found: "บัญชีนี้ยังใช้โมเดลที่เลือกไม่ได้",
       forbidden: "บัญชีนี้ไม่มีสิทธิ์เรียกใช้บริการ",
-      rate_limited: "ใช้งานถึงขีดจำกัดของบัญชี",
+      insufficient_quota: "บัญชี OpenAI ไม่มีเครดิตเหลือ",
+      rate_limited: "ส่งคำถามถี่เกินไปชั่วคราว",
+      edge_rate_limited: "ถูกจำกัดโดยระบบของเราเอง",
       network: "เชื่อมต่อบริการ AI ไม่สำเร็จ",
       empty_analysis: "AI ตอบกลับมาแบบไม่มีเนื้อหา"
     };
     document.querySelector("#analysisTitle").textContent = titles[code] || "ยังวิเคราะห์ไม่สำเร็จ";
-    result.innerHTML = `${evidenceMarkup}<article class="chat-message user-message"><span>คำถามของคุณ</span><p>${escapeHTML(userPrompt)}</p></article><article class="chat-message assistant-message error-message"><span>ระบบวิเคราะห์</span><p>${escapeHTML(errorText)}</p><p>ข้อมูล Snapshot ด้านบนและคำถามของคุณยังอยู่ครบ แก้ตามคำแนะนำแล้วส่งใหม่ได้ทันที</p></article>`;
+    result.innerHTML = `${evidenceMarkup}<article class="chat-message user-message"><span>คำถามของคุณ</span><p>${escapeHTML(userPrompt)}</p></article><article class="chat-message assistant-message error-message"><span>ระบบวิเคราะห์</span><p>${escapeHTML(errorText)}</p>${upstreamDetail}<p>ข้อมูล Snapshot ด้านบนและคำถามของคุณยังอยู่ครบ แก้ตามคำแนะนำแล้วส่งใหม่ได้ทันที</p></article>`;
     result.dataset.hasAnalysis = "true";
     status.textContent = "เกิดข้อผิดพลาด";
 

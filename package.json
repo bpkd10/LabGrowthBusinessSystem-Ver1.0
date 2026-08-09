@@ -19,8 +19,9 @@
     "check:smoke": "node scripts/smoke-build.mjs",
     "check:headers": "node scripts/check-security-headers.mjs",
     "check:deploy-target": "node scripts/check-deploy-target.mjs",
-    "check": "npm run check:assets && npm run check:ui && npm run check:import && npm run check:fixtures && npm run check:workflows && npm run check:model && npm run check:insights && npm run check:report && npm run check:syntax && npm run check:smoke && npm run check:headers && npm run check:deploy-target",
-    "deploy": "echo '=== manual-only: ต้องรันด้วยมือโดยเจ้าของระบบเท่านั้น ห้าม CI/agent เรียกสคริปต์นี้ — จะเผยแพร่ URL สาธารณะถาวรและถอนคืนไม่ได้ ทำรายการตรวจก่อน deploy ใน docs/adr-001-byok-and-public-link.md ข้อ 8 ระยะ 3 ให้ครบก่อนเสมอ ===' && npm run check && npx wrangler deploy"
+    "check": "npm run check:assets && npm run check:ui && npm run check:import && npm run check:fixtures && npm run check:workflows && npm run check:model && npm run check:insights && npm run check:report && npm run check:ai-errors && npm run check:syntax && npm run check:smoke && npm run check:headers && npm run check:deploy-target",
+    "deploy": "echo '=== manual-only: ต้องรันด้วยมือโดยเจ้าของระบบเท่านั้น ห้าม CI/agent เรียกสคริปต์นี้ — จะเผยแพร่ URL สาธารณะถาวรและถอนคืนไม่ได้ ทำรายการตรวจก่อน deploy ใน docs/adr-001-byok-and-public-link.md ข้อ 8 ระยะ 3 ให้ครบก่อนเสมอ ===' && npm run check && npx wrangler deploy",
+    "check:ai-errors": "node scripts/check-ai-errors.mjs"
   },
   "dependencies": {
     "exceljs": "^4.4.0",

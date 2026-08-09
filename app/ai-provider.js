@@ -93,14 +93,24 @@ export const PROVIDERS = Object.freeze({
 });
 
 export class AiProviderError extends Error {
-  constructor(code, message, { status = 0, model = "", upstreamCode = "" } = {}) {
+  constructor(code, message, { status = 0, model = "", upstreamCode = "", upstreamMessage = "" } = {}) {
     super(message);
     this.name = "AiProviderError";
     this.code = code;
     this.status = status;
     this.model = model;
     this.upstreamCode = upstreamCode;
+    this.upstreamMessage = upstreamMessage;
   }
+}
+
+// ล้างสิ่งที่ดูเหมือน API key ออกจากข้อความของผู้ให้บริการก่อนนำไปแสดง
+//
+// OpenAI ปิดบัง key ให้อยู่แล้วในบางข้อความ แต่จะพึ่งพฤติกรรมของ API ภายนอก
+// เป็นด่านกัน key รั่วไม่ได้ ถ้าวันหนึ่งเขาเปลี่ยนรูปแบบ key ของผู้ใช้จะไปโผล่บนหน้าจอ
+// และติดไปกับภาพหน้าจอที่ผู้ใช้ส่งให้คนอื่นดูเวลาขอความช่วยเหลือ
+export function scrubSecrets(text) {
+  return String(text ?? "").replace(/sk-[A-Za-z0-9_\-]{8,}/g, "sk-***");
 }
 
 // แผนที่ error → ข้อความไทย (ADR ข้อ 4.6) ทุกข้อความต้องบอกว่า "เกิดอะไรขึ้น"
@@ -118,8 +128,17 @@ const ERROR_MESSAGES = {
     `บัญชีของคุณยังไม่มีสิทธิ์เรียกใช้โมเดล “${context.model || DEFAULT_MODEL}” (404 model_not_found) key ของคุณใช้งานได้ปกติ แต่ต้องเปลี่ยนชื่อโมเดล กรุณาเปิดหน้า Models ใน ${context.consoleLabel || "dashboard ของผู้ให้บริการ"} คัดลอกชื่อโมเดลที่บัญชีคุณเข้าถึงได้ มาใส่ในช่อง “โมเดลที่ใช้” แล้วลองใหม่`,
   forbidden: (context) =>
     `บัญชีนี้ไม่ได้รับอนุญาตให้เรียกใช้บริการ (403) กรุณาตรวจสอบสิทธิ์ของ Project ที่ key สังกัด และสถานะบัญชีใน ${context.consoleLabel || "dashboard ของผู้ให้บริการ"}`,
+  // แยกจาก rate_limited โดยตั้งใจ เพราะ "รอสักครู่แล้วลองใหม่" ใช้ไม่ได้กับกรณีนี้
+  // บัญชี OpenAI ที่เพิ่งสมัครมีเครดิต 0 บาท ทุกคำขอจะได้ 429 ตั้งแต่ครั้งแรก
+  // ผู้ใช้ที่ได้ข้อความให้ "รอ" จะรอไปเรื่อย ๆ โดยไม่มีวันสำเร็จ
+  insufficient_quota: (context) =>
+    `บัญชี ${context.providerLabel || "ผู้ให้บริการ"} ของคุณไม่มีเครดิตเหลือแล้ว (429 insufficient_quota) key ของคุณถูกต้องและระบบทำงานปกติ แต่ OpenAI ไม่ให้เรียกใช้จนกว่าจะมีเครดิต — บัญชีที่เพิ่งสมัครมักมีเครดิตเป็น 0 ต้องผูกบัตรและเติมเงินขั้นต่ำก่อน กรุณาเปิด Billing ใน ${context.consoleLabel || "dashboard"} แล้วเติมเครดิต การรอเฉย ๆ จะไม่ทำให้หายเอง`,
   rate_limited: (context) =>
-    `บัญชี ${context.providerLabel || "ผู้ให้บริการ"} ของคุณถึงขีดจำกัดการใช้งานหรือเครดิตหมด (429) กรุณาตรวจสอบยอดเครดิตและ Usage limit ใน ${context.consoleLabel || "dashboard"} หรือรอสักครู่แล้วส่งคำถามใหม่`,
+    `ส่งคำถามถี่เกินขีดจำกัดของบัญชีคุณชั่วคราว (429 rate limit) key และเครดิตของคุณไม่มีปัญหา กรุณารอประมาณ 1 นาทีแล้วส่งคำถามเดิมใหม่ ถ้าเจอบ่อยให้ตรวจ Rate limit ของบัญชีใน ${context.consoleLabel || "dashboard"}`,
+  // 429 ที่ไม่มี error ของผู้ให้บริการแนบมา = ถูกบล็อกก่อนถึงผู้ให้บริการ
+  // ปัญหาอยู่ฝั่งระบบเรา ห้ามบอกให้ผู้ใช้ไปเติมเงินหรือแก้ key เด็ดขาด
+  edge_rate_limited: () =>
+    "คำขอถูกจำกัดโดยระบบของเราเองก่อนส่งถึงผู้ให้บริการ (429) ไม่ใช่ปัญหาของ key หรือเครดิตของคุณ กรุณารอสักครู่แล้วลองใหม่ ถ้ายังเจอซ้ำ ๆ ทั้งที่ส่งไม่ถี่ แปลว่ากฎจำกัดอัตราของระบบตั้งไว้แคบเกินไปและต้องให้ผู้ดูแลแก้",
   request_too_large: () =>
     "ข้อมูลที่ส่งไปวิเคราะห์ยาวเกินขีดจำกัดของโมเดล (413) กรุณาย่อคำถามให้สั้นลง หรือเลือกมิติวิเคราะห์ที่แคบลงแล้วลองใหม่",
   bad_request: (context) =>
@@ -154,7 +173,8 @@ function providerError(code, providerId, extra = {}) {
   return new AiProviderError(code, providerErrorMessage(code, context), {
     status: extra.status || 0,
     model: extra.model || "",
-    upstreamCode: extra.upstreamCode || ""
+    upstreamCode: extra.upstreamCode || "",
+    upstreamMessage: extra.upstreamMessage || ""
   });
 }
 
@@ -216,9 +236,13 @@ export async function callProvider(providerId, apiKey, payload, options = {}) {
 
   if (!response.ok) {
     const upstreamCode = String(data?.error?.code || data?.error?.type || "");
-    throw providerError(errorCodeForStatus(response.status, upstreamCode), providerId, {
+    // แยกให้ออกว่า body เป็น error ของผู้ให้บริการจริง หรือเป็นหน้า error ของตัวกลาง
+    // (เช่น Cloudflare บล็อก ซึ่งตอบ 429 เหมือนกันแต่ไม่ใช่เรื่องของบัญชีผู้ใช้เลย)
+    const hasProviderError = Boolean(data?.error);
+    throw providerError(errorCodeForStatus(response.status, upstreamCode, hasProviderError), providerId, {
       status: response.status,
       upstreamCode,
+      upstreamMessage: scrubSecrets(data?.error?.message || ""),
       model
     });
   }
@@ -228,13 +252,32 @@ export async function callProvider(providerId, apiKey, payload, options = {}) {
   return { analysis, model: data?.model || model };
 }
 
-export function errorCodeForStatus(status, upstreamCode = "") {
+/**
+ * แปลงสถานะ HTTP + รหัสของผู้ให้บริการ เป็นรหัส error ที่มีวิธีแก้เฉพาะตัว
+ *
+ * 429 ต้องแยกให้ออกอย่างน้อย 3 กรณี เพราะวิธีแก้ต่างกันสิ้นเชิง และการรวมเป็น
+ * ข้อความเดียวทำให้ผู้ใช้ไล่แก้ผิดทาง:
+ *   - insufficient_quota  = ไม่มีเครดิต ต้องเติมเงิน รอไปก็ไม่หาย
+ *   - rate_limit_exceeded = ยิงถี่เกิน รอสักครู่แล้วหายเอง ไม่ต้องจ่ายอะไร
+ *   - ไม่มี error ของผู้ให้บริการเลย = ถูกบล็อกก่อนถึงผู้ให้บริการ (เช่นกฎ
+ *     Rate Limiting ที่ Cloudflare ซึ่งก็ตอบ 429 เหมือนกัน) ปัญหาอยู่ที่ระบบเรา
+ *     ไม่ใช่บัญชีของผู้ใช้ การบอกให้ไปเติมเงินในกรณีนี้คือการโยนความผิดให้ผู้ใช้
+ *
+ * @param {number} status สถานะ HTTP
+ * @param {string} upstreamCode ค่า error.code หรือ error.type ของผู้ให้บริการ
+ * @param {boolean} hasProviderError true เมื่อ body เป็น error ของผู้ให้บริการจริง
+ */
+export function errorCodeForStatus(status, upstreamCode = "", hasProviderError = true) {
   if (/model_not_found|model_not_available/i.test(upstreamCode)) return "model_not_found";
   if (status === 401) return "unauthorized";
   if (status === 403) return "forbidden";
   if (status === 404) return "model_not_found";
   if (status === 413) return "request_too_large";
-  if (status === 429) return "rate_limited";
+  if (status === 429) {
+    if (!hasProviderError) return "edge_rate_limited";
+    if (/insufficient_quota|billing|exceeded_current_quota/i.test(upstreamCode)) return "insufficient_quota";
+    return "rate_limited";
+  }
   if (status >= 500) return "provider_error";
   if (status >= 400) return "bad_request";
   return "provider_error";
