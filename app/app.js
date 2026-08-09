@@ -94,6 +94,10 @@ let importSession = null;
 // เพื่อแยกให้ออกว่า event ที่ได้รับมาจากการแก้จริง หรือเป็นเสียงสะท้อนของเราเอง
 let lastKnownStorageValue = localStorage.getItem(STORAGE_KEY);
 let staleTabWarned = false;
+// ชื่อโมเดลที่ผู้ให้บริการใช้จริงในรอบล่าสุด ต่างจากชื่อที่ผู้ใช้พิมพ์ได้
+// เพราะ OpenAI แปลงชื่อย่อเป็นรุ่นลงวันที่ เช่น gpt-5.6-sol → gpt-5.6-sol-2026-05-14
+// ถ้าไม่แสดงค่านี้ ผู้ใช้จะเข้าใจว่ากำลังใช้โมเดลที่ตัวเองพิมพ์ ทั้งที่จริงไม่ใช่
+let lastResolvedModel = "";
 
 function saveState() {
   try {
@@ -1862,6 +1866,24 @@ function analysisEmptyStateMarkup(kind) {
   return `<div class="chat-empty"><strong>เลือกคำถามแนะนำ หรือถามด้วยคำของคุณเอง</strong><span>คำตอบจะอ้างอิงเฉพาะข้อมูลที่มีอยู่ใน Web App</span></div>`;
 }
 
+// ป้ายกำกับใต้ชื่อผู้ตอบ บอกว่าคำตอบนี้มาจากโมเดลตัวไหนจริง ๆ
+//
+// ผู้ให้บริการมักแปลงชื่อย่อเป็นรุ่นลงวันที่ ("gpt-5.6-sol" → "gpt-5.6-sol-2026-05-14")
+// คำตอบสองรอบที่ใช้ชื่อย่อเดียวกันจึงอาจมาจากคนละรุ่นได้ ถ้าไม่บอกไว้ ผู้ใช้จะ
+// เปรียบเทียบคำตอบข้ามช่วงเวลาโดยเข้าใจผิดว่าเป็นโมเดลเดียวกันตลอด
+// ข้อความโมเดลในแถบสถานะ — บอกทั้งชื่อที่ตั้งไว้และชื่อที่ถูกใช้จริงเมื่อไม่ตรงกัน
+function modelStatusText() {
+  const configured = readStoredModel();
+  if (!lastResolvedModel || lastResolvedModel === configured) return `โมเดล ${configured}`;
+  return `โมเดล ${configured} · ใช้จริง ${lastResolvedModel}`;
+}
+
+function modelBylineMarkup(requested, resolved) {
+  if (!resolved) return "";
+  if (resolved === requested) return ` · ตอบด้วย ${escapeHTML(resolved)}`;
+  return ` · ระบุ ${escapeHTML(requested)} → ผู้ให้บริการใช้ ${escapeHTML(resolved)}`;
+}
+
 // gating + empty state: ไม่มี key ต้องไม่ทำให้อะไรพัง (ADR ข้อ 4.7)
 // เมนู AI ยังกดเข้าได้ Snapshot/Prompt/Quick question ยังทำงาน มีแค่ปุ่มส่งที่ปิด
 function renderAiKeyState() {
@@ -1891,10 +1913,10 @@ function renderAiKeyState() {
   } else if (usingUnsavedKey) {
     // สถานะที่ปลอดภัยที่สุด และเป็นค่าตั้งต้นสำหรับคนที่ไม่อยากให้ key ถูกเก็บ
     statusNode.dataset.keyState = "ready";
-    statusNode.textContent = `${maskApiKey(pendingKey)} · พร้อมใช้งานทันที ยังไม่ได้บันทึกลงเครื่อง ปิดแท็บแล้วหายเอง · โมเดล ${readStoredModel()}`;
+    statusNode.textContent = `${maskApiKey(pendingKey)} · พร้อมใช้งานทันที ยังไม่ได้บันทึกลงเครื่อง ปิดแท็บแล้วหายเอง · ${modelStatusText()}`;
   } else if (hasKey) {
     statusNode.dataset.keyState = "ready";
-    statusNode.textContent = `${maskApiKey(storedKey)} · ${keyIsRemembered() ? "จำไว้ในเครื่องนี้จนกว่าจะกดลบ" : "ใช้ได้จนกว่าจะปิดแท็บนี้"} · โมเดล ${readStoredModel()}`;
+    statusNode.textContent = `${maskApiKey(storedKey)} · ${keyIsRemembered() ? "จำไว้ในเครื่องนี้จนกว่าจะกดลบ" : "ใช้ได้จนกว่าจะปิดแท็บนี้"} · ${modelStatusText()}`;
   } else {
     statusNode.dataset.keyState = "empty";
     statusNode.textContent = "ยังไม่ได้ตั้งค่า key — วาง key ของคุณในช่องด้านบนแล้วถามได้เลย ไม่ต้องกดบันทึก";
@@ -1943,6 +1965,9 @@ document.querySelector("#aiKeyForm").addEventListener("submit", (event) => {
 
   // ผู้ใช้แก้เฉพาะชื่อโมเดลโดยไม่พิมพ์ key ใหม่ได้ ถ้ามี key เก็บไว้อยู่แล้ว
   if (!typedValue && readStoredKey()) {
+    // เปลี่ยนชื่อโมเดลแล้ว ค่า "ใช้จริง" ของรอบก่อนไม่เกี่ยวข้องอีก ถ้าไม่ล้าง
+    // แถบสถานะจะยังโชว์รุ่นเก่าค้างไว้ ทำให้เข้าใจผิดว่าการเปลี่ยนไม่มีผล
+    if (model !== readStoredModel()) lastResolvedModel = "";
     writeStoredModel(model);
     aiKeyRejectedMessage = "";
     renderAiKeyState();
@@ -2075,17 +2100,21 @@ document.querySelector("#analysisChatForm").addEventListener("submit", async (ev
   result.classList.remove("empty-analysis");
   result.innerHTML = `${evidenceMarkup}<article class="chat-message user-message"><span>คำถามของคุณ</span><p>${escapeHTML(userPrompt)}</p></article><article class="chat-message assistant-message loading-message"><span>AI Business Analyst</span><p>กำลังอ่านข้อมูลในระบบและตรวจตัวเลขที่เกี่ยวข้อง...</p></article>`;
 
+  const requestedModel = currentAnalysisModel();
   try {
-    // เรียกผู้ให้บริการตรงจากเบราว์เซอร์ด้วย key ของผู้ใช้ (ADR-001 ข้อ 4.2)
-    // ทั้งข้อมูลธุรกิจและ key ไม่วิ่งผ่าน server ของเจ้าของระบบอีกต่อไป
+    // เรียกผ่านตัวส่งต่อของเราเองด้วย key ของผู้ใช้ (ADR-001 ภาคผนวก ก)
+    // key และข้อมูลธุรกิจวิ่งผ่าน Worker ระหว่างส่งต่อ แต่ไม่ถูกเก็บหรือ log ที่นั่น
+    // เพราะ OpenAI ไม่ส่ง CORS header ในคำตอบจริง เบราว์เซอร์จึงเรียกตรงไม่ได้
     const data = await callProvider(DEFAULT_PROVIDER_ID, apiKey, analysisPayload(userPrompt), {
-      model: currentAnalysisModel()
+      model: requestedModel
     });
     aiKeyRejectedMessage = "";
+    lastResolvedModel = data.model || "";
     document.querySelector("#analysisTitle").textContent = "ข้อเสนอจาก AI สำหรับธุรกิจนี้";
-    result.innerHTML = `${evidenceMarkup}<article class="chat-message user-message"><span>คำถามของคุณ</span><p>${escapeHTML(userPrompt)}</p></article><article class="chat-message assistant-message"><span>AI Business Analyst</span><p>${escapeHTML(data.analysis)}</p></article>`;
+    result.innerHTML = `${evidenceMarkup}<article class="chat-message user-message"><span>คำถามของคุณ</span><p>${escapeHTML(userPrompt)}</p></article><article class="chat-message assistant-message"><span>AI Business Analyst${modelBylineMarkup(requestedModel, lastResolvedModel)}</span><p>${escapeHTML(data.analysis)}</p></article>`;
     result.dataset.hasAnalysis = "true";
     status.textContent = "วิเคราะห์แล้ว";
+    renderAiKeyState();
   } catch (error) {
     // ข้อความไทยทุกกรณีมาจาก app/ai-provider.js ที่เดียว และแยกกันตามสาเหตุจริง
     // (key ผิดรูปแบบ / ถูกปฏิเสธ / ไม่มีสิทธิ์ใช้โมเดล / เครดิตหมด / เน็ตล่ม / ตอบว่าง)

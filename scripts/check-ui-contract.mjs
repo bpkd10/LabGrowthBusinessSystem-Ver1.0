@@ -201,4 +201,23 @@ assert.doesNotMatch(activeKeyRegion, /setItem/, "เส้นทาง 'วา�
 assert.match(html, /class="ai-key-trust"/, "ไม่พบคำอธิบายว่า key เดินทางไปไหนบ้าง");
 assert.match(html, /api\/ai-relay/, "คำอธิบายต้องบอกปลายทางที่ผู้ใช้ตรวจสอบเองได้ใน DevTools");
 
+// ── ต้องบอกชื่อโมเดลที่ถูกเรียกใช้จริง ────────────────────────────────────
+//
+// callProvider คืน data.model ซึ่งเป็นชื่อที่ผู้ให้บริการใช้จริง เดิมค่านี้ถูกทิ้งทั้งหมด
+// หน้าจอจึงแสดงแต่ชื่อที่ผู้ใช้พิมพ์ ทั้งที่ OpenAI แปลงชื่อย่อเป็นรุ่นลงวันที่
+// ("gpt-5.6-sol" → "gpt-5.6-sol-2026-05-14") ผู้ใช้จึงเข้าใจผิดว่ารู้ว่ากำลังใช้โมเดลอะไร
+// และเปรียบเทียบคำตอบข้ามช่วงเวลาบนสมมติฐานที่ผิด
+assert.match(appJs, /lastResolvedModel = data\.model/, "ชื่อโมเดลที่ผู้ให้บริการใช้จริงถูกทิ้ง ไม่ได้ถูกนำมาแสดง");
+assert.match(appJs, /function modelBylineMarkup/, "ไม่พบป้ายบอกโมเดลที่ใช้จริงในคำตอบ");
+assert.match(appJs, /function modelStatusText/, "แถบสถานะยังไม่บอกโมเดลที่ใช้จริง");
+assert.match(appJs, /ผู้ให้บริการใช้ \$\{escapeHTML\(resolved\)\}/, "เมื่อชื่อที่ระบุกับชื่อที่ใช้จริงไม่ตรงกัน ต้องแสดงทั้งคู่ ไม่ใช่แสดงอันเดียว");
+
+// คอมเมนต์ที่บอกว่าข้อมูลไม่วิ่งผ่าน server เป็นเท็จตั้งแต่มี relay (ADR ภาคผนวก ก)
+// คอมเมนต์ที่ขัดกับความจริงอันตรายกว่าไม่มีคอมเมนต์ เพราะคนอ่านจะเชื่อแล้วตัดสินใจผิด
+assert.doesNotMatch(
+  appJs,
+  /ไม่วิ่งผ่าน server ของเจ้าของระบบ/,
+  "พบคำอธิบายที่ขัดกับสถาปัตยกรรมจริง — key และข้อมูลวิ่งผ่าน Worker ตั้งแต่มีตัวส่งต่อแล้ว"
+);
+
 console.log(`UI contract passed: ${requiredHtmlContracts.length} DOM contracts and reversible workflows are present`);
