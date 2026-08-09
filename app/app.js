@@ -6,12 +6,12 @@ import {
   updateProductAcrossState,
   detachProductRelations,
   createZeroState
-} from "./business-workflows.js?v=22";
+} from "./business-workflows.js?v=23";
 import {
   parseImportFile,
   buildImportPlan,
   applyImportPlan
-} from "./data-import.js?v=22";
+} from "./data-import.js?v=23";
 import {
   DEFAULT_MODEL,
   DEFAULT_PROVIDER_ID,
@@ -20,15 +20,18 @@ import {
   maskApiKey,
   providerErrorMessage,
   validateKeyFormat
-} from "./ai-provider.js?v=22";
+} from "./ai-provider.js?v=23";
 // ข้อมูลโดเมนและค่าคงที่ย้ายไป business-config.js ส่วนตรรกะ state ย้ายไป state-model.js
 // เพื่อให้ทั้งสองส่วนทดสอบได้ใน Node โดยไม่ต้องมี DOM (scripts/check-app-model.mjs)
 import {
   AI_KEY_STORAGE_KEY,
   AI_MODEL_STORAGE_KEY,
+  BACKUP_REMINDER_DAYS,
+  BACKUP_STORAGE_KEY,
   REVENUE_TARGET,
   STORAGE_KEY,
   VALID_VIEWS,
+  VIEW_STORAGE_KEY,
   avatarPresets,
   businessCatalogs,
   businessCategories,
@@ -49,12 +52,13 @@ import {
   seedData,
   taskStatusLabels,
   taskStatuses
-} from "./business-config.js?v=22";
-import { buildInsightReport } from "./business-insights.js?v=22";
-import { downloadReport } from "./report-export.js?v=22";
+} from "./business-config.js?v=23";
+import { buildInsightReport } from "./business-insights.js?v=23";
+import { downloadReport } from "./report-export.js?v=23";
 import {
   alignCustomerType,
   clone,
+  compareToPrevious,
   computeMetrics,
   countBy,
   currency,
@@ -65,12 +69,14 @@ import {
   loadStateFrom,
   normalizeState,
   percent,
+  recordSnapshot,
   revenueTargetOf,
+  thaiMonthLabel,
   sumDealsBySource as sumDealsBySourceOf,
   todayIso as today,
   uid,
   validIsoDate
-} from "./state-model.js?v=22";
+} from "./state-model.js?v=23";
 
 let state = loadStateFrom(localStorage, STORAGE_KEY);
 
@@ -84,12 +90,22 @@ let analysisInFlight = false;
 let resetStep = 1;
 let resetExported = false;
 let importSession = null;
+// สำเนาข้อความดิบที่เราเป็นคนเขียนลง localStorage ล่าสุด ใช้เทียบตอนแท็บอื่นแก้ข้อมูล
+// เพื่อแยกให้ออกว่า event ที่ได้รับมาจากการแก้จริง หรือเป็นเสียงสะท้อนของเราเอง
+let lastKnownStorageValue = localStorage.getItem(STORAGE_KEY);
+let staleTabWarned = false;
 
 function saveState() {
   try {
     state.meta = { ...(state.meta || {}), updatedAt: new Date().toISOString() };
+    // บันทึกสรุปตัวเลขของเดือนปัจจุบันทุกครั้งที่มีการแก้ข้อมูล ทับรายการเดิม
+    // ของเดือนเดียวกัน แอปนี้ไม่มีเซิร์ฟเวอร์ที่จะรันงานตามเวลาให้ ประวัติจึงต้อง
+    // เกิดจากการใช้งานปกติเท่านั้น เก็บแค่ตัวเลขสรุปจึงแทบไม่กระทบขนาดไฟล์
+    state.history = recordSnapshot(state);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     persistedStateSnapshot = clone(state);
+    lastKnownStorageValue = localStorage.getItem(STORAGE_KEY);
+    renderBackupReminder();
     return true;
   } catch {
     state = normalizeState(clone(persistedStateSnapshot));
@@ -97,6 +113,77 @@ function saveState() {
     renderAll();
     notify("บันทึกข้อมูลไม่สำเร็จ พื้นที่จัดเก็บของ browser อาจเต็ม");
     return false;
+  }
+}
+
+// กันสองแท็บเขียนทับกันเงียบ ๆ
+//
+// state ทั้งก้อนถูกบันทึกเป็นข้อความเดียว การบันทึกจึงเป็นการเขียนทับทั้งหมดเสมอ
+// ถ้าเปิดแอปไว้สองแท็บ แท็บที่กดบันทึกทีหลังจะลบงานของอีกแท็บทิ้งโดยไม่มีใครรู้
+// เบราว์เซอร์ยิง event "storage" ให้เฉพาะแท็บอื่น ไม่ยิงให้แท็บที่เป็นคนเขียน
+// จึงใช้เป็นสัญญาณได้ตรง ๆ ว่ามีคนแก้ข้อมูลชุดเดียวกันอยู่ที่อื่น
+//
+// เลือกเตือนแทนที่จะรวมข้อมูลอัตโนมัติ เพราะการรวมผิดทำให้ข้อมูลธุรกิจเพี้ยน
+// แบบที่ผู้ใช้ไม่มีทางรู้ ส่วนการเตือนแล้วให้ผู้ใช้ตัดสินใจเองนั้นผิดพลาดไม่ได้
+window.addEventListener("storage", (event) => {
+  if (event.key !== STORAGE_KEY || event.newValue === null) return;
+  if (event.newValue === lastKnownStorageValue) return;
+  lastKnownStorageValue = event.newValue;
+  if (staleTabWarned) return;
+  staleTabWarned = true;
+  document.querySelector("#staleTabWarning")?.removeAttribute("hidden");
+  // ตั้งใจไม่ใช้ปุ่มใน toast เพราะปุ่มนั้นผูกกับกลไก "เลิกทำ" ซึ่งจะเรียก saveState
+  // ต่อทันที = เขียนข้อมูลเก่าของแท็บนี้ทับงานของแท็บอื่น ซึ่งตรงข้ามกับที่ต้องการ
+  notify("ข้อมูลถูกแก้ไขจากแท็บอื่น หน้านี้จึงไม่ใช่ข้อมูลล่าสุดแล้ว");
+});
+
+document.addEventListener("click", (event) => {
+  if (!event.target.closest("#staleTabReload")) return;
+  location.reload();
+});
+
+function lastBackupDate() {
+  try {
+    return localStorage.getItem(BACKUP_STORAGE_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function markBackupTaken() {
+  try {
+    localStorage.setItem(BACKUP_STORAGE_KEY, today());
+  } catch {
+    // storage ถูกปิดอยู่ ผู้ใช้ยังส่งออกไฟล์ได้ตามปกติ แค่จำวันที่ให้ไม่ได้
+  }
+  renderBackupReminder();
+}
+
+function daysSinceBackup() {
+  const last = lastBackupDate();
+  if (!last) return null;
+  const diff = (Date.parse(today()) - Date.parse(last)) / 86400000;
+  return Number.isFinite(diff) ? Math.max(0, Math.round(diff)) : null;
+}
+
+// เตือนสำรองข้อมูล — ไม่ใช่ฟีเจอร์เสริม แต่เป็นทางรอดเดียวของผู้ใช้
+// ข้อมูลอยู่ใน localStorage ของเครื่องเขาเท่านั้น ล้าง browser หรือเปลี่ยนเครื่อง
+// แล้วข้อมูลหายถาวร ไม่มีใครกู้คืนให้ได้รวมถึงผู้ดูแลระบบ
+function renderBackupReminder() {
+  const banner = document.querySelector("#backupReminder");
+  if (!banner) return;
+  const message = document.querySelector("#backupReminderText");
+  const days = daysSinceBackup();
+  const hasData = state.customers.length > 0 || state.deals.length > 0;
+  if (!hasData || (days !== null && days < BACKUP_REMINDER_DAYS)) {
+    banner.hidden = true;
+    return;
+  }
+  banner.hidden = false;
+  if (message) {
+    message.textContent = days === null
+      ? "ยังไม่เคยสำรองข้อมูล — ข้อมูลทั้งหมดอยู่ในเบราว์เซอร์เครื่องนี้เท่านั้น ถ้าล้าง browser จะหายถาวรและกู้คืนให้ไม่ได้"
+      : `สำรองข้อมูลครั้งล่าสุดเมื่อ ${days} วันก่อน ควรส่งออกไฟล์เก็บไว้อีกครั้ง`;
   }
 }
 
@@ -182,7 +269,7 @@ function customerOffer(customer) {
 }
 
 function iconMarkup(name, className = "ui-icon") {
-  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=22#${escapeHTML(name)}"></use></svg>`;
+  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=23#${escapeHTML(name)}"></use></svg>`;
 }
 
 document.querySelector("#toastUndo").addEventListener("click", () => {
@@ -735,6 +822,62 @@ function insightList(items) {
   return `<ul class="insight-list">${items.join("")}</ul>`;
 }
 
+// ตัวชี้วัดที่ "มากขึ้น = ดีขึ้น" กับตัวที่กลับด้าน ต้องแยกกันให้ชัด
+// งานค้างเพิ่มขึ้น 40% ไม่ใช่ข่าวดี การใช้สีเขียวกับทุกลูกศรขึ้นคือการโกหกผู้ใช้
+const TREND_METRICS = [
+  ["revenue", "รายได้ปิดแล้ว", "money", "up"],
+  ["pipelineValue", "มูลค่า Pipeline", "money", "up"],
+  ["customers", "ลูกค้าทั้งหมด", "count", "up"],
+  ["wonDeals", "ดีลที่ปิดได้", "count", "up"],
+  ["conversionRate", "อัตราปิดการขาย", "percent", "up"],
+  ["overdueTasks", "งานเกินกำหนด", "count", "down"]
+];
+
+function trendValueText(value, format) {
+  if (format === "money") return currency(value);
+  if (format === "percent") return `${value}%`;
+  return String(value);
+}
+
+function renderTrend() {
+  const grid = document.querySelector("#trendGrid");
+  const reason = document.querySelector("#trendReason");
+  if (!grid) return;
+  const comparison = compareToPrevious(state);
+  if (reason) reason.textContent = comparison.reason;
+  if (!comparison.available) {
+    // ตั้งใจไม่แสดง 0% ตอนไม่มีข้อมูล เพราะผู้ใช้จะอ่านว่า "ทรงตัว" ซึ่งไม่จริง
+    grid.innerHTML = `<div class="empty-state">ระบบเริ่มเก็บสรุปรายเดือนให้แล้วตั้งแต่วันนี้ พอขึ้นเดือนใหม่จะเทียบให้อัตโนมัติโดยไม่ต้องตั้งค่าอะไร</div>`;
+    return;
+  }
+  grid.innerHTML = TREND_METRICS.map(([key, label, format, goodDirection]) => {
+    const change = comparison.changes[key];
+    if (!change) return "";
+    const flat = change.diff === 0;
+    const rising = change.diff > 0;
+    const good = flat ? null : (goodDirection === "up") === rising;
+    const tone = flat ? "flat" : good ? "good" : "bad";
+    const arrow = flat ? "→" : rising ? "▲" : "▼";
+    // ตัวชี้วัดที่เป็นเปอร์เซ็นต์อยู่แล้วต้องบอกส่วนต่างเป็น "จุด" ไม่ใช่เปอร์เซ็นต์ของ
+    // เปอร์เซ็นต์ ไม่งั้น 25% → 20% จะขึ้นว่า -20% ซึ่งคนอ่านแยกไม่ออกว่าหมายถึงอะไร
+    //
+    // ส่วนกรณีเพิ่มจากศูนย์คำนวณเปอร์เซ็นต์ไม่ได้ จึงบอกส่วนต่างจริงแทน
+    // เพราะ "งานเกินกำหนดเพิ่ม 2 รายการ" มีความหมายกว่าคำว่า "เริ่มมีข้อมูล"
+    const sign = change.diff > 0 ? "+" : "";
+    const percentText = format === "percent"
+      ? `${sign}${Math.round(change.diff * 10) / 10} จุด`
+      : change.percent === null
+        ? (flat ? "เท่าเดิม" : `${sign}${trendValueText(change.diff, format)} จาก 0`)
+        : `${sign}${change.percent}%`;
+    return `<article class="trend-card trend-card--${tone}">
+      <span class="trend-label">${escapeHTML(label)}</span>
+      <strong class="trend-value">${escapeHTML(trendValueText(change.after, format))}</strong>
+      <span class="trend-delta">${arrow} ${escapeHTML(percentText)}</span>
+      <small class="trend-before">เดือนก่อน ${escapeHTML(trendValueText(change.before, format))}</small>
+    </article>`;
+  }).join("");
+}
+
 function renderInsights() {
   const container = document.querySelector("#insightCards");
   if (!container) return;
@@ -846,7 +989,10 @@ document.querySelector("#exportReport")?.addEventListener("click", async (event)
 });
 
 function renderAll() {
+  renderTrend();
   renderInsights();
+  renderBackupReminder();
+  renderFieldSuggestions();
   renderDashboard();
   renderCustomers();
   renderCrm();
@@ -881,13 +1027,43 @@ function renderPackageOptions() {
 }
 
 function renderCustomerTypeOptions() {
-  const mode = currentBusinessMode();
-  const select = document.querySelector("#customerTypeSelect");
-  const selected = select.value;
-  document.querySelector("#customerTypeLabel").textContent = mode.customerTypeLabel;
-  select.innerHTML = mode.customerTypes.map((item) =>
-    `<option value="${escapeHTML(item)}" ${selected === item ? "selected" : ""}>${escapeHTML(item)}</option>`
-  ).join("");
+  document.querySelector("#customerTypeLabel").textContent = currentBusinessMode().customerTypeLabel;
+  renderFieldSuggestions();
+}
+
+// รวมตัวเลือกแนะนำของฟิลด์ป้ายกำกับจาก 2 แหล่ง: ค่าตั้งต้นที่ระบบเตรียมไว้
+// กับค่าที่ผู้ใช้เคยพิมพ์เองในข้อมูลจริงของเขา
+//
+// แหล่งที่สองสำคัญกว่า เพราะทำให้ค่าที่ผู้ใช้คิดขึ้นเองครั้งแรกกลายเป็นตัวเลือก
+// ในครั้งถัดไปโดยอัตโนมัติ ผู้ใช้จึงไม่ต้องพิมพ์ซ้ำและไม่พิมพ์เพี้ยนจนกลายเป็น
+// คนละกลุ่มในรายงาน เพราะ "Facebook" กับ "Facebook " จะถูกนับแยกกันทันที
+function suggestionMarkup(values) {
+  return [...new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, "th"))
+    .map((value) => `<option value="${escapeHTML(value)}"></option>`)
+    .join("");
+}
+
+function renderFieldSuggestions() {
+  const sourceList = document.querySelector("#sourceOptions");
+  if (sourceList) {
+    sourceList.innerHTML = suggestionMarkup([...contactSources, ...state.customers.map((customer) => customer.source)]);
+  }
+  const typeList = document.querySelector("#customerTypeOptions");
+  if (typeList) {
+    typeList.innerHTML = suggestionMarkup([...currentBusinessMode().customerTypes, ...state.customers.map((customer) => customer.customerType)]);
+  }
+  const categoryList = document.querySelector("#productCategoryOptions");
+  if (categoryList) {
+    categoryList.innerHTML = suggestionMarkup([...productCategories, ...state.products.map((product) => product.category)]);
+  }
+}
+
+// ค่าที่ผู้ใช้พิมพ์เองต้องตัดช่องว่างหัวท้ายเสมอ ไม่งั้น "Facebook " กับ "Facebook"
+// จะกลายเป็นสองช่องทางในรายงานวิเคราะห์การตลาด ซึ่งผู้ใช้มองไม่เห็นสาเหตุเลย
+function cleanLabel(value, fallback = "") {
+  const text = String(value ?? "").trim().replace(/\s+/g, " ");
+  return text || fallback;
 }
 
 function renderAvatarOptions() {
@@ -951,6 +1127,13 @@ function showView(route, options = {}) {
   document.querySelector("#pageAction").textContent = actionLabel;
   document.querySelector("#pageAction").dataset.target = actionTarget;
   const nextRoute = view === "dashboard" ? `dashboard/${activeRole}` : view;
+  // จำไว้ที่นี่เพราะ history.pushState ไม่ยิง event hashchange การดักที่ hashchange
+  // อย่างเดียวจึงพลาดทุกครั้งที่ผู้ใช้กดเมนู ซึ่งเป็นวิธีเปลี่ยนหน้าหลักของแอป
+  try {
+    localStorage.setItem(VIEW_STORAGE_KEY, nextRoute);
+  } catch {
+    // storage ถูกปิดอยู่ ผู้ใช้ยังสลับมุมมองได้ตามปกติ แค่จำข้ามรอบให้ไม่ได้
+  }
   if (options.historyMode !== "none") {
     const method = options.historyMode === "replace" || location.hash === `#${nextRoute}` ? "replaceState" : "pushState";
     history[method](null, "", `#${nextRoute}`);
@@ -1100,9 +1283,9 @@ const recordConfigs = {
     collection: "customers",
     fields: [
       ["fullName", "ชื่อลูกค้า", "text"], ["phone", "เบอร์โทร", "text"],
-      ["source", "ช่องทางที่มา", "select", contactSources],
+      ["source", "ช่องทางที่มา", "combo", contactSources],
       ["avatarPreset", "Avatar ตามประเภทธุรกิจ", "select", Object.keys(avatarPresets)],
-      ["customerType", "ประเภทลูกค้า", "select", []],
+      ["customerType", "ประเภทลูกค้า", "combo", []],
       ["solutionPackageId", "ข้อเสนอที่สนใจ", "select", []], ["interest", "ความต้องการ", "text"]
     ]
   },
@@ -1118,7 +1301,7 @@ const recordConfigs = {
   },
   product: {
     title: "แก้ไขแพ็กเกจ/บริการ", collection: "products",
-    fields: [["name", "ชื่อเฉพาะของสินค้า/ข้อเสนอ", "text"], ["category", "ประเภท", "select", productCategories], ["businessMode", "รูปแบบธุรกิจใน Pipeline", "select", Object.keys(businessModes)], ["businessCategory", "หมวดธุรกิจ", "select", Object.keys(businessCategories)], ["pipelineStage", "เสนอในขั้น Pipeline", "select", dealStages], ["price", "ราคาขาย", "number"], ["cost", "ต้นทุน", "number"], ["description", "รายละเอียด Package", "text"], ["recommendationReason", "เหตุผลที่ควรแนะนำ", "text"], ["status", "สถานะ", "select", ["active", "inactive"]]]
+    fields: [["name", "ชื่อเฉพาะของสินค้า/ข้อเสนอ", "text"], ["category", "ประเภท", "combo", productCategories], ["businessMode", "รูปแบบธุรกิจใน Pipeline", "select", Object.keys(businessModes)], ["businessCategory", "หมวดธุรกิจ", "select", Object.keys(businessCategories)], ["pipelineStage", "เสนอในขั้น Pipeline", "select", dealStages], ["price", "ราคาขาย", "number"], ["cost", "ต้นทุน", "number"], ["description", "รายละเอียด Package", "text"], ["recommendationReason", "เหตุผลที่ควรแนะนำ", "text"], ["status", "สถานะ", "select", ["active", "inactive"]]]
   },
   deal: {
     title: "แก้ไขดีลธุรกิจ", collection: "deals",
@@ -1142,6 +1325,18 @@ function recordFieldMarkup([name, label, type, options], record) {
         return `<option value="${escapeHTML(optionValue)}" ${String(value) === String(optionValue) ? "selected" : ""}>${escapeHTML(optionLabel)}</option>`;
       }).join("");
     return `<label>${escapeHTML(label)}<select name="${escapeHTML(name)}">${optionMarkup}</select></label>`;
+  }
+  // combo = พิมพ์เองได้ พร้อมรายการแนะนำ ใช้กับฟิลด์ป้ายกำกับเท่านั้น
+  //
+  // ถ้าหน้าต่างแก้ไขยังเป็น select อยู่ ค่าที่ผู้ใช้พิมพ์เองตอนสร้างจะหายทันทีที่กด
+  // แก้ไข เพราะ select แสดงค่าที่ไม่มีใน option ไม่ได้ แล้วจะบันทึกค่าแรกกลับไปแทน
+  if (type === "combo") {
+    const listId = `combo-${name}`;
+    const suggestions = [...new Set([...(options || []), String(value ?? "")].map((item) => String(item ?? "").trim()).filter(Boolean))];
+    return `<label>${escapeHTML(label)}
+      <input name="${escapeHTML(name)}" list="${escapeHTML(listId)}" value="${escapeHTML(value)}" autocomplete="off" required>
+      <datalist id="${escapeHTML(listId)}">${suggestions.map((item) => `<option value="${escapeHTML(item)}"></option>`).join("")}</datalist>
+    </label>`;
   }
   return `<label>${escapeHTML(label)}<input name="${escapeHTML(name)}" type="${escapeHTML(type)}" value="${escapeHTML(value)}" ${type === "number" ? "min=\"0\"" : ""} required></label>`;
 }
@@ -1214,7 +1409,11 @@ document.querySelector("#recordForm").addEventListener("submit", (event) => {
   config.fields.forEach(([name, , fieldType]) => {
     if (name === "solutionPackageId") return;
     const value = values.get(name);
-    changes[name] = fieldType === "number" ? Number(value) : String(value || "").trim();
+    changes[name] = fieldType === "number"
+      ? Number(value)
+      : fieldType === "combo"
+        ? cleanLabel(value, record[name])
+        : String(value || "").trim();
   });
   if (form.dataset.recordType === "product") {
     state = updateProductAcrossState(state, record.id, changes);
@@ -1263,12 +1462,12 @@ document.querySelector("#customerForm").addEventListener("submit", async (event)
     id: customerId,
     fullName: form.get("fullName").trim(),
     phone: form.get("phone").trim() || "-",
-    source: form.get("source"),
+    source: cleanLabel(form.get("source"), "ไม่ระบุช่องทาง"),
     solutionPackageId: selectedOffer?.id || "",
     solutionPackage: selectedOffer?.name || "ยังไม่เลือกข้อเสนอ",
     customerType: selectedOffer?.businessMode && selectedOffer.businessMode !== state.businessProfile.businessMode
       ? selectedOfferMode.customerTypes[0]
-      : form.get("customerType"),
+      : cleanLabel(form.get("customerType"), currentBusinessMode().customerTypes[0]),
     businessMode: selectedOffer?.businessMode || state.businessProfile.businessMode,
     businessCategory: selectedOffer?.businessCategory || state.businessProfile.businessCategory,
     interest: form.get("interest").trim(),
@@ -1298,7 +1497,7 @@ document.querySelector("#productForm").addEventListener("submit", (event) => {
   state.products.push({
     id: uid("p"),
     name: form.get("name").trim(),
-    category: form.get("category"),
+    category: cleanLabel(form.get("category"), "Package"),
     price: Number(form.get("price")),
     cost: Number(form.get("cost")),
     status: "active",
@@ -1909,7 +2108,8 @@ function exportStateData() {
   link.download = `business-growth-data-${today()}.json`;
   link.click();
   URL.revokeObjectURL(url);
-  notify("ส่งออกข้อมูลเป็นไฟล์ JSON แล้ว");
+  markBackupTaken();
+  notify("ส่งออกข้อมูลเป็นไฟล์ JSON แล้ว เก็บไฟล์นี้ไว้ให้ดี เป็นสำเนาเดียวที่กู้คืนได้");
   return true;
 }
 
@@ -2056,7 +2256,7 @@ function openImportReview(parsed, file) {
     ? '<option value="0">ข้อมูลสำรองทั้งระบบ</option>'
     : parsed.sheets.map((sheet, index) => `<option value="${index}">${escapeHTML(sheet.name)} · ${sheet.rows.length} แถว</option>`).join("");
   sheetSelect.disabled = parsed.kind === "state" || parsed.sheets.length <= 1;
-  document.querySelector("#importFileSummary").innerHTML = `<span><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=22#clipboard"></use></svg><strong>${escapeHTML(file.name)}</strong></span><span>${escapeHTML(parsed.format.toUpperCase())}</span><span>${escapeHTML(`${Math.max(1, Math.ceil(file.size / 1024))} KB`)}</span>`;
+  document.querySelector("#importFileSummary").innerHTML = `<span><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=23#clipboard"></use></svg><strong>${escapeHTML(file.name)}</strong></span><span>${escapeHTML(parsed.format.toUpperCase())}</span><span>${escapeHTML(`${Math.max(1, Math.ceil(file.size / 1024))} KB`)}</span>`;
   refreshImportPlan();
   document.querySelector("#importDialog").showModal();
 }
@@ -2126,7 +2326,23 @@ function setDefaultDueDate() {
   input.value = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 }
 
+document.querySelector("#backupReminderExport").addEventListener("click", exportStateData);
+
+// จำมุมมองที่เปิดค้างไว้ล่าสุด
+//
+// ลิงก์ที่มี hash ต้องชนะเสมอ เพราะผู้ใช้ที่กดลิงก์ "ดูมุมมองฝ่ายขาย" ที่เพื่อนส่งมา
+// ตั้งใจจะเปิดมุมมองนั้นจริง ๆ ไม่ใช่มุมมองที่ตัวเองเปิดค้างไว้เมื่อวาน
+function rememberedRoute() {
+  if (location.hash.length > 1) return location.hash.slice(1);
+  try {
+    const saved = localStorage.getItem(VIEW_STORAGE_KEY) || "";
+    return VALID_VIEWS.includes(String(saved).split("/")[0]) ? saved : "dashboard/owner";
+  } catch {
+    return "dashboard/owner";
+  }
+}
+
 setDefaultDueDate();
 renderAll();
 renderAiKeyState();
-showView(location.hash.slice(1) || "dashboard/owner", { historyMode: "replace" });
+showView(rememberedRoute(), { historyMode: "replace" });

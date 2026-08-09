@@ -5,7 +5,7 @@
 // ถ้าเผลอใส่โค้ดที่แตะ browser API เข้ามา ชุดตรวจจะพังทันที ไม่ใช่ไปพังตอน runtime
 
 // ต้องประกาศไว้บนสุดเพราะ seedData ด้านล่างอ้างค่านี้ตอน evaluate module
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 export const businessModes = {
   online: {
@@ -284,3 +284,27 @@ export const AI_KEY_STORAGE_KEY = "bgc-ai-key";
 export const AI_MODEL_STORAGE_KEY = "bgc-ai-model";
 export const REVENUE_TARGET = 100000;
 export const VALID_VIEWS = ["dashboard", "customers", "crm", "products", "deals", "tasks", "insights", "ai"];
+
+// มุมมองที่ผู้ใช้เปิดค้างไว้ล่าสุด เก็บแยกจาก STORAGE_KEY เพราะเป็นการตั้งค่าหน้าจอ
+// ของเครื่องนั้น ไม่ใช่ข้อมูลธุรกิจ จึงไม่ควรติดไปกับไฟล์ที่ผู้ใช้ส่งออกให้คนอื่น
+export const VIEW_STORAGE_KEY = "bgc-last-view";
+
+// วันที่บันทึกสำรองข้อมูลครั้งล่าสุด — ใช้เตือนผู้ใช้ว่าถึงเวลาสำรองอีกครั้ง
+// ต้องอยู่นอก STORAGE_KEY ด้วยเหตุผลเดียวกัน ถ้าอยู่ข้างในไฟล์สำรองจะพก
+// "วันที่สำรองล่าสุด" ข้ามเครื่องไปด้วย ทำให้เครื่องปลายทางเข้าใจผิดว่าสำรองแล้ว
+export const BACKUP_STORAGE_KEY = "bgc-last-backup";
+
+// ข้อมูลอยู่ใน localStorage ของผู้ใช้เท่านั้น ไม่มีเซิร์ฟเวอร์สำรองให้ (ADR-001 ข้อ 4)
+// ล้าง browser = ข้อมูลหายถาวรและกู้คืนให้ไม่ได้ 7 วันจึงเป็นระยะที่เตือนถี่พอ
+// จะไม่เสียงานเกินหนึ่งสัปดาห์ แต่ไม่ถี่จนผู้ใช้เลิกสนใจคำเตือน
+export const BACKUP_REMINDER_DAYS = 7;
+
+// เก็บสรุปตัวเลขรายเดือนไว้ 24 เดือน เพื่อให้เทียบ "เดือนนี้กับเดือนก่อน" และ
+// "ปีนี้กับปีที่แล้วเดือนเดียวกัน" ได้ เก็บเฉพาะตัวเลขสรุป ไม่เก็บข้อมูลดิบ
+// 24 รายการกินพื้นที่ไม่ถึง 5 KB จึงไม่กระทบเพดาน localStorage
+export const HISTORY_MONTH_LIMIT = 24;
+
+export const thaiMonthLabels = [
+  "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+  "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."
+];

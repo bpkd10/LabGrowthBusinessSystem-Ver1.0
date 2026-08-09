@@ -3166,3 +3166,89 @@ body[data-business-mode="retail"] .journey-icon { background: #fff0d7; color: #9
   font-size: 0.85rem;
   color: var(--muted);
 }
+
+/* ── แบนเนอร์เตือน: แท็บซ้อน และการสำรองข้อมูล ─────────────────────────────
+   ทั้งสองอันเตือนเรื่องข้อมูลหาย จึงต้องเห็นชัดก่อนเนื้อหาอื่นแต่ไม่บังการทำงาน
+   ใช้ role="alert"/"status" ใน HTML แล้ว screen reader จึงอ่านให้เองตอนโผล่ */
+.alert-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 18px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.alert-banner p { margin: 0; flex: 1; font-size: 0.92rem; line-height: 1.5; }
+.alert-banner .alert-banner-icon { display: inline-flex; }
+.alert-banner .ui-icon { width: 20px; height: 20px; }
+.alert-banner--danger { border-color: var(--danger); background: #fff1f0; color: #6b1a12; }
+.alert-banner--danger .alert-banner-icon { color: var(--danger); }
+.alert-banner--warn { border-color: var(--brand-orange); background: var(--brand-soft); color: #6a3200; }
+.alert-banner--warn .alert-banner-icon { color: var(--brand-orange-aa); }
+
+/* ── เทียบกับเดือนก่อนหน้า ───────────────────────────────────────────────
+   สีบอกว่า "ดีขึ้นหรือแย่ลง" ไม่ใช่ "ขึ้นหรือลง" งานค้างที่เพิ่มขึ้นจึงเป็นสีแดง
+   ทั้งที่ลูกศรชี้ขึ้น ลูกศรกับข้อความจึงต้องมาคู่กันเสมอ ห้ามสื่อด้วยสีอย่างเดียว */
+.trend-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 20px 22px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow);
+}
+.trend-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.trend-head h3 { margin: 2px 0 0; font-size: 1.1rem; }
+.trend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+.trend-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  border-left-width: 4px;
+  background: var(--bg);
+}
+.trend-card--good { border-left-color: var(--success); }
+.trend-card--bad { border-left-color: var(--danger); }
+.trend-card--flat { border-left-color: var(--muted); }
+.trend-label { font-size: 0.82rem; color: var(--muted); }
+.trend-value { font-size: 1.28rem; line-height: 1.2; }
+.trend-delta { font-size: 0.9rem; font-weight: 600; }
+.trend-card--good .trend-delta { color: var(--success); }
+.trend-card--bad .trend-delta { color: var(--danger); }
+.trend-card--flat .trend-delta { color: var(--muted); }
+.trend-before { color: var(--muted); font-size: 0.78rem; }
+
+/* ฟิลด์ป้ายกำกับที่พิมพ์เองได้ ต้องดูเหมือน select เดิมเพื่อไม่ให้ผู้ใช้สับสน
+   ว่าเป็นคนละชนิดของช่องกรอก ทั้งที่ทำหน้าที่เดียวกันในฟอร์มเดียวกัน */
+.entry-form input[list],
+#recordFields input[list] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font: inherit;
+  color: inherit;
+}
+.entry-form input[list]:focus-visible,
+#recordFields input[list]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}

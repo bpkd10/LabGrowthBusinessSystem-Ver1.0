@@ -10,14 +10,20 @@
 import assert from "node:assert/strict";
 import {
   alignCustomerType,
+  captureSnapshot,
   clone,
+  compareToPrevious,
   computeMetrics,
   countBy,
   escapeHTML,
   initials,
   loadStateFrom,
+  monthKey,
+  normalizeOfferCategory,
   normalizeState,
+  recordSnapshot,
   revenueTargetOf,
+  thaiMonthLabel,
   sumDealsBySource,
   validIsoDate
 } from "../app/state-model.js";
@@ -25,7 +31,9 @@ import {
   businessCatalogs,
   businessModes,
   dealStages,
+  HISTORY_MONTH_LIMIT,
   leadStatuses,
+  SCHEMA_VERSION,
   seedData,
   taskStatuses,
   AI_KEY_STORAGE_KEY,
@@ -127,7 +135,7 @@ check("วันที่พังใน meta ถูกแทนด้วยเ�
 
 check("normalizeState ตั้ง schemaVersion ปัจจุบันและเติมฟิลด์ที่ขาดให้ทุกลูกค้า", () => {
   const state = normalizeState(clone(seedData));
-  assert.equal(state.schemaVersion, 8);
+  assert.equal(state.schemaVersion, SCHEMA_VERSION);
   for (const customer of state.customers) {
     assert.ok(customer.customerType, `ลูกค้า ${customer.id} ไม่มี customerType`);
     assert.ok(businessModes[customer.businessMode], `ลูกค้า ${customer.id} มี businessMode ที่ไม่รู้จัก`);
@@ -159,19 +167,30 @@ check("มูลค่าดีลตั้งต้นตรงกับรา�
   }
 });
 
-check("normalizeState แปลงหมวดสินค้าที่ไม่รู้จักให้เป็นหมวดที่ระบบรองรับ", () => {
+// เส้นแบ่งของทั้งระบบ: ฟิลด์ "ป้ายกำกับ" ผู้ใช้ตั้งเองได้ ส่วนฟิลด์ "โครงสร้าง"
+// ที่ระบบใช้คำนวณต้องคงที่เสมอ ถ้าเส้นนี้เลือน หน้าจอทุกหน้าจะเชื่อมกันไม่ได้
+check("ประเภทข้อเสนอที่ผู้ใช้ตั้งเองต้องถูกเก็บไว้ตามที่พิมพ์ ไม่ถูกดันกลับเป็น Package", () => {
   const input = clone(seedData);
-  input.products = [{ id: "p9", name: "อะไรสักอย่าง", category: "totally-unknown", price: 100, cost: 10, pipelineStage: "ไม่มีขั้นนี้" }];
+  input.products = [{ id: "p9", name: "อะไรสักอย่าง", category: "งานรับจ้างผลิต", price: 100, cost: 10, pipelineStage: "ไม่มีขั้นนี้" }];
   const state = normalizeState(input);
-  assert.equal(state.products[0].category, "Package");
-  assert.equal(state.products[0].pipelineStage, "Proposal", "pipelineStage ที่ไม่รู้จักต้องถูกดันกลับเป็นค่าที่ปลอดภัย");
+  assert.equal(state.products[0].category, "งานรับจ้างผลิต", "ค่าที่ผู้ใช้พิมพ์เองถูกเขียนทับ ฟิลด์นี้จึงยืดหยุ่นไม่จริง");
+  assert.equal(state.products[0].pipelineStage, "Proposal", "pipelineStage เป็นฟิลด์โครงสร้าง ต้องถูกดันกลับเป็นค่าที่ปลอดภัยเสมอ");
 });
 
-check("customerType ที่ไม่ตรงกับ Business Mode ถูกดึงกลับเป็นค่าแรกของ mode นั้น", () => {
-  const aligned = alignCustomerType({ businessMode: "wholesale", customerType: "ลูกค้า VIP" });
-  assert.equal(aligned.customerType, businessModes.wholesale.customerTypes[0]);
+check("ประเภทข้อเสนอภาษาอังกฤษรุ่นเก่ายังถูกแปลงเป็นคำไทย และค่าว่างได้ค่าตั้งต้น", () => {
+  assert.equal(normalizeOfferCategory("consulting"), "บริการ");
+  assert.equal(normalizeOfferCategory("Course"), "สินค้า");
+  assert.equal(normalizeOfferCategory("   "), "Package", "ค่าว่างต้องได้ค่าตั้งต้น ไม่ใช่ปล่อยให้ประเภทหายไป");
+  assert.equal(normalizeOfferCategory("คอร์สออนไลน์"), "คอร์สออนไลน์");
+});
+
+check("ประเภทลูกค้าที่ผู้ใช้ตั้งเองต้องอยู่รอด และค่าว่างเท่านั้นที่ได้ค่าตั้งต้น", () => {
+  const custom = alignCustomerType({ businessMode: "wholesale", customerType: "ดีลเลอร์ภาคเหนือ" });
+  assert.equal(custom.customerType, "ดีลเลอร์ภาคเหนือ", "กลุ่มลูกค้าที่ผู้ใช้ตั้งเองถูกเขียนทับ");
   const kept = alignCustomerType({ businessMode: "wholesale", customerType: "Key Account" });
-  assert.equal(kept.customerType, "Key Account", "ค่าที่ถูกต้องอยู่แล้วต้องไม่ถูกเปลี่ยน");
+  assert.equal(kept.customerType, "Key Account");
+  const empty = alignCustomerType({ businessMode: "wholesale", customerType: "  " });
+  assert.equal(empty.customerType, businessModes.wholesale.customerTypes[0], "ค่าว่างต้องได้กลุ่มตั้งต้น ไม่ใช่ปล่อยให้ลูกค้าไม่มีกลุ่ม");
 });
 
 console.log("\nการคำนวณ KPI:");
@@ -313,6 +332,104 @@ check("ลบ Package แล้วลูกค้าไม่หายไปด�
   for (const deal of after.deals) {
     assert.notEqual(deal.productId, target.id, `ดีล ${deal.id} ยังชี้ไปยัง Package ที่ถูกลบแล้ว`);
   }
+});
+
+console.log("\nประวัติรายเดือนและการเทียบงวด:");
+
+// ระบบชื่อ Growth System แต่เดิมบอกได้แค่ "วันนี้เป็นยังไง" ไม่ใช่ "ดีขึ้นหรือแย่ลง"
+// เพราะ saveState เขียนทับ state ทั้งก้อนทุกครั้งโดยไม่เก็บประวัติเลย
+// ชุดตรวจนี้ล็อกพฤติกรรมของประวัติไว้ เพราะมันคือแกนของคุณค่าที่เพิ่มเข้ามา
+const historyBase = loadStateFrom({ getItem: () => null }, "unused");
+
+check("monthKey และ thaiMonthLabel แปลงวันที่เป็นเดือนไทยได้ถูกต้อง", () => {
+  assert.equal(monthKey("2026-08-09"), "2026-08");
+  assert.equal(thaiMonthLabel("2026-08"), "ส.ค. 2569", "ต้องแปลงเป็น พ.ศ. เพราะทั้งระบบใช้ภาษาไทย");
+});
+
+check("snapshot เก็บเฉพาะตัวเลขสรุป ไม่มีข้อมูลส่วนบุคคลติดไปด้วย", () => {
+  const snapshot = captureSnapshot(historyBase, "2026-08-09");
+  const serialized = JSON.stringify(snapshot);
+  for (const customer of historyBase.customers) {
+    assert.ok(!serialized.includes(customer.fullName), `snapshot มีชื่อลูกค้า ${customer.fullName} ติดไปด้วย`);
+    if (customer.phone && customer.phone !== "-") {
+      assert.ok(!serialized.includes(customer.phone), `snapshot มีเบอร์โทร ${customer.phone} ติดไปด้วย`);
+    }
+  }
+  assert.equal(snapshot.revenue, computeMetrics(historyBase, "2026-08-09").revenue);
+});
+
+check("บันทึกซ้ำในเดือนเดียวกันต้องทับรายการเดิม ไม่ใช่เพิ่มรายการใหม่", () => {
+  let state = clone(historyBase);
+  state.history = recordSnapshot(state, "2026-08-01");
+  state.history = recordSnapshot(state, "2026-08-20");
+  assert.equal(state.history.length, 1, "เดือนเดียวกันต้องมีรายการเดียว ไม่งั้นประวัติจะบวมตามจำนวนครั้งที่กดบันทึก");
+  assert.equal(state.history[0].capturedAt, "2026-08-20", "ต้องเก็บค่าล่าสุดของเดือนที่ยังไม่จบ");
+});
+
+check("ขึ้นเดือนใหม่แล้วรายการของเดือนก่อนหยุดนิ่ง ไม่ถูกเขียนทับย้อนหลัง", () => {
+  let state = clone(historyBase);
+  state.history = recordSnapshot(state, "2026-07-15");
+  const julyRevenue = state.history[0].revenue;
+  state.deals.push({ id: "dx", customerId: state.customers[0].id, productId: "", name: "ดีลใหม่", value: 99000, stage: "Won", probability: 100 });
+  state.history = recordSnapshot(state, "2026-08-09");
+  assert.equal(state.history.length, 2);
+  assert.equal(state.history[0].month, "2026-07");
+  assert.equal(state.history[0].revenue, julyRevenue, "ตัวเลขของเดือนที่ผ่านไปแล้วต้องไม่เปลี่ยน ไม่งั้นเทียบงวดไม่มีความหมาย");
+  assert.equal(state.history[1].revenue, julyRevenue + 99000);
+});
+
+check("ยังไม่มีเดือนก่อนหน้าต้องบอกว่าเทียบไม่ได้ ห้ามแสดงเป็น 0%", () => {
+  const state = clone(historyBase);
+  state.history = recordSnapshot(state, "2026-08-09");
+  const comparison = compareToPrevious(state, "2026-08-09");
+  assert.equal(comparison.available, false, "มีแค่เดือนปัจจุบันจึงเทียบไม่ได้");
+  assert.deepEqual(comparison.changes, {}, "ห้ามคืนตัวเลขเปลี่ยนแปลงที่คิดขึ้นเอง");
+  assert.ok(comparison.reason.length > 10);
+});
+
+check("เทียบงวดคำนวณส่วนต่างและเปอร์เซ็นต์ถูกต้อง", () => {
+  let state = clone(historyBase);
+  state.history = recordSnapshot(state, "2026-07-15");
+  const before = state.history[0].revenue;
+  state.deals.push({ id: "dy", customerId: state.customers[0].id, productId: "", name: "ดีลเพิ่ม", value: before, stage: "Won", probability: 100 });
+  state.history = recordSnapshot(state, "2026-08-09");
+  const comparison = compareToPrevious(state, "2026-08-09");
+  assert.equal(comparison.available, true);
+  assert.equal(comparison.changes.revenue.before, before);
+  assert.equal(comparison.changes.revenue.after, before * 2);
+  assert.equal(comparison.changes.revenue.percent, 100, "รายได้เพิ่มเท่าตัวต้องได้ +100%");
+  assert.match(comparison.reason, /ก\.ค\./, "ต้องบอกผู้ใช้ว่ากำลังเทียบกับเดือนไหน");
+});
+
+check("เพิ่มจากศูนย์ต้องคืน percent เป็น null ไม่ใช่ Infinity", () => {
+  const state = clone(historyBase);
+  state.history = [{ month: "2026-07", capturedAt: "2026-07-31", revenue: 0, pipelineValue: 0, totalLeads: 0, openDeals: 0, conversionRate: 0, pendingTasks: 0, overdueTasks: 0, customers: 0, wonDeals: 0 }];
+  const comparison = compareToPrevious(state, "2026-08-09");
+  assert.equal(comparison.changes.revenue.percent, null, "หารด้วยศูนย์ต้องไม่หลุดออกไปเป็น Infinity ให้ผู้ใช้เห็น");
+  assert.ok(comparison.changes.revenue.diff > 0);
+});
+
+check("normalizeState เก็บประวัติไว้ข้ามการโหลด และทิ้งรายการที่รูปแบบเดือนผิด", () => {
+  const input = clone(seedData);
+  input.history = [
+    { month: "2026-07", revenue: 1000 },
+    { month: "พังแน่", revenue: 9999 },
+    { month: "2026-06", revenue: 500 }
+  ];
+  const state = normalizeState(input);
+  assert.equal(state.history.length, 2, "รายการที่เดือนผิดรูปแบบต้องถูกทิ้ง ไม่งั้นกราฟเทียบงวดเพี้ยน");
+  assert.deepEqual(state.history.map((item) => item.month), ["2026-06", "2026-07"], "ต้องเรียงตามเดือนเสมอ");
+});
+
+check("ประวัติถูกจำกัดไม่ให้โตไม่สิ้นสุดจนกิน localStorage", () => {
+  let state = clone(historyBase);
+  for (let year = 2020; year <= 2026; year += 1) {
+    for (let month = 1; month <= 12; month += 1) {
+      state.history = recordSnapshot(state, `${year}-${String(month).padStart(2, "0")}-05`);
+    }
+  }
+  assert.ok(state.history.length <= HISTORY_MONTH_LIMIT, `ประวัติโตถึง ${state.history.length} รายการ เกินเพดานที่ตั้งไว้`);
+  assert.equal(state.history.at(-1).month, "2026-12", "ต้องเก็บรายการล่าสุดไว้ ไม่ใช่ตัดท้ายทิ้ง");
 });
 
 console.log(`\nApp model passed: ${passed} behaviour assertions`);

@@ -104,6 +104,6 @@ for (const match of css.matchAll(/url\(["']?([^"')]+)["']?\)/g)) {
   if (route.startsWith("/")) assert.ok(ASSET_FILES[route], `CSS อ้าง Asset ${route} ที่ไม่มีใน manifest`);
 }
 
-assert.equal(ASSET_VERSION, "22", "ต้องเพิ่ม Asset Version หลังแก้ UI/Logo/Icon เพื่อป้องกัน cache เก่า");
+assert.equal(ASSET_VERSION, "23", "ต้องเพิ่ม Asset Version หลังแก้ UI/Logo/Icon เพื่อป้องกัน cache เก่า");
 
 console.log(`Asset contract passed: ${requiredRoutes.length} required routes, ${referencedSymbols.size} referenced vector symbols, version ${ASSET_VERSION}`);

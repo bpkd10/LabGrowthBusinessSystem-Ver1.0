@@ -10,12 +10,16 @@
 
 import {
   buildInsightReport
-} from "./business-insights.js?v=22";
+} from "./business-insights.js?v=23";
 import {
   dealStageLabels,
   leadStatusLabels,
   taskStatusLabels
-} from "./business-config.js?v=22";
+} from "./business-config.js?v=23";
+import {
+  compareToPrevious,
+  thaiMonthLabel
+} from "./state-model.js?v=23";
 
 // สีจาก CI เดียวกับ app/styles.css — ExcelJS ใช้รูปแบบ ARGB จึงต้องเติม FF นำหน้า
 const BRAND = {
@@ -37,6 +41,18 @@ const BRAND = {
 const MONEY = "#,##0 \"บาท\"";
 const PERCENT = "0.0\"%\"";
 
+// ตัวชี้วัดในชีตเทียบงวด พร้อมทิศทางที่ถือว่า "ดี" ของแต่ละตัว
+// งานเกินกำหนดเป็นตัวเดียวที่ลดลงแล้วดี ถ้าไม่แยกไว้ รายงานจะทาสีเขียวให้ข่าวร้าย
+const TREND_ROWS = [
+  ["revenue", "รายได้ที่ปิดได้แล้ว", "money", "up"],
+  ["pipelineValue", "มูลค่า Pipeline", "money", "up"],
+  ["customers", "จำนวนลูกค้า", "count", "up"],
+  ["totalLeads", "จำนวน Lead", "count", "up"],
+  ["wonDeals", "ดีลที่ปิดได้", "count", "up"],
+  ["conversionRate", "อัตราปิดการขาย", "percent", "up"],
+  ["overdueTasks", "งานที่เลยกำหนด", "count", "down"]
+];
+
 // โหลด ExcelJS ตอนกดปุ่มดาวน์โหลดเท่านั้น ไม่โหลดพร้อมหน้าเว็บ
 //
 // ไฟล์นี้ใหญ่ 925 KB ถ้าใส่เป็น <script> ในหน้าจะถ่วงเวลาเปิดแอปของทุกคน
@@ -50,7 +66,7 @@ function loadExcelJS() {
 
   excelJsLoader = new Promise((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = "/vendor/exceljs.min.js?v=22";
+    script.src = "/vendor/exceljs.min.js?v=23";
     script.onload = () => {
       if (globalThis.ExcelJS?.Workbook) resolve(globalThis.ExcelJS);
       else reject(new Error("โหลดตัวสร้างไฟล์ Excel ได้ แต่ไลบรารีไม่พร้อมใช้งาน กรุณารีเฟรชหน้าเว็บแล้วลองใหม่"));
@@ -205,7 +221,59 @@ export async function buildReportWorkbook(state, referenceDate) {
   noteRow.getCell(1).alignment = { wrapText: true, vertical: "top" };
   noteRow.height = 32;
 
-  // ---------- ชีต 2: คิวติดตาม ----------
+  // ---------- ชีต 2: เทียบกับเดือนก่อน ----------
+  //
+  // วางไว้เป็นชีตที่สองเพราะคำถามแรกของคนอ่านรายงานคือ "ดีขึ้นหรือแย่ลง"
+  // ไม่ใช่ "ตอนนี้เท่าไร" ตัวเลขสถานะที่ไม่มีทิศทางกำกับตัดสินใจอะไรไม่ได้
+  const trend = workbook.addWorksheet("เทียบกับเดือนก่อน", { properties: { tabColor: { argb: BRAND.orange } } });
+  const comparison = compareToPrevious(state, referenceDate);
+  styleTitle(trend, "ทิศทางเทียบกับเดือนก่อนหน้า", comparison.reason, 6);
+
+  if (!comparison.available) {
+    // ยังเทียบไม่ได้ แต่ยังต้องมีหัวตารางและตรึงแถวเหมือนชีตอื่น เพื่อให้รายงานที่
+    // ผู้ใช้ส่งต่อดูเป็นชุดเดียวกัน ไม่ใช่มีชีตหนึ่งที่หน้าตาหลุดจากที่เหลือ
+    addTable(
+      trend,
+      ["ตัวชี้วัด", "เดือนก่อน", "เดือนนี้", "เปลี่ยนแปลง", "คิดเป็น %", "อ่านว่า"],
+      TREND_ROWS.map(([key, label]) => [label, "—", comparison.current[key], "—", "—", "ยังไม่มีเดือนก่อนให้เทียบ"]),
+      [30, 22, 22, 18, 14, 24]
+    );
+  } else {
+    // อ่านว่า "ดีขึ้น/แย่ลง" ไม่ใช่ "เพิ่ม/ลด" เพราะงานเกินกำหนดที่เพิ่มขึ้นคือข่าวร้าย
+    // และรายงานที่ให้คนอ่านตีความทิศทางเองคือรายงานที่ยังทำงานไม่เสร็จ
+    const trendRows = TREND_ROWS.map(([key, label, , goodDirection]) => {
+      const change = comparison.changes[key];
+      const flat = change.diff === 0;
+      const good = flat ? null : (goodDirection === "up") === (change.diff > 0);
+      return [
+        label,
+        change.before,
+        change.after,
+        change.diff,
+        change.percent === null ? "—" : change.percent,
+        flat ? "เท่าเดิม" : good ? "ดีขึ้น" : "แย่ลง"
+      ];
+    });
+    addTable(
+      trend,
+      ["ตัวชี้วัด", `เดือนก่อน (${thaiMonthLabel(comparison.previous.month)})`, `เดือนนี้ (${thaiMonthLabel(comparison.current.month)})`, "เปลี่ยนแปลง", "คิดเป็น %", "อ่านว่า"],
+      trendRows,
+      [30, 22, 22, 18, 14, 14],
+      (values) => (values[5] === "ดีขึ้น" ? "good" : values[5] === "แย่ลง" ? "bad" : "")
+    );
+    for (const column of [2, 3, 4]) {
+      trend.getColumn(column).numFmt = MONEY;
+    }
+    // อัตราปิดการขายเป็นเปอร์เซ็นต์ ไม่ใช่เงิน จึงต้องล้างรูปแบบเงินของทั้งคอลัมน์
+    // ออกเฉพาะแถวนั้น ไม่งั้นจะอ่านว่า "12 บาท" ทั้งที่หมายถึง 12%
+    const conversionRowIndex = TREND_ROWS.findIndex(([key]) => key === "conversionRate");
+    if (conversionRowIndex >= 0) {
+      const row = trend.getRow(trend.rowCount - TREND_ROWS.length + 1 + conversionRowIndex);
+      for (const column of [2, 3, 4]) row.getCell(column).numFmt = PERCENT;
+    }
+  }
+
+  // ---------- ชีต 3: คิวติดตาม ----------
   const queue = workbook.addWorksheet("คิวติดตาม", { properties: { tabColor: { argb: BRAND.orange } } });
   styleTitle(queue, "Lead ที่ควรติดตามก่อน", report.callQueue.reason, 9);
   addTable(

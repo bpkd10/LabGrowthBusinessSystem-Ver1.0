@@ -139,4 +139,43 @@ assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*animation
 assert.doesNotMatch(css, /transition:\s*width\b/, "ยังพบ transition: width ซึ่งทำให้ layout animation ไม่ลื่น");
 assert.doesNotMatch(css, /border-left:\s*[2-9]px\s+solid\s+var\(--accent\)/, "ยังพบ Side-stripe Accent Pattern");
 
+// ── เส้นแบ่ง "ป้ายกำกับ" กับ "โครงสร้าง" ───────────────────────────────────
+//
+// ฟิลด์ป้ายกำกับ (ช่องทาง ประเภทลูกค้า ประเภทข้อเสนอ) ผู้ใช้ตั้งชื่อเองได้
+// ส่วนฟิลด์โครงสร้าง (ขั้น Pipeline สถานะ Lead สถานะงาน ความสำคัญ รูปแบบธุรกิจ)
+// ต้องเป็นรายการปิดเสมอ เพราะ Journey ศูนย์วิเคราะห์ และรายงาน Excel คำนวณจากค่าพวกนี้
+// ถ้าวันหนึ่งมีคนเปิดให้พิมพ์เอง หน้าจอทุกหน้าจะเชื่อมความหมายกันไม่ได้อีก
+// และตัวเลขในรายงานจะเงียบ ๆ ผิดโดยไม่มีอะไรพัง ซึ่งจับได้ยากที่สุด
+const STRUCTURAL_FIELDS = ["stage", "pipelineStage", "status", "priority", "businessMode", "businessCategory"];
+const recordConfigBlock = appJs.match(/const recordConfigs = \{[\s\S]*?\n\};/)?.[0] || "";
+assert.ok(recordConfigBlock, "ไม่พบ recordConfigs ใน app.js");
+for (const field of STRUCTURAL_FIELDS) {
+  const pattern = new RegExp(`\\["${field}",[^\\]]*"combo"`);
+  assert.doesNotMatch(
+    recordConfigBlock,
+    pattern,
+    `ฟิลด์ "${field}" เป็นฟิลด์โครงสร้างที่ระบบใช้คำนวณ ห้ามเปลี่ยนเป็น combo ให้ผู้ใช้พิมพ์เอง`
+  );
+}
+for (const field of ["source", "customerType", "category"]) {
+  const pattern = new RegExp(`\\["${field}",[^\\]]*"combo"`);
+  assert.match(
+    recordConfigBlock,
+    pattern,
+    `ฟิลด์ "${field}" เป็นป้ายกำกับ ต้องเปิดให้ผู้ใช้พิมพ์ค่าของตัวเองได้ในหน้าต่างแก้ไขด้วย`
+  );
+}
+// หน้าต่างแก้ไขต้องเป็น combo ให้ตรงกับฟอร์มเพิ่มใหม่ ไม่งั้นค่าที่ผู้ใช้พิมพ์เอง
+// จะหายทันทีที่กดแก้ไข เพราะ select แสดงค่าที่ไม่มีใน option ไม่ได้
+assert.match(html, /input name="source" list="sourceOptions"/, "ฟอร์มเพิ่มลูกค้ายังใช้ dropdown ปิดสำหรับช่องทางที่มา");
+assert.match(html, /<datalist id="sourceOptions">/, "ไม่พบรายการแนะนำช่องทางที่มา");
+assert.match(appJs, /function renderFieldSuggestions/, "ไม่พบตัวเติมรายการแนะนำจากข้อมูลจริงของผู้ใช้");
+
+// กันข้อมูลหาย: สองความเสี่ยงเดียวที่ทำให้ผู้ใช้เสียงานจริงเมื่อไม่มีเซิร์ฟเวอร์สำรอง
+assert.match(appJs, /addEventListener\("storage"/, "ยังไม่มีตัวดักการแก้ข้อมูลจากแท็บอื่น สองแท็บจะเขียนทับกันเงียบ ๆ");
+assert.match(html, /id="staleTabWarning"/, "ไม่พบแบนเนอร์เตือนว่าข้อมูลถูกแก้จากแท็บอื่น");
+assert.match(html, /id="backupReminder"/, "ไม่พบแบนเนอร์เตือนสำรองข้อมูล");
+assert.match(appJs, /markBackupTaken\(\)/, "ส่งออกข้อมูลแล้วต้องจำวันที่สำรองล่าสุดไว้");
+
+
 console.log(`UI contract passed: ${requiredHtmlContracts.length} DOM contracts and reversible workflows are present`);

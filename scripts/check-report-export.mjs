@@ -26,10 +26,14 @@ function check(label, run) {
 }
 
 const state = loadStateFrom({ getItem: () => null }, STORAGE_KEY);
+
+// ชีตวิเคราะห์คือชีตที่มักถูกส่งต่อให้ทีมหรือที่ปรึกษา ต่างจาก 4 ชีตท้ายที่เป็นข้อมูลดิบ
+const ANALYSIS_SHEETS = ["สรุปผู้บริหาร", "เทียบกับเดือนก่อน", "คิวติดตาม", "ข้อเสนอและกำไร", "ช่องทางการตลาด", "Customer Journey", "งานค้างและความเสี่ยง"];
 const { workbook, report } = await buildReportWorkbook(state, "2026-08-09");
 
 const EXPECTED_SHEETS = [
   "สรุปผู้บริหาร",
+  "เทียบกับเดือนก่อน",
   "คิวติดตาม",
   "ข้อเสนอและกำไร",
   "ช่องทางการตลาด",
@@ -97,7 +101,7 @@ check("รายงานไม่มีเบอร์โทรของลู�
   const phones = state.customers.map((customer) => customer.phone).filter(Boolean);
   // ชีต "ข้อมูลลูกค้า" มีเบอร์โทรโดยตั้งใจ เพราะเป็นสำเนาข้อมูลของเจ้าของเอง
   // แต่ชีตวิเคราะห์ที่มักถูกส่งต่อให้ทีมหรือที่ปรึกษาไม่ควรมี
-  const analysisSheets = EXPECTED_SHEETS.slice(0, 6);
+  const analysisSheets = ANALYSIS_SHEETS;
   for (const name of analysisSheets) {
     const sheet = workbook.getWorksheet(name);
     let text = "";
@@ -109,11 +113,52 @@ check("รายงานไม่มีเบอร์โทรของลู�
 });
 
 check("ทุกชีตวิเคราะห์อธิบายที่มาของตัวเลขไว้ใต้หัวเรื่อง", () => {
-  for (const name of EXPECTED_SHEETS.slice(0, 6)) {
+  for (const name of ANALYSIS_SHEETS) {
     const sheet = workbook.getWorksheet(name);
     const subtitle = String(sheet.getRow(2).getCell(1).value ?? "").trim();
     assert.ok(subtitle.length > 10, `ชีต ${name} ไม่มีคำอธิบายที่มาของตัวเลข`);
   }
+});
+
+// ชีตเทียบงวดของ state ตั้งต้นเดินเส้นทาง "ยังไม่มีเดือนก่อน" ซึ่งไม่ได้พิสูจน์ว่า
+// การเทียบจริงทำงาน จึงต้องสร้าง state ที่มีประวัติแล้วตรวจตัวเลขที่ออกมาอีกชุด
+const { recordSnapshot, clone } = await import("../app/state-model.js");
+const withHistory = clone(state);
+withHistory.history = recordSnapshot(withHistory, "2026-07-15");
+const julyRevenue = withHistory.history[0].revenue;
+withHistory.deals.push({ id: "dz", customerId: withHistory.customers[0].id, productId: "", name: "ดีลเดือนนี้", value: 50000, stage: "Won", probability: 100 });
+const trendBook = (await buildReportWorkbook(withHistory, "2026-08-09")).workbook;
+
+check("ชีตเทียบงวดแสดงตัวเลขเดือนก่อน เดือนนี้ และส่วนต่างได้ถูกต้อง", () => {
+  const sheet = trendBook.getWorksheet("เทียบกับเดือนก่อน");
+  let revenueRow = null;
+  sheet.eachRow((row) => {
+    if (String(row.getCell(1).value ?? "").includes("รายได้ที่ปิดได้แล้ว")) revenueRow = row;
+  });
+  assert.ok(revenueRow, "ไม่พบแถวรายได้ในชีตเทียบงวด");
+  assert.equal(revenueRow.getCell(2).value, julyRevenue, "ตัวเลขเดือนก่อนไม่ตรงกับ snapshot ที่บันทึกไว้");
+  assert.equal(revenueRow.getCell(3).value, julyRevenue + 50000, "ตัวเลขเดือนนี้ไม่ตรงกับข้อมูลปัจจุบัน");
+  assert.equal(revenueRow.getCell(4).value, 50000, "ส่วนต่างคำนวณผิด");
+  assert.equal(revenueRow.getCell(6).value, "ดีขึ้น", "รายได้เพิ่มขึ้นต้องอ่านว่าดีขึ้น");
+});
+
+// สร้าง workbook ให้เสร็จก่อนเข้า check เพราะ check() เรียก run() แบบ synchronous
+// ถ้าปล่อย assertion ไว้ใน .then() มันจะกลายเป็น unhandled rejection แทนที่จะทำให้เทสต์แดง
+// ผลคือได้เทสต์ที่ "ผ่าน" ตลอดกาลไม่ว่าโค้ดจะถูกหรือผิด
+const worse = clone(state);
+worse.history = recordSnapshot(worse, "2026-07-15");
+worse.tasks.push({ id: "tz", title: "งานเลยกำหนด", owner: "ทีม", dueDate: "2026-01-01", priority: "High", status: "todo", customerId: worse.customers[0].id });
+const worseBook = (await buildReportWorkbook(worse, "2026-08-09")).workbook;
+
+check("งานเกินกำหนดที่เพิ่มขึ้นต้องอ่านว่าแย่ลง ไม่ใช่ทาสีเขียวให้ข่าวร้าย", () => {
+  const sheet = worseBook.getWorksheet("เทียบกับเดือนก่อน");
+  let overdueRow = null;
+  sheet.eachRow((row) => {
+    if (String(row.getCell(1).value ?? "").includes("งานที่เลยกำหนด")) overdueRow = row;
+  });
+  assert.ok(overdueRow, "ไม่พบแถวงานเกินกำหนด");
+  assert.equal(overdueRow.getCell(4).value, 1, "จำนวนงานเกินกำหนดที่เพิ่มขึ้นคำนวณผิด");
+  assert.equal(overdueRow.getCell(6).value, "แย่ลง");
 });
 
 const buffer = await workbook.xlsx.writeBuffer();
