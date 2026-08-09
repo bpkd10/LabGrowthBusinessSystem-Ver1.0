@@ -3252,3 +3252,36 @@ body[data-business-mode="retail"] .journey-icon { background: #fff0d7; color: #9
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
+
+/* คำอธิบายเส้นทางของ API key — ต้องอ่านง่ายกว่าคำเตือนทั่วไป เพราะเป็นสิ่งที่
+   ตัดสินว่าผู้ใช้จะกล้าวาง key หรือไม่ ไม่ใช่ข้อความกฎหมายที่ไว้ปัดความรับผิด */
+.ai-key-trust {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 10px 12px;
+  margin: 10px 0;
+}
+.ai-key-trust > summary {
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 0.9rem;
+}
+.ai-key-trust > summary span { color: var(--muted); font-size: 0.78rem; }
+.ai-key-trust-list { margin: 10px 0 0; padding-left: 20px; }
+.ai-key-trust-list li { font-size: 0.85rem; line-height: 1.6; margin-bottom: 6px; }
+.ai-key-trust-verify {
+  margin: 8px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--bg);
+}
+.ai-key-trust-verify code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.95em;
+}

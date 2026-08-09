@@ -375,10 +375,24 @@
                     <p id="aiModelHint" class="ai-key-hint">ถ้าบัญชีของคุณไม่มีสิทธิ์ใช้โมเดลนี้ ระบบจะแจ้งให้ทราบ ให้คัดลอกชื่อโมเดลที่บัญชีคุณเข้าถึงได้จากหน้า Models ของ OpenAI มาใส่แทน</p>
                   </div>
                   <div class="ai-key-actions">
-                    <button id="aiKeySave" class="ai-button" type="submit">บันทึกการตั้งค่า</button>
+                    <button id="aiKeySave" class="ai-button" type="submit">บันทึกไว้ใช้ครั้งต่อไป</button>
                     <button id="aiKeyClear" class="ghost-button ai-key-clear" type="button">ลบ key ออกจากเครื่องนี้</button>
                   </div>
+                  <p class="ai-key-hint">วาง key แล้วถามได้ทันที ไม่ต้องกดบันทึก — ปุ่มบันทึกมีไว้สำหรับคนที่ไม่อยากพิมพ์ใหม่ทุกครั้งเท่านั้น</p>
                   <p id="aiKeyStatus" class="ai-key-status" role="status" data-key-state="empty">ยังไม่ได้ตั้งค่า key</p>
+                  <!-- ความกังวลที่ผู้ใช้พูดออกมาจริงคือ "วาง key แล้วเจ้าของระบบจะได้ key ไปไหม"
+                       ตอบด้วยการบอกเส้นทางจริงทั้งเส้นและวิธีตรวจสอบเอง ไม่ใช่ด้วยคำรับรองลอย ๆ
+                       และต้องบอกข้อจำกัดตามจริงด้วย ว่าจุดไหนที่ยังต้องอาศัยความเชื่อใจ -->
+                  <details class="ai-key-trust">
+                    <summary><strong>key ของคุณเดินทางไปไหนบ้าง</strong><span>ตรวจสอบเองได้</span></summary>
+                    <ol class="ai-key-trust-list">
+                      <li><strong>อยู่ในเบราว์เซอร์ของคุณ</strong> ถ้าไม่กดบันทึก key จะอยู่แค่ในช่องกรอกของแท็บนี้ ปิดแท็บแล้วหายทันที ไม่ถูกเขียนลงเครื่องเลย</li>
+                      <li><strong>ส่งผ่านเซิร์ฟเวอร์ของระบบไปยัง OpenAI</strong> เพราะ OpenAI ไม่ยอมให้เบราว์เซอร์เรียกตรง ๆ ตัวส่งต่อไม่เก็บ ไม่บันทึก log และไม่มี key ของตัวเอง</li>
+                      <li><strong>ไม่มีฐานข้อมูลใดเก็บ key ไว้</strong> ระบบนี้ไม่มีฐานข้อมูลฝั่งเซิร์ฟเวอร์เลย ทั้งข้อมูลธุรกิจและ key</li>
+                    </ol>
+                    <p class="ai-key-trust-verify"><strong>ตรวจเอง:</strong> กด F12 → แท็บ Network → ส่งคำถาม จะเห็นคำขอออกไปที่ <code>/api/ai-relay</code> ของเว็บนี้เพียงรายการเดียว ไม่มีคำขอไปที่อื่น</p>
+                    <p class="ai-key-trust-verify"><strong>ข้อจำกัดตามจริง:</strong> เมื่อ key วิ่งผ่านเซิร์ฟเวอร์ คุณต้องเชื่อใจว่าเจ้าของระบบไม่ได้แอบบันทึกไว้ ถ้ายังไม่สบายใจ ให้สร้าง <em>Project API key</em> แยกเฉพาะแอปนี้ ตั้ง spend limit ไว้ต่ำ ๆ แล้วเพิกถอนทิ้งหลังใช้เสร็จ วิธีนี้ทำให้ความเสี่ยงสูงสุดของคุณเท่ากับวงเงินที่ตั้งไว้เท่านั้น</p>
+                  </details>
                   <p id="aiKeyWarning" class="ai-key-warning">key ที่เก็บไว้ในเบราว์เซอร์อ่านได้โดย JavaScript ทุกตัวที่รันบนหน้านี้ รวมถึงส่วนขยายของเบราว์เซอร์ แนะนำให้สร้าง Project API key แยกสำหรับแอปนี้ และตั้ง spend limit ไว้ใน OpenAI dashboard ถ้าใช้เครื่องร่วมกับคนอื่น อย่าติ๊ก “จำ key ไว้ในเครื่องนี้” และกดลบ key ก่อนออกจากเครื่อง</p>
                 </form>
                 <div>

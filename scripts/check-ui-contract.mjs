@@ -178,4 +178,27 @@ assert.match(html, /id="backupReminder"/, "ไม่พบแบนเนอร�
 assert.match(appJs, /markBackupTaken\(\)/, "ส่งออกข้อมูลแล้วต้องจำวันที่สำรองล่าสุดไว้");
 
 
+// ── วาง key แล้วต้องใช้ได้ทันที ────────────────────────────────────────────
+//
+// เดิมคำขอ AI อ่าน key จาก storage อย่างเดียว ผู้ใช้ที่วาง key แล้วถามทันทีจึงเจอ
+// "ยังไม่ได้ตั้งค่า key" ทั้งที่ key อยู่ตรงหน้า และไม่มีอะไรบอกว่าต้องกดบันทึกก่อน
+// เป็นทางตันที่ผู้ใช้หาสาเหตุเองไม่ได้ และทำให้คนที่ไม่อยากให้ key ถูกเก็บใช้งานไม่ได้เลย
+assert.match(appJs, /function activeApiKey\(\)/, "ไม่พบตัวเลือก key ที่ใช้กับคำขอ");
+assert.match(
+  appJs,
+  /function activeApiKey\(\)\s*\{\s*return typedKey\(\) \|\| readStoredKey\(\);/,
+  "key ที่ผู้ใช้วางไว้ต้องมาก่อน key ที่บันทึกไว้ ไม่งั้นวางแล้วใช้ไม่ได้"
+);
+const chatSubmitBlock = appJs.match(/#analysisChatForm"\)\.addEventListener\("submit",\s*async[\s\S]*?\n}\);/)?.[0] || "";
+assert.match(chatSubmitBlock, /activeApiKey\(\)/, "การส่งคำถามยังอ่าน key จาก storage อย่างเดียว ผู้ใช้ที่ไม่กดบันทึกจะใช้งานไม่ได้");
+assert.doesNotMatch(chatSubmitBlock, /const apiKey = readStoredKey\(\)/, "การส่งคำถามต้องไม่บังคับให้บันทึก key ก่อน");
+assert.match(appJs, /#aiKeyInput"\)\.addEventListener\("input"/, "ต้องอัปเดตสถานะทันทีที่วาง key ไม่งั้นปุ่มส่งยังดูเหมือนใช้ไม่ได้");
+
+// การใช้งานโดยไม่บันทึกต้องไม่แตะพื้นที่จัดเก็บของเครื่องเลย
+const activeKeyRegion = appJs.slice(appJs.indexOf("function typedKey()"), appJs.indexOf("function keyIsRemembered()"));
+assert.doesNotMatch(activeKeyRegion, /setItem/, "เส้นทาง 'วางแล้วใช้เลย' ต้องไม่เขียน key ลง storage");
+
+assert.match(html, /class="ai-key-trust"/, "ไม่พบคำอธิบายว่า key เดินทางไปไหนบ้าง");
+assert.match(html, /api\/ai-relay/, "คำอธิบายต้องบอกปลายทางที่ผู้ใช้ตรวจสอบเองได้ใน DevTools");
+
 console.log(`UI contract passed: ${requiredHtmlContracts.length} DOM contracts and reversible workflows are present`);

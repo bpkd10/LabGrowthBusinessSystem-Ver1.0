@@ -1774,6 +1774,23 @@ function readStoredKey() {
   }
 }
 
+// key ที่ผู้ใช้พิมพ์/วางไว้แต่ยังไม่ได้กดบันทึก
+//
+// เดิมค่านี้ถูกมองข้ามทั้งหมด ผู้ใช้ที่วาง key แล้วถามคำถามทันทีจะเจอ
+// "ยังไม่ได้ตั้งค่า key" ทั้งที่ key อยู่ตรงหน้าต่อตา ซึ่งเป็นทางตันที่หาสาเหตุเองไม่ได้
+function typedKey() {
+  return document.querySelector("#aiKeyInput")?.value.trim() || "";
+}
+
+// key ที่จะใช้กับคำขอรอบนี้ — ค่าที่พิมพ์ไว้ชนะค่าที่บันทึกไว้เสมอ
+//
+// เจตนาสำคัญ: ผู้ใช้ที่ไม่อยากให้ key ถูกเก็บที่ไหนเลย แค่วางแล้วใช้ได้ทันที
+// key จะอยู่ในช่องกรอกของแท็บนั้นเท่านั้น ไม่แตะ sessionStorage หรือ localStorage
+// ปิดแท็บแล้วหายทันทีโดยไม่ต้องกดลบอะไร
+function activeApiKey() {
+  return typedKey() || readStoredKey();
+}
+
 function keyIsRemembered() {
   try {
     return Boolean(localStorage.getItem(AI_KEY_STORAGE_KEY));
@@ -1859,21 +1876,28 @@ function renderAiKeyState() {
   if (!input || !statusNode || !analyzeButton) return;
 
   const storedKey = readStoredKey();
-  const hasKey = Boolean(storedKey);
+  const pendingKey = typedKey();
+  // ใช้งานได้ทันทีที่มี key ไม่ว่าจะบันทึกแล้วหรือแค่วางไว้ในช่อง
+  const hasKey = Boolean(storedKey || pendingKey);
+  const usingUnsavedKey = Boolean(pendingKey) && pendingKey !== storedKey;
   if (document.activeElement !== modelInput) modelInput.value = readStoredModel();
-  remember.checked = hasKey ? keyIsRemembered() : remember.checked;
-  clearButton.disabled = !hasKey;
+  remember.checked = storedKey ? keyIsRemembered() : remember.checked;
+  clearButton.disabled = !storedKey;
 
   // ค่าใน #aiKeyStatus ตั้งด้วย textContent เสมอ ห้ามใช้ innerHTML เพราะมีเศษของ key อยู่
   if (aiKeyRejectedMessage) {
     statusNode.dataset.keyState = "error";
     statusNode.textContent = aiKeyRejectedMessage;
+  } else if (usingUnsavedKey) {
+    // สถานะที่ปลอดภัยที่สุด และเป็นค่าตั้งต้นสำหรับคนที่ไม่อยากให้ key ถูกเก็บ
+    statusNode.dataset.keyState = "ready";
+    statusNode.textContent = `${maskApiKey(pendingKey)} · พร้อมใช้งานทันที ยังไม่ได้บันทึกลงเครื่อง ปิดแท็บแล้วหายเอง · โมเดล ${readStoredModel()}`;
   } else if (hasKey) {
     statusNode.dataset.keyState = "ready";
     statusNode.textContent = `${maskApiKey(storedKey)} · ${keyIsRemembered() ? "จำไว้ในเครื่องนี้จนกว่าจะกดลบ" : "ใช้ได้จนกว่าจะปิดแท็บนี้"} · โมเดล ${readStoredModel()}`;
   } else {
     statusNode.dataset.keyState = "empty";
-    statusNode.textContent = "ยังไม่ได้ตั้งค่า key — ใส่ key ของคุณแล้วกดบันทึกเพื่อเปิดใช้การวิเคราะห์";
+    statusNode.textContent = "ยังไม่ได้ตั้งค่า key — วาง key ของคุณในช่องด้านบนแล้วถามได้เลย ไม่ต้องกดบันทึก";
   }
 
   analyzeButton.disabled = !hasKey || analysisInFlight;
@@ -1891,6 +1915,13 @@ function renderAiKeyState() {
   }
 }
 
+// อัปเดตสถานะทันทีที่ผู้ใช้วาง key ปุ่มส่งคำถามจึงเปิดใช้งานเองโดยไม่ต้องกดบันทึก
+// ถ้าไม่มีบรรทัดนี้ ผู้ใช้จะวาง key แล้วเห็นปุ่มยังเป็นสีเทาอยู่ ซึ่งอ่านได้ว่า "ยังใช้ไม่ได้"
+document.querySelector("#aiKeyInput").addEventListener("input", () => {
+  aiKeyRejectedMessage = "";
+  renderAiKeyState();
+});
+
 document.querySelector("#aiKeyReveal").addEventListener("click", (event) => {
   const button = event.currentTarget;
   const input = document.querySelector("#aiKeyInput");
@@ -1907,11 +1938,11 @@ document.querySelector("#aiKeyForm").addEventListener("submit", (event) => {
   const input = document.querySelector("#aiKeyInput");
   const statusNode = document.querySelector("#aiKeyStatus");
   const remember = document.querySelector("#aiKeyRemember").checked;
-  const typedKey = input.value.trim();
+  const typedValue = input.value.trim();
   const model = (document.querySelector("#aiModelInput").value || "").trim() || DEFAULT_MODEL;
 
   // ผู้ใช้แก้เฉพาะชื่อโมเดลโดยไม่พิมพ์ key ใหม่ได้ ถ้ามี key เก็บไว้อยู่แล้ว
-  if (!typedKey && readStoredKey()) {
+  if (!typedValue && readStoredKey()) {
     writeStoredModel(model);
     aiKeyRejectedMessage = "";
     renderAiKeyState();
@@ -1919,7 +1950,7 @@ document.querySelector("#aiKeyForm").addEventListener("submit", (event) => {
     return;
   }
 
-  const format = validateKeyFormat(typedKey, DEFAULT_PROVIDER_ID);
+  const format = validateKeyFormat(typedValue, DEFAULT_PROVIDER_ID);
   if (!format.ok) {
     aiKeyRejectedMessage = format.message;
     renderAiKeyState();
@@ -1928,7 +1959,7 @@ document.querySelector("#aiKeyForm").addEventListener("submit", (event) => {
     return;
   }
 
-  if (!writeStoredKey(typedKey, remember)) {
+  if (!writeStoredKey(typedValue, remember)) {
     aiKeyRejectedMessage = "บันทึก key ไม่สำเร็จ เบราว์เซอร์ปิดการใช้งานพื้นที่จัดเก็บอยู่ กรุณาเปิด storage ของเว็บนี้แล้วบันทึกใหม่";
     renderAiKeyState();
     input.focus();
@@ -2018,7 +2049,7 @@ document.querySelector("#analysisChatForm").addEventListener("submit", async (ev
 
   // ปุ่มถูก disable อยู่แล้วเมื่อไม่มี key แต่ Enter ในช่องคำถามเรียก requestSubmit()
   // ได้โดยตรง จึงต้องกันซ้ำที่นี่ ไม่ปล่อยให้ยิงคำขอที่รู้อยู่แล้วว่าจะล้มเหลว
-  const apiKey = readStoredKey();
+  const apiKey = activeApiKey();
   if (!apiKey) {
     aiKeyRejectedMessage = providerErrorMessage("missing_key");
     renderAiKeyState();
