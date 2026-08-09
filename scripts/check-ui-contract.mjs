@@ -220,4 +220,24 @@ assert.doesNotMatch(
   "พบคำอธิบายที่ขัดกับสถาปัตยกรรมจริง — key และข้อมูลวิ่งผ่าน Worker ตั้งแต่มีตัวส่งต่อแล้ว"
 );
 
+// ── ต้องบอกผู้ใช้ว่ายังมีเนื้อหาเลื่อนต่อได้ ────────────────────────────────
+//
+// บนมือถือ เมนูหลักกว้าง 1032px บนจอ 343px และ scrollbar ถูกซ่อนด้วย
+// scrollbar-width: none ผู้ใช้จึงเห็นเมนู 3 จาก 8 รายการโดยไม่มีอะไรบอกว่ามีต่อ
+// เมนูที่มองไม่เห็นเท่ากับเมนูที่ไม่มีอยู่จริง
+assert.match(appJs, /function attachScrollHint/, "ไม่พบกลไกบอกว่าเนื้อหาเลื่อนต่อได้");
+assert.match(css, /\.scroll-hint\[data-overflow="both"\]::before/, "CSS ยังไม่แสดงลูกศรตามทิศที่เลื่อนได้");
+// ลูกศรต้องหายไปเมื่อเลื่อนสุดด้านนั้นแล้ว ไม่ใช่ค้างอยู่ตลอดจนคนเลิกสังเกต
+assert.match(appJs, /wrap\.dataset\.overflow = "none"/, "ต้องซ่อนลูกศรเมื่อไม่มีอะไรให้เลื่อน");
+assert.match(appJs, /atStart \? "end" : atEnd \? "start" : "both"/, "ต้องแยกทิศทางที่ยังเลื่อนได้ ไม่ใช่แสดงลูกศรสองข้างตลอด");
+// เมนูหลักเป็นตัวที่ล้นจริงบนมือถือ ถ้าหลุดจากรายการนี้เมื่อไรปัญหาเดิมกลับมาทันที
+assert.match(appJs, /scrollHintTargets = \[[^\]]*"\.nav"/, "เมนูหลักต้องอยู่ในรายการที่ได้ลูกศรบอกทิศ");
+// ResizeObserver กับ rAF ถูกหยุดเมื่อแท็บถูกซ่อน ต้องมีตัวสำรองไม่งั้นค่าค้าง
+assert.match(appJs, /setTimeout\(run, \d+\)/, "ต้องมีตัววัดซ้ำสำรอง เพราะ rAF หยุดทำงานเมื่อแท็บถูกซ่อน");
+
+// หัวหน้า AI ต้องไม่บีบหัวเรื่องจนตัดคำละบรรทัด
+assert.match(css, /\.ai-workspace-head \{[^}]*display: grid/, "หัวหน้า AI ต้องเป็นตาราง 2 แถว ไม่ใช่แถวเดียวที่ทุกกล่องแย่งพื้นที่กัน");
+assert.match(css, /\.ai-workspace-head \.ai-alternative-note \{[^}]*grid-column: 1 \/ -1/, "ย่อหน้าอธิบายต้องอยู่แถวล่างเต็มความกว้าง");
+assert.match(css, /\.ai-heading \{[^}]*min-width: 0/, "ขาด min-width: 0 หัวเรื่องจะถูกบีบจนตัดคำผิดที่");
+
 console.log(`UI contract passed: ${requiredHtmlContracts.length} DOM contracts and reversible workflows are present`);

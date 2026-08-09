@@ -1700,12 +1700,17 @@ tbody tr:hover {
   box-shadow: var(--shadow);
 }
 
+/* หัวของหน้า AI — จัดเป็นตาราง 2 แถวแทนที่จะเป็นแถวเดียว
+   เดิมทั้งสามกล่อง (โลโก้+ชื่อ, ป้ายขอบเขต, ย่อหน้าอธิบาย) แย่งพื้นที่แถวเดียวกัน
+   และป้ายขอบเขตตั้ง white-space: nowrap ไว้จึงไม่ยอมหด ผลคือหัวเรื่องถูกบีบ
+   เหลือกว้าง 58px สูง 208px = ตัดคำละบรรทัด อ่านไม่ได้
+   แถวบนจึงเหลือแค่ชื่อกับป้าย ส่วนย่อหน้ายาวย้ายลงแถวล่างเต็มความกว้าง */
 .ai-workspace-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 20px 24px;
+  gap: 12px 22px;
+  padding: 22px 24px;
   border-bottom: 1px solid #2d2d35;
   background: var(--ink);
   color: #fff;
@@ -1715,17 +1720,38 @@ tbody tr:hover {
   display: flex;
   align-items: center;
   gap: 18px;
+  /* จำเป็นกับ flex/grid item ที่มีข้อความยาว ถ้าไม่ใส่ ค่า min-width: auto
+     จะกันไม่ให้กล่องหดจนพอดีพื้นที่ แล้วดันข้อความให้ตัดคำผิดที่ */
+  min-width: 0;
 }
 
-.ai-heading .eyebrow { color: #ffb47d; }
-.ai-heading h2 { font-size: 19px; }
+.ai-heading > div { min-width: 0; }
+.ai-heading .eyebrow { color: #ffb47d; margin: 0; }
+.ai-heading h2 {
+  margin: 3px 0 0;
+  font-size: 21px;
+  line-height: 1.35;
+  /* กระจายคำให้แต่ละบรรทัดยาวใกล้เคียงกันเมื่อต้องตัดบรรทัด แทนที่จะเหลือคำเดียวท้าย */
+  text-wrap: balance;
+}
 
 .ai-brand-logo {
   display: block;
-  width: 142px;
+  width: 176px;
+  max-width: 40vw;
   height: auto;
+  flex: 0 0 auto;
   border-radius: 7px;
 }
+
+.ai-scope-note { justify-self: end; }
+.ai-workspace-head .ai-alternative-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  max-width: 78ch;
+  color: rgba(255, 255, 255, .72);
+}
+.ai-workspace-head .ai-alternative-note .link-button { color: #ff9b5c; }
 
 .ai-scope-note {
   display: inline-flex;
@@ -2149,14 +2175,23 @@ tbody tr:hover {
 }
 
 @media (max-width: 680px) {
-  .ai-workspace-head,
+  /* .ai-workspace-head เป็น grid แล้ว flex-direction จึงไม่มีผล ต้องยุบเป็นคอลัมน์เดียว */
+  .ai-workspace-head {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    padding: 18px;
+  }
+
   .ai-heading,
   .chat-composer-actions {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .ai-scope-note { width: fit-content; white-space: normal; }
+  .ai-heading { gap: 12px; }
+  .ai-brand-logo { width: 148px; max-width: 60vw; }
+  .ai-heading h2 { font-size: 19px; }
+  .ai-scope-note { justify-self: start; width: fit-content; white-space: normal; }
   .ai-chat-card,
   .ai-control-card { padding: 18px; }
   .chat-message { width: 96%; }
@@ -3295,4 +3330,108 @@ body[data-business-mode="retail"] .journey-icon { background: #fff0d7; color: #9
   background: rgba(180, 35, 24, 0.08);
   font-size: 0.85rem;
   line-height: 1.55;
+}
+
+/* ── สัญญาณว่ายังมีเนื้อหาเลื่อนต่อได้ ──────────────────────────────────────
+   บนมือถือ เมนู แถบมุมมอง และตาราง ถูกทำให้เลื่อนแนวนอนพร้อมซ่อน scrollbar
+   (scrollbar-width: none) ผู้ใช้จึงไม่มีทางรู้เลยว่ายังมีเมนูอีกครึ่งหนึ่งอยู่ทางขวา
+   เมนูกว้าง 1032px บนจอ 343px แต่ไม่มีอะไรบอก
+
+   ลูกศรโผล่เฉพาะด้านที่ยังเลื่อนไปได้จริง เลื่อนสุดด้านไหนลูกศรด้านนั้นหายไป
+   จึงเป็นข้อมูลเสมอ ไม่ใช่ของประดับที่ค้างอยู่ตลอดจนคนเลิกสังเกต */
+.scroll-hint {
+  position: relative;
+  min-width: 0;
+}
+
+.scroll-hint > * {
+  /* กัน scrollbar ของ macOS/Windows ดันความสูงจนเมนูกระตุกตอนลูกศรโผล่ */
+  scrollbar-width: none;
+}
+
+.scroll-hint > *::-webkit-scrollbar { display: none; }
+
+.scroll-hint::before,
+.scroll-hint::after {
+  position: absolute;
+  top: 50%;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 2px 9px rgba(23, 23, 31, .22);
+  color: var(--accent);
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity .18s ease;
+  pointer-events: none;
+}
+
+.scroll-hint::before { content: "‹"; left: 1px; }
+.scroll-hint::after { content: "›"; right: 1px; }
+
+.scroll-hint[data-overflow="start"]::before,
+.scroll-hint[data-overflow="both"]::before,
+.scroll-hint[data-overflow="end"]::after,
+.scroll-hint[data-overflow="both"]::after { opacity: 1; }
+
+/* บนพื้นเข้ม (แถบมุมมองในหัวสีดำ) ต้องกลับสีไม่งั้นลูกศรจมหาย */
+.topbar-actions .scroll-hint::before,
+.topbar-actions .scroll-hint::after {
+  border-color: rgba(255, 255, 255, .28);
+  background: #24242c;
+  color: #ff9b5c;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-hint::before,
+  .scroll-hint::after { transition: none; }
+}
+
+/* ไล่เฉดใต้ลูกศร ให้เนื้อหาที่ถูกตัดค่อย ๆ จางแทนที่จะโดนลูกศรทับคำพอดี
+   ผู้ใช้จึงอ่านออกว่า "ยังมีต่อ" ไม่ใช่ "มีอะไรมาบัง" */
+.scroll-hint > *::after { content: none; }
+
+.scroll-hint[data-overflow="start"]::before,
+.scroll-hint[data-overflow="both"]::before,
+.scroll-hint[data-overflow="end"]::after,
+.scroll-hint[data-overflow="both"]::after {
+  opacity: 1;
+}
+
+.scroll-hint[data-overflow="start"] > *,
+.scroll-hint[data-overflow="both"] > * {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 32px);
+  mask-image: linear-gradient(to right, transparent 0, #000 32px);
+}
+
+.scroll-hint[data-overflow="end"] > * {
+  -webkit-mask-image: linear-gradient(to left, transparent 0, #000 32px);
+  mask-image: linear-gradient(to left, transparent 0, #000 32px);
+}
+
+.scroll-hint[data-overflow="both"] > * {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 32px, #000 calc(100% - 32px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 32px, #000 calc(100% - 32px), transparent 100%);
+}
+
+/* แบนเนอร์เตือนบนมือถือ — ปุ่มกับข้อความแย่งพื้นที่แถวเดียวกันจนข้อความเหลือ
+   ไม่กี่คำต่อบรรทัด ต้องวางเป็นแนวตั้งเพื่อให้ข้อความเตือนอ่านออกจริง */
+@media (max-width: 680px) {
+  .alert-banner {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px 10px;
+    align-items: start;
+  }
+
+  .alert-banner p { grid-column: 2; }
+  .alert-banner .small-button { grid-column: 2; justify-self: start; }
 }

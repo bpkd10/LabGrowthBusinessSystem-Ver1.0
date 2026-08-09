@@ -146,6 +146,91 @@ document.addEventListener("click", (event) => {
   location.reload();
 });
 
+// ── บอกผู้ใช้ว่ายังมีเนื้อหาเลื่อนต่อได้ ───────────────────────────────────
+//
+// บนมือถือ เมนูหลักกว้าง 1032px บนจอกว้าง 343px และ scrollbar ถูกซ่อนไว้
+// ผู้ใช้จึงเห็นเมนูแค่ 3 จาก 8 รายการโดยไม่มีอะไรบอกว่ามีต่อ — เมนูที่มองไม่เห็น
+// เท่ากับเมนูที่ไม่มีอยู่จริง
+//
+// ห่อด้วย element ใหม่แทนการใส่ลูกศรไว้ในตัวที่เลื่อน เพราะ pseudo-element ของ
+// ตัวที่เลื่อนจะเลื่อนตามเนื้อหาไปด้วย ลูกศรต้องอยู่นิ่งกับที่ถึงจะทำหน้าที่ได้
+const scrollHintTargets = [".nav", ".role-switch", ".sidebar-tools", ".table-wrap", ".pipeline", ".catalog-preview"];
+
+function attachScrollHint(element) {
+  if (!element || element.dataset.scrollHint === "on") return;
+  const wrap = document.createElement("div");
+  wrap.className = "scroll-hint";
+  element.parentNode.insertBefore(wrap, element);
+  wrap.appendChild(element);
+  element.dataset.scrollHint = "on";
+
+  const measure = () => {
+    const distance = element.scrollWidth - element.clientWidth;
+    // เผื่อ 4px เพราะความกว้างที่คำนวณได้มีเศษทศนิยม การเทียบเท่ากันตรง ๆ
+    // จะทำให้ลูกศรค้างอยู่ทั้งที่เลื่อนสุดแล้ว
+    if (distance <= 4) {
+      wrap.dataset.overflow = "none";
+      return;
+    }
+    const atStart = element.scrollLeft <= 2;
+    const atEnd = element.scrollLeft >= distance - 2;
+    wrap.dataset.overflow = atStart ? "end" : atEnd ? "start" : "both";
+  };
+
+  // วัดสองจังหวะ: ทันที แล้ววัดซ้ำหลัง layout
+  //
+  // ทดสอบแล้วเจอของจริงสองอย่างที่ขัดกันเอง
+  // 1. ตอนสลับระหว่างเลย์เอาต์มือถือกับเดสก์ท็อป เมนูเปลี่ยนจากแถวนอนเป็นคอลัมน์ตั้ง
+  //    ResizeObserver ยิงก่อน layout รอบใหม่เสร็จ ค่าที่วัดได้จึงเป็นของ layout เก่า
+  //    ลูกศรค้างอยู่ทั้งที่ไม่มีอะไรให้เลื่อนแล้ว — ต้องวัดซ้ำใน requestAnimationFrame
+  // 2. แต่ requestAnimationFrame ไม่ทำงานเลยเมื่อแท็บถูกซ่อน ถ้าพึ่ง rAF อย่างเดียว
+  //    การเปลี่ยนขนาดจอตอนสลับไปแท็บอื่นจะไม่ถูกวัดจนกว่าจะกลับมา
+  //
+  // การวัดสองจังหวะจึงถูกทั้งสองกรณี และการวัดซ้ำไม่มีผลข้างเคียงเพราะเป็นการอ่านล้วน
+  // ตั้งการวัดซ้ำไว้สองทางเพราะ requestAnimationFrame ถูกหยุดสนิทเมื่อแท็บถูกซ่อน
+  // ส่วน setTimeout ยังทำงานอยู่ (แค่ถูกหน่วง) อันไหนมาถึงก่อนทำงานอันนั้น อีกอันจบไปเอง
+  let remeasureQueued = false;
+  const update = () => {
+    measure();
+    if (remeasureQueued) return;
+    remeasureQueued = true;
+    const run = () => {
+      if (!remeasureQueued) return;
+      remeasureQueued = false;
+      measure();
+    };
+    requestAnimationFrame(run);
+    setTimeout(run, 60);
+  };
+
+  element.addEventListener("scroll", update, { passive: true });
+  // ต้องดูทั้งขนาดกล่องและเนื้อหาข้างใน เพราะตารางเปลี่ยนจำนวนแถวได้ตลอด
+  // และการหมุนจอเปลี่ยนความกว้างโดยไม่มี event scroll เกิดขึ้นเลย
+  if (typeof ResizeObserver === "function") {
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    for (const child of element.children) observer.observe(child);
+  }
+  window.addEventListener("resize", update, { passive: true });
+  // orientationchange บนมือถือไม่ยิง resize เสมอไปในบางเบราว์เซอร์
+  window.addEventListener("orientationchange", update, { passive: true });
+  measure();
+  return update;
+}
+
+function refreshScrollHints() {
+  for (const selector of scrollHintTargets) {
+    for (const element of document.querySelectorAll(selector)) attachScrollHint(element);
+  }
+  // เนื้อหาที่เพิ่งวาดใหม่ยังไม่ได้ layout ในเฟรมนี้ การวัดตอนนี้จะได้ค่าของรอบก่อน
+  // จึงต้องรอเฟรมถัดไป แล้วยิง scroll เพื่อให้ตัวที่ติดตั้งไว้แล้ววัดใหม่ทั้งหมด
+  requestAnimationFrame(() => {
+    for (const element of document.querySelectorAll("[data-scroll-hint='on']")) {
+      element.dispatchEvent(new Event("scroll"));
+    }
+  });
+}
+
 function lastBackupDate() {
   try {
     return localStorage.getItem(BACKUP_STORAGE_KEY) || "";
@@ -1007,6 +1092,7 @@ function renderAll() {
   renderCustomerTypeOptions();
   renderAvatarOptions();
   renderAnalysisSnapshot();
+  refreshScrollHints();
 }
 
 function renderPackageOptions() {
@@ -2414,5 +2500,6 @@ function rememberedRoute() {
 
 setDefaultDueDate();
 renderAll();
+refreshScrollHints();
 renderAiKeyState();
 showView(rememberedRoute(), { historyMode: "replace" });
