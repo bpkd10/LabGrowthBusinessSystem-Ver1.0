@@ -35,9 +35,14 @@ workers_dev = true
 # record ของ apex (@ ชี้ไป Netlify 75.2.60.5) และ www จึงไม่ถูกแตะต้อง
 # เว็บธุรกิจที่ uncletungai.site และ www.uncletungai.site ยังทำงานตามปกติ
 #
-# ก่อนหน้านี้ตรวจแล้วว่า crm.uncletungai.site ยังไม่มี DNS record ใด ๆ อยู่
-# ถ้าจะเปลี่ยนไปใช้ชื่ออื่น ให้ตรวจว่ายังว่างก่อนด้วย `dig +short <ชื่อ>.uncletungai.site`
+# ตรวจแล้วว่าทั้งสองชื่อยังไม่มี DNS record ใด ๆ อยู่ก่อนผูก
+# ถ้าจะเพิ่มชื่ออื่น ให้ตรวจว่ายังว่างก่อนด้วย `dig +short <ชื่อ>.uncletungai.site`
 # และห้ามใส่ apex หรือ www ลงไปเด็ดขาด — scripts/check-deploy-target.mjs จะหยุดให้
+#
+# labgrowth คือชื่อหลักที่ใช้จริง ตรงกับชื่อธุรกิจในระบบ (Uncle Tung Business Lab)
+# ส่วน crm เก็บไว้ต่อโดยเจตนา เพราะลิงก์นั้นถูกส่งออกไปแล้ว การถอดทิ้งจะทำให้
+# ลิงก์ที่อยู่ในมือคนอื่นตายทันทีโดยที่เจ้าของลิงก์ไม่รู้ตัว
 routes = [
+  { pattern = "labgrowth.uncletungai.site", custom_domain = true },
   { pattern = "crm.uncletungai.site", custom_domain = true }
 ]
