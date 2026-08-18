@@ -6,7 +6,9 @@ import {
   parseMarkdownText,
   parseImportFile,
   buildImportPlan,
-  applyImportPlan
+  applyImportPlan,
+  matrixToRows,
+  routeSheet
 } from "../app/data-import.js";
 
 for (const extension of ["json", "csv", "cvs", "tsv", "xls", "xlsx", "md", "txt", "doc", "docx"]) {
@@ -114,4 +116,118 @@ await assert.rejects(
   "ต้องป้องกันไฟล์ใหญ่เกินกำหนดก่อนอ่าน"
 );
 
-console.log("Data import passed: JSON, CSV, XLS/XLSX, Markdown, DOC/DOCX and relational mapping");
+// ── หัวตารางที่ไม่ได้อยู่แถวแรก ───────────────────────────────────────────────
+// รายงานที่ระบบนี้ออกให้วางชื่อรายงานไว้แถว 1 คำอธิบายแถว 2 แถว 3 ว่าง แล้วหัวตารางจริงอยู่แถว 4
+// ถ้าตัวอ่านยังยึดแถวแรกเป็นหัวตาราง ทุกคอลัมน์จะกลายเป็น __EMPTY และไม่มีแถวไหนนำเข้าได้เลย
+const banner = matrixToRows([
+  ["ข้อมูลลูกค้าทั้งหมดในระบบ", "", "", ""],
+  ["รวม 2 รายการ · ไม่รวมรูปโปรไฟล์", "", "", ""],
+  ["", "", "", ""],
+  ["ชื่อลูกค้า", "เบอร์โทร", "ช่องทางที่มา", "ความต้องการ"],
+  ["ร้านเหนือ", "0811112222", "Facebook", "เพิ่มยอดขาย"]
+]);
+assert.equal(banner.headerRow, 3, "ต้องหาหัวตารางเจอแม้จะไม่ได้อยู่แถวแรก");
+assert.equal(banner.firstDataRow, 5, "ต้องรายงานเลขแถวข้อมูลให้ตรงกับที่ผู้ใช้เห็นใน Excel");
+assert.equal(banner.rows[0]["ชื่อลูกค้า"], "ร้านเหนือ", "ต้องอ่านค่าจากหัวตารางแถวที่ถูกต้อง");
+
+const bannerPlan = buildImportPlan({ kind: "rows", rows: banner.rows, format: "xlsx" }, {
+  collection: "auto", businessProfile: profile, state: { customers: [], products: [] }, firstDataRow: banner.firstDataRow
+});
+assert.equal(bannerPlan.records.length, 1, "ไฟล์ที่มีหัวรายงานคั่นต้องนำเข้าได้จริง ไม่ใช่ได้ 0 รายการ");
+
+const badRowPlan = buildImportPlan({ kind: "rows", rows: [{ "เบอร์โทร": "0899999999" }], format: "xlsx" }, {
+  collection: "customers", businessProfile: profile, state: { customers: [], products: [] }, firstDataRow: 5
+});
+assert.equal(badRowPlan.rejected[0].row, 5, "เลขแถวที่แจ้งว่าใช้ไม่ได้ ต้องนับจากแถวข้อมูลจริง ไม่ใช่แถวที่ 2 เสมอ");
+
+// ── ตัวเลขและป้ายภาษาไทยที่ไฟล์ export เขียนออกไป ──────────────────────────────
+// "85,000 บาท" ที่ผ่าน Number() ตรง ๆ จะได้ NaN แล้วตกเป็น 0 เงียบ ๆ — ราคาหายทั้งไฟล์
+const thaiValuePlan = buildImportPlan({
+  kind: "rows", format: "xlsx",
+  rows: [{ "ชื่อดีล": "ดีลองค์กร", "ลูกค้า": "ร้านเหนือ", "มูลค่า": "85,000 บาท", "ขั้น": "ออกแบบและส่งข้อเสนอ", "โอกาสปิด (%)": "65.0%" }]
+}, { collection: "deals", businessProfile: profile, state: { customers: [{ id: "c1", fullName: "ร้านเหนือ" }], products: [] } });
+assert.equal(thaiValuePlan.records[0].value, 85000, "มูลค่าที่เขียนเป็น \"85,000 บาท\" ต้องอ่านกลับเป็นตัวเลขได้");
+assert.equal(thaiValuePlan.records[0].stage, "Proposal", "ป้ายขั้นดีลภาษาไทยต้องแปลงกลับเป็นขั้นจริง ไม่ใช่ตกไปเป็น New");
+assert.equal(thaiValuePlan.records[0].probability, 65, "หัวคอลัมน์ที่มีหน่วย (%) ต่อท้ายต้องยังจับคู่กับ alias ได้");
+
+const thaiTaskPlan = buildImportPlan({
+  kind: "rows", format: "xlsx",
+  rows: [{ "งาน": "โทรติดตาม", "ผู้รับผิดชอบ": "ทีมขาย", "กำหนดส่ง": "2026-07-04", "ความสำคัญ": "สูง", "สถานะ": "กำลังทำ" }]
+}, { collection: "tasks", businessProfile: profile, state: {} });
+assert.equal(thaiTaskPlan.records[0].status, "in_progress", "สถานะงานภาษาไทยต้องแปลงกลับเป็นค่าที่ระบบใช้");
+assert.equal(thaiTaskPlan.records[0].priority, "High", "ความสำคัญภาษาไทยต้องแปลงกลับเป็นค่าที่ระบบใช้");
+assert.equal(thaiTaskPlan.records[0].dueDate, "2026-07-04", "คอลัมน์ \"กำหนดส่ง\" ต้องถูกอ่านเป็นวันครบกำหนด");
+
+// หมวดข้อเสนอเป็น field ประเภทป้ายกำกับ ผู้ใช้ตั้งเองได้ (ADR-001 ภาคผนวก ค)
+// การนำเข้าต้องเคารพกฎเดียวกับการกรอกในหน้าจอ ไม่ใช่บีบทุกอย่างกลับเป็น "Package"
+const customCategoryPlan = buildImportPlan({
+  kind: "rows", format: "csv", rows: [{ "ชื่อสินค้า": "คอร์สเฉพาะทาง", "หมวด": "คอร์สอบรม", "ราคาขาย": "9,900 บาท" }]
+}, { collection: "products", businessProfile: profile, state: {} });
+assert.equal(customCategoryPlan.records[0].category, "คอร์สอบรม", "หมวดที่ผู้ใช้ตั้งเองต้องไม่ถูกเขียนทับเป็น Package");
+assert.equal(customCategoryPlan.records[0].price, 9900, "ราคาที่มีหน่วยบาทต่อท้ายต้องอ่านกลับเป็นตัวเลขได้");
+
+// ── นำเข้าทั้งไฟล์: รายงานที่ระบบ export ต้องนำกลับเข้าระบบได้ครบ ────────────────
+globalThis.ExcelJS = (await import("exceljs")).default;
+const { buildReportWorkbook } = await import("../app/report-export.js");
+const { loadStateFrom } = await import("../app/state-model.js");
+const { STORAGE_KEY } = await import("../app/business-config.js");
+
+const seeded = loadStateFrom({ getItem: () => null }, STORAGE_KEY);
+const { workbook: reportWorkbook } = await buildReportWorkbook(seeded, "2026-08-09");
+const reportBuffer = await reportWorkbook.xlsx.writeBuffer();
+const reportFile = {
+  name: "รายงานวิเคราะห์ธุรกิจ.xlsx",
+  size: reportBuffer.byteLength,
+  arrayBuffer: async () => reportBuffer,
+  text: async () => ""
+};
+const parsedReport = await parseImportFile(reportFile, { xlsx: XLSX });
+
+const routes = Object.fromEntries(parsedReport.sheets.map((sheet) => [sheet.name, routeSheet(sheet).collection]));
+assert.equal(routes["ข้อมูลลูกค้า"], "customers", "ชีตข้อมูลลูกค้าต้องถูกจัดเข้าเป็นลูกค้า");
+assert.equal(routes["Lead"], "leads", "ชีต Lead ต้องถูกจัดเข้าเป็นสถานะ Lead");
+assert.equal(routes["ดีล"], "deals", "ชีตดีลต้องถูกจัดเข้าเป็นดีล");
+assert.equal(routes["งานติดตาม"], "tasks", "ชีตงานติดตามต้องถูกจัดเข้าเป็นงาน");
+assert.equal(routes["ข้อเสนอและกำไร"], "products", "ชีตข้อเสนอต้องถูกจัดเข้าเป็นสินค้า/ข้อเสนอ");
+// ชีตวิเคราะห์ต้องถูกข้าม ไม่ใช่นำเข้า มิฉะนั้นข้อมูลชุดเดียวจะถูกนับซ้ำสองรอบ
+for (const analysis of ["สรุปผู้บริหาร", "เทียบกับเดือนก่อน", "คิวติดตาม", "ช่องทางการตลาด", "Customer Journey", "งานค้างและความเสี่ยง"]) {
+  assert.equal(routes[analysis], null, `ชีตวิเคราะห์ ${analysis} ต้องถูกข้าม ไม่ใช่นำเข้าเป็นข้อมูลซ้ำ`);
+}
+
+const blankState = { businessProfile: seeded.businessProfile, customers: [], leads: [], products: [], deals: [], tasks: [] };
+const workbookPlan = buildImportPlan(parsedReport, { collection: "all", businessProfile: seeded.businessProfile, state: blankState });
+assert.equal(workbookPlan.kind, "workbook", "เลือกนำเข้าทั้งไฟล์ต้องได้แผนแบบหลายชีต");
+assert.deepEqual(
+  workbookPlan.steps.map((step) => step.collection),
+  ["products", "customers", "leads", "deals", "tasks"],
+  "ต้องเรียงลำดับนำเข้าตาม dependency ไม่งั้นดีลจะหาลูกค้าในไฟล์เดียวกันไม่เจอ"
+);
+
+const workbookApplied = applyImportPlan(blankState, workbookPlan);
+assert.equal(workbookApplied.state.customers.length, seeded.customers.length, "ลูกค้าต้องกลับเข้าระบบครบ");
+assert.equal(workbookApplied.state.products.length, seeded.products.length, "ข้อเสนอต้องกลับเข้าระบบครบ");
+assert.equal(workbookApplied.state.deals.length, seeded.deals.length, "ดีลต้องกลับเข้าระบบครบ ไม่ถูกตีตกเพราะหาลูกค้าไม่เจอ");
+assert.equal(workbookApplied.state.tasks.length, seeded.tasks.length, "งานติดตามต้องกลับเข้าระบบครบ");
+assert.equal(workbookApplied.state.leads.length, seeded.leads.length, "Lead ต้องกลับเข้าระบบครบ");
+assert.equal(workbookApplied.stats.rejected, 0, "รายงานที่ระบบสร้างเองต้องไม่มีแถวไหนถูกตีตก");
+
+// ตัวเลขที่โชว์ตอน Preview ต้องเท่ากับผลจริงตอนกดยืนยัน ไม่ใช่ประเมินต่ำจาก state เก่า
+const previewTotal = workbookPlan.sheetResults.reduce((total, sheet) => total + sheet.created + sheet.updated, 0);
+assert.equal(previewTotal, workbookApplied.stats.created + workbookApplied.stats.updated, "จำนวนที่โชว์ก่อนยืนยันต้องตรงกับผลจริง");
+
+const wonDeal = workbookApplied.state.deals.find((deal) => deal.stage === "Won");
+assert.ok(wonDeal, "ดีลที่ปิดได้แล้วต้องกลับมาเป็นขั้น Won ไม่ใช่ถูกรีเซ็ตเป็น New");
+assert.ok(wonDeal.value > 0, "มูลค่าดีลต้องไม่หายกลายเป็น 0 ตอนนำเข้ากลับ");
+assert.ok(workbookApplied.state.products.every((product) => product.price > 0), "ราคาข้อเสนอต้องไม่หายกลายเป็น 0 ตอนนำเข้ากลับ");
+assert.ok(workbookApplied.state.leads.some((lead) => lead.status !== "New Lead"), "สถานะ Lead ต้องกลับมาตามเดิม ไม่ใช่รีเซ็ตเป็น New Lead ทั้งหมด");
+
+// นำเข้าไฟล์เดิมซ้ำต้องอัปเดตของเดิม ไม่ใช่โคลนข้อมูลทั้งระบบเป็นสองชุด
+const workbookAgain = applyImportPlan(
+  workbookApplied.state,
+  buildImportPlan(parsedReport, { collection: "all", businessProfile: seeded.businessProfile, state: workbookApplied.state })
+);
+assert.equal(workbookAgain.state.customers.length, seeded.customers.length, "นำเข้าไฟล์เดิมซ้ำต้องไม่สร้างลูกค้าซ้ำ");
+assert.equal(workbookAgain.state.deals.length, seeded.deals.length, "นำเข้าไฟล์เดิมซ้ำต้องไม่สร้างดีลซ้ำ");
+assert.equal(workbookAgain.stats.created, 0, "นำเข้าไฟล์เดิมซ้ำต้องเป็นการอัปเดตล้วน");
+
+console.log(`Data import passed: JSON, CSV, XLS/XLSX, Markdown, DOC/DOCX, header detection and full-workbook round trip (${parsedReport.sheets.length} sheets)`);

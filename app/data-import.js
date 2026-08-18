@@ -1,21 +1,29 @@
+import { dealStageLabels, leadStatusLabels, taskStatusLabels, priorityLabels } from "./business-config.js";
+import { normalizeOfferCategory } from "./state-model.js";
+
 export const supportedImportExtensions = ["json", "csv", "cvs", "tsv", "xls", "xlsx", "md", "txt", "doc", "docx"];
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
-const collections = ["customers", "products", "deals", "tasks"];
+
+// เรียงตามลำดับที่ต้องนำเข้าจริง ไม่ใช่ตามตัวอักษร
+// products ต้องมาก่อน customers เพราะลูกค้าอ้างชื่อข้อเสนอ, customers ต้องมาก่อน
+// leads/deals เพราะทั้งสองอย่างผูกกับ customerId ถ้าสลับลำดับ ดีลจะถูกตีตกว่า
+// "ไม่พบลูกค้าที่ตรงกับดีล" ทั้งที่ลูกค้าอยู่ในไฟล์เดียวกัน
+const collections = ["products", "customers", "leads", "deals", "tasks"];
 
 const fieldAliases = {
   customers: {
     fullName: ["fullname", "name", "customer", "customername", "ชื่อลูกค้า", "ชื่อนามสกุล", "ชื่อ"],
     phone: ["phone", "tel", "telephone", "mobile", "เบอร์โทร", "โทรศัพท์", "มือถือ"],
     source: ["source", "channel", "contactchannel", "ช่องทาง", "ช่องทางที่มา", "แหล่งที่มา"],
-    solutionPackage: ["solutionpackage", "package", "offer", "product", "แพ็กเกจ", "packageoffer", "ข้อเสนอ", "สินค้า"],
+    solutionPackage: ["solutionpackage", "package", "offer", "product", "แพ็กเกจ", "packageoffer", "ข้อเสนอ", "สินค้า", "ข้อเสนอที่สนใจ", "แพ็กเกจที่สนใจ"],
     interest: ["interest", "need", "needs", "requirement", "ความสนใจ", "ความต้องการ", "โจทย์ธุรกิจ"],
     customerType: ["customertype", "segment", "type", "ประเภทลูกค้า", "กลุ่มลูกค้า"],
     leadStatus: ["leadstatus", "crmstatus", "สถานะlead", "สถานะลูกค้า"]
   },
   products: {
-    name: ["name", "product", "productname", "package", "packagename", "offer", "offername", "ชื่อสินค้า", "ชื่อแพ็กเกจ", "ชื่อข้อเสนอ", "สินค้า"],
-    category: ["category", "type", "producttype", "ประเภท", "ประเภทข้อเสนอ", "หมวดสินค้า"],
+    name: ["name", "product", "productname", "package", "packagename", "offer", "offername", "ชื่อสินค้า", "ชื่อแพ็กเกจ", "ชื่อข้อเสนอ", "สินค้า", "ข้อเสนอ"],
+    category: ["category", "type", "producttype", "ประเภท", "ประเภทข้อเสนอ", "หมวดสินค้า", "หมวด"],
     price: ["price", "sellingprice", "amount", "ราคา", "ราคาขาย"],
     cost: ["cost", "ต้นทุน", "ราคาทุน"],
     businessMode: ["businessmode", "salesmode", "รูปแบบธุรกิจ", "รูปแบบการขาย"],
@@ -25,19 +33,27 @@ const fieldAliases = {
     recommendationReason: ["recommendationreason", "reason", "เหตุผลแนะนำ", "จุดขาย"],
     status: ["status", "สถานะ"]
   },
+  leads: {
+    customerName: ["customer", "customername", "ชื่อลูกค้า", "ลูกค้า"],
+    customerId: ["customerid", "รหัสลูกค้า"],
+    status: ["leadstatus", "status", "stage", "สถานะlead", "สถานะ", "ขั้นปัจจุบัน", "ขั้น"],
+    assignedTo: ["assignedto", "owner", "assignee", "ผู้รับผิดชอบ", "เจ้าของงาน"],
+    leadScore: ["leadscore", "score", "คะแนน", "คะแนนความสนใจ"],
+    nextFollowUp: ["nextfollowup", "followup", "นัดติดตาม", "นัดติดตามครั้งถัดไป", "ติดตามครั้งถัดไป"]
+  },
   deals: {
     name: ["dealname", "opportunity", "opportunityname", "ชื่อดีล", "ชื่อโอกาส", "ดีล"],
     customerId: ["customerid", "รหัสลูกค้า"],
     customerName: ["customer", "customername", "ชื่อลูกค้า", "ลูกค้า"],
     offerName: ["offer", "product", "package", "ข้อเสนอ", "สินค้า", "แพ็กเกจ"],
-    value: ["value", "amount", "dealvalue", "มูลค่า", "ยอดขาย"],
-    stage: ["stage", "dealstage", "pipeline", "สถานะดีล", "ขั้นpipeline"],
-    probability: ["probability", "chance", "โอกาสสำเร็จ", "เปอร์เซ็นต์"]
+    value: ["value", "amount", "dealvalue", "มูลค่า", "ยอดขาย", "มูลค่าดีล"],
+    stage: ["stage", "dealstage", "pipeline", "สถานะดีล", "ขั้นpipeline", "ขั้น", "ขั้นปัจจุบัน"],
+    probability: ["probability", "chance", "โอกาสสำเร็จ", "เปอร์เซ็นต์", "โอกาสปิด"]
   },
   tasks: {
     title: ["title", "task", "taskname", "งาน", "ชื่องาน", "งานที่ต้องทำ"],
     owner: ["owner", "assignee", "assignedto", "ผู้รับผิดชอบ", "เจ้าของงาน"],
-    dueDate: ["duedate", "deadline", "date", "กำหนดเสร็จ", "วันครบกำหนด"],
+    dueDate: ["duedate", "deadline", "date", "กำหนดเสร็จ", "วันครบกำหนด", "กำหนดส่ง"],
     priority: ["priority", "ความสำคัญ"],
     status: ["status", "taskstatus", "สถานะ", "สถานะงาน"],
     offerName: ["offer", "product", "package", "ข้อเสนอ", "สินค้า", "แพ็กเกจ"]
@@ -48,8 +64,11 @@ function copy(value) {
   return typeof structuredClone === "function" ? structuredClone(value) : JSON.parse(JSON.stringify(value));
 }
 
+// ต้องตัด % ฿ : , ออกด้วย ไม่ใช่แค่วรรคกับวงเล็บ
+// เพราะหัวคอลัมน์ในรายงานเขียนหน่วยติดมาด้วย เช่น "โอกาสปิด (%)" ถ้าเหลือ % ค้างไว้
+// จะจับคู่กับ alias "โอกาสปิด" ไม่ได้ แล้วเปอร์เซ็นต์ของทุกดีลจะกลายเป็นค่า default 50
 function normalizeKey(value) {
-  return String(value ?? "").trim().toLowerCase().replace(/[\s_./()\-]+/g, "");
+  return String(value ?? "").trim().toLowerCase().replace(/[\s_./()\-%฿:,]+/g, "");
 }
 
 function cleanValue(value) {
@@ -58,8 +77,72 @@ function cleanValue(value) {
 
 function numberValue(value, fallback = 0) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
-  const parsed = Number(String(value ?? "").replace(/[,฿%\s]/g, ""));
-  return Number.isFinite(parsed) ? parsed : fallback;
+  // ไฟล์ที่ระบบนี้ export ออกไปเขียนตัวเลขเป็นข้อความอ่านง่าย เช่น "85,000 บาท" หรือ "70.6%"
+  // การ Number() ทั้งก้อนจะได้ NaN แล้วตกไปเป็น 0 เงียบ ๆ ทำให้ราคากับมูลค่าดีลหายทั้งไฟล์
+  // จึงดึงเฉพาะตัวเลขก้อนแรกออกมาแทน
+  const match = String(value ?? "").replace(/,/g, "").match(/-?\d+(?:\.\d+)?/);
+  return match ? Number(match[0]) : fallback;
+}
+
+// สร้าง map ย้อนกลับจาก "ป้ายที่คนอ่าน" → "ค่าที่ระบบเก็บจริง"
+// จำเป็นเพราะรายงาน Excel เขียนป้ายภาษาไทย (เช่น "ชนะดีล / เริ่มส่งมอบ") ไม่ใช่คีย์ ("Won")
+// ถ้าไม่มี map นี้ ดีลที่ปิดได้แล้วจะถูกนำเข้ากลับมาเป็นขั้น "New" ทั้งหมด
+function reverseLabels(labels) {
+  return Object.fromEntries(Object.entries(labels).map(([key, label]) => [normalizeKey(label), key]));
+}
+
+const dealStageFromLabel = reverseLabels(dealStageLabels);
+const leadStatusFromLabel = reverseLabels(leadStatusLabels);
+const taskStatusFromLabel = reverseLabels(taskStatusLabels);
+const priorityFromLabel = reverseLabels(priorityLabels);
+
+const knownHeaderKeys = new Set(
+  collections.flatMap((collection) =>
+    Object.values(fieldAliases[collection]).flatMap((aliases) => aliases.map(normalizeKey))
+  )
+);
+
+function headerMatchCount(cells) {
+  const seen = new Set();
+  for (const cell of cells || []) {
+    const key = normalizeKey(cell);
+    if (key && knownHeaderKeys.has(key)) seen.add(key);
+  }
+  return seen.size;
+}
+
+// แถวแรกของไฟล์ไม่ใช่หัวตารางเสมอไป รายงานที่ระบบนี้ออกให้มีชื่อรายงานอยู่แถว 1
+// คำอธิบายอยู่แถว 2 แถว 3 ว่าง แล้วหัวตารางจริงอยู่แถว 4 — การอ่านแถว 1 เป็นหัวตาราง
+// ทำให้ทุกคอลัมน์กลายเป็น __EMPTY และไม่มีแถวไหนนำเข้าได้เลย
+export function matrixToRows(matrix, { scanLimit = 15 } = {}) {
+  const source = (Array.isArray(matrix) ? matrix : []).map((row) => (Array.isArray(row) ? row : []));
+  let headerRow = 0;
+  let bestScore = 0;
+  for (let index = 0; index < Math.min(source.length, scanLimit); index += 1) {
+    const score = headerMatchCount(source[index]);
+    if (score > bestScore) {
+      bestScore = score;
+      headerRow = index;
+    }
+  }
+  // ไม่มั่นใจว่าแถวไหนคือหัวตาราง (ไฟล์ที่ระบบไม่รู้จักคอลัมน์เลย) ให้กลับไปใช้
+  // แถวที่มีข้อความแถวแรกตามพฤติกรรมเดิม จะได้ไม่เปลี่ยนผลลัพธ์ของไฟล์ที่เคยนำเข้าได้อยู่แล้ว
+  if (bestScore < 2) headerRow = source.findIndex((row) => row.some((cell) => String(cell ?? "").trim()));
+  if (headerRow < 0) return { rows: [], headerRow: 0, firstDataRow: 2 };
+
+  const used = new Map();
+  const headers = (source[headerRow] || []).map((cell, index) => {
+    const base = String(cell ?? "").trim() || `คอลัมน์ ${index + 1}`;
+    const count = (used.get(base) || 0) + 1;
+    used.set(base, count);
+    return count === 1 ? base : `${base} (${count})`;
+  });
+
+  const rows = source.slice(headerRow + 1)
+    .map((row) => Object.fromEntries(headers.map((header, index) => [header, cleanValue(row[index] ?? "")])))
+    .filter((row) => Object.values(row).some((value) => String(value).trim()));
+
+  return { rows, headerRow, firstDataRow: headerRow + 2 };
 }
 
 function parseDelimitedLine(text, delimiter) {
@@ -82,7 +165,7 @@ function parseDelimitedLine(text, delimiter) {
   return values;
 }
 
-function delimitedRows(text, delimiter) {
+function delimitedMatrix(text, delimiter) {
   const logicalLines = [];
   let line = "";
   let quoted = false;
@@ -105,11 +188,11 @@ function delimitedRows(text, delimiter) {
   }
   if (line.trim()) logicalLines.push(line);
   if (!logicalLines.length) return [];
-  const headers = parseDelimitedLine(logicalLines[0], delimiter).map((header, index) => header || `คอลัมน์ ${index + 1}`);
-  return logicalLines.slice(1).map((item) => {
-    const values = parseDelimitedLine(item, delimiter);
-    return Object.fromEntries(headers.map((header, index) => [header, cleanValue(values[index] ?? "")]));
-  }).filter((row) => Object.values(row).some((value) => String(value).trim()));
+  return logicalLines.map((line) => parseDelimitedLine(line, delimiter));
+}
+
+function delimitedRows(text, delimiter) {
+  return matrixToRows(delimitedMatrix(text, delimiter)).rows;
 }
 
 export function parseCsvText(text) {
@@ -195,11 +278,15 @@ export async function parseImportFile(file, adapters = {}) {
     const xlsx = adapters.xlsx || globalThis.XLSX;
     if (!xlsx?.read || !xlsx?.utils?.sheet_to_json) throw new Error("ตัวอ่าน Excel ยังโหลดไม่สำเร็จ กรุณารีเฟรชแล้วลองใหม่");
     const workbook = xlsx.read(await file.arrayBuffer(), { type: "array", cellDates: true, dense: true });
-    const sheets = workbook.SheetNames.map((name) => ({
-      name,
-      rows: xlsx.utils.sheet_to_json(workbook.Sheets[name], { defval: "", raw: false })
-    }));
-    const firstSheet = sheets.find((sheet) => sheet.rows.length) || sheets[0] || { name: "Sheet 1", rows: [] };
+    // header: 1 อ่านออกมาเป็นตารางดิบก่อน แล้วค่อยให้ matrixToRows หาว่าแถวไหนคือหัวตาราง
+    // ถ้าปล่อยให้ sheet_to_json เดาเอง มันจะยึดแถวแรกเป็นหัวตารางเสมอ
+    // raw: true เพื่อให้ได้ตัวเลขจริง (5900) แทนข้อความที่จัดรูปแล้ว ("5,900 บาท")
+    const sheets = workbook.SheetNames.map((name) => {
+      const matrix = xlsx.utils.sheet_to_json(workbook.Sheets[name], { header: 1, defval: "", raw: true, blankrows: true });
+      const { rows, headerRow, firstDataRow } = matrixToRows(matrix);
+      return { name, rows, headerRow, firstDataRow };
+    });
+    const firstSheet = sheets.find((sheet) => sheet.rows.length) || sheets[0] || { name: "Sheet 1", rows: [], firstDataRow: 2 };
     return { kind: "rows", format: extension, fileName: file.name, rows: firstSheet.rows, sheets };
   }
 
@@ -227,23 +314,68 @@ function fieldLookup(row, collection) {
   }));
 }
 
+const collectionWeights = {
+  customers: { fullName: 5, phone: 4, source: 2, interest: 2, solutionPackage: 1 },
+  products: { name: 5, price: 4, cost: 3, businessMode: 2, category: 2, description: 1 },
+  leads: { leadScore: 5, nextFollowUp: 4, customerName: 3, status: 2, assignedTo: 1 },
+  deals: { name: 4, value: 4, customerName: 4, stage: 2, probability: 2 },
+  tasks: { title: 5, owner: 3, dueDate: 4, priority: 2, status: 1 }
+};
+
 function collectionScore(row, collection) {
   const mapped = fieldLookup(row, collection);
-  const weight = collection === "customers"
-    ? { fullName: 5, phone: 4, source: 2, interest: 2, solutionPackage: 1 }
-    : collection === "products"
-      ? { name: 5, price: 4, cost: 3, businessMode: 2, category: 2, description: 1 }
-      : collection === "deals"
-        ? { name: 4, value: 4, customerName: 4, stage: 2, probability: 2 }
-        : { title: 5, owner: 3, dueDate: 4, priority: 2, status: 1 };
-  return Object.entries(weight).reduce((score, [field, value]) => score + (mapped[field] !== "" ? value : 0), 0);
+  const weight = collectionWeights[collection];
+  return Object.entries(weight).reduce((score, [field]) => score + (mapped[field] !== "" ? weight[field] : 0), 0);
+}
+
+// คะแนนขั้นต่ำที่ยอมให้ระบบ "เดา" ว่าชีตนี้คือข้อมูลอะไร
+// ต่ำกว่านี้แปลว่าเจอคอลัมน์ที่รู้จักแค่ 1 ช่อง ซึ่งเดาผิดได้ง่ายมาก
+// เช่นชีตสรุปที่มีคำว่า "ลูกค้า" อยู่คอลัมน์เดียว ถ้าเดาต่อจะสร้างข้อมูลขยะเข้าระบบ
+const MIN_DETECTION_SCORE = 5;
+
+export function classifyRows(rows) {
+  const sample = rows?.[0] || {};
+  const ranked = collections
+    .map((collection) => ({ collection, score: collectionScore(sample, collection) }))
+    .sort((left, right) => right.score - left.score);
+  return ranked[0] || { collection: "customers", score: 0 };
 }
 
 export function detectImportCollection(rows) {
-  const sample = rows?.[0] || {};
-  return collections
-    .map((collection) => [collection, collectionScore(sample, collection)])
-    .sort((left, right) => right[1] - left[1])[0]?.[0] || "customers";
+  return classifyRows(rows).collection || "customers";
+}
+
+// ชีตที่รายงานของระบบนี้ออกให้ ระบุชื่อไว้ตรง ๆ ดีกว่าปล่อยให้เดาจากหัวคอลัมน์
+// เพราะชีตวิเคราะห์หลายใบใช้หัวคอลัมน์ซ้ำกับชีตข้อมูลดิบ (เช่น "งานค้างและความเสี่ยง"
+// มีคอลัมน์เหมือน "งานติดตาม") ถ้าเดาแล้วนำเข้าทั้งคู่ ข้อมูลชุดเดียวจะถูกนับสองรอบ
+const sheetRoutes = new Map([
+  ["ข้อมูลลูกค้า", "customers"],
+  ["lead", "leads"],
+  ["ดีล", "deals"],
+  ["งานติดตาม", "tasks"],
+  ["ข้อเสนอและกำไร", "products"],
+  ["สินค้าและข้อเสนอ", "products"]
+]);
+
+const skippedSheets = new Map([
+  ["สรุปผู้บริหาร", "ชีตสรุปตัวเลข ไม่มีข้อมูลดิบให้นำเข้า"],
+  ["เทียบกับเดือนก่อน", "ชีตนี้เป็นผลคำนวณย้อนหลัง ไม่ใช่ข้อมูลตั้งต้น"],
+  ["คิวติดตาม", "เป็นมุมมองซ้ำของชีต Lead ระบบใช้ชีต Lead แทนเพื่อไม่ให้ข้อมูลซ้ำ"],
+  ["ช่องทางการตลาด", "ชีตสรุปรายช่องทาง เป็นผลคำนวณจากลูกค้าและดีล"],
+  ["customerjourney", "ชีตวิเคราะห์เส้นทางลูกค้า เป็นผลคำนวณ"],
+  ["งานค้างและความเสี่ยง", "เป็นมุมมองซ้ำของชีตงานติดตาม ระบบใช้ชีตงานติดตามแทน"]
+]);
+
+export function routeSheet(sheet) {
+  const key = normalizeKey(sheet?.name);
+  const skipReason = skippedSheets.get(key);
+  if (skipReason) return { collection: null, reason: skipReason, source: "name" };
+  const named = sheetRoutes.get(key);
+  if (named) return { collection: named, reason: "", source: "name" };
+  if (!sheet?.rows?.length) return { collection: null, reason: "ไม่พบแถวข้อมูลในชีตนี้", source: "empty" };
+  const { collection, score } = classifyRows(sheet.rows);
+  if (score < MIN_DETECTION_SCORE) return { collection: null, reason: "ไม่พบคอลัมน์ที่ตรงกับข้อมูลชุดใดในระบบ", source: "detect" };
+  return { collection, reason: "", source: "detect" };
 }
 
 function importedId(prefix, index) {
@@ -259,26 +391,27 @@ function normalizeBusinessMode(value, fallback) {
 function normalizePipelineStage(value, fallback = "Proposal") {
   const normalized = normalizeKey(value);
   const stages = { new: "New", qualified: "Qualified", proposal: "Proposal", negotiation: "Negotiation", won: "Won", lost: "Lost", สนใจ: "Qualified", เสนอราคา: "Proposal", เจรจา: "Negotiation", ชนะ: "Won", แพ้: "Lost" };
-  return stages[normalized] || fallback;
-}
-
-function normalizeProductCategory(value) {
-  const allowed = ["สินค้า", "บริการ", "Package", "Subscription", "Bundle"];
-  const exact = allowed.find((item) => normalizeKey(item) === normalizeKey(value));
-  return exact || "Package";
+  return stages[normalized] || dealStageFromLabel[normalized] || fallback;
 }
 
 function normalizeTaskStatus(value) {
   const normalized = normalizeKey(value);
-  return ({ todo: "todo", inprogress: "in_progress", done: "done", overdue: "overdue", รอดำเนินการ: "todo", กำลังทำ: "in_progress", เสร็จแล้ว: "done", เลยกำหนด: "overdue" })[normalized] || "todo";
+  return ({ todo: "todo", inprogress: "in_progress", done: "done", overdue: "overdue" })[normalized]
+    || taskStatusFromLabel[normalized] || "todo";
+}
+
+function normalizePriority(value) {
+  const normalized = normalizeKey(value);
+  const direct = ["High", "Medium", "Low"].find((item) => normalizeKey(item) === normalized);
+  return direct || priorityFromLabel[normalized] || "Medium";
 }
 
 function normalizeLeadStatus(value) {
   const normalized = normalizeKey(value);
   return ({
     newlead: "New Lead", contacted: "Contacted", interested: "Interested", proposalsent: "Proposal Sent",
-    ลูกค้าใหม่: "New Lead", ใหม่: "New Lead", ติดต่อแล้ว: "Contacted", สนใจ: "Interested", ส่งข้อเสนอแล้ว: "Proposal Sent"
-  })[normalized] || "New Lead";
+    ใหม่: "New Lead"
+  })[normalized] || leadStatusFromLabel[normalized] || "New Lead";
 }
 
 function dateValue(value) {
@@ -286,23 +419,32 @@ function dateValue(value) {
   return Number.isNaN(parsed.getTime()) ? new Date().toISOString().slice(0, 10) : parsed.toISOString().slice(0, 10);
 }
 
+function findCustomer(currentState, fields) {
+  return (currentState.customers || []).find((item) =>
+    item.id === fields.customerId || normalizeKey(item.fullName) === normalizeKey(fields.customerName));
+}
+
 export function buildImportPlan(parsed, options = {}) {
   if (parsed?.kind === "state") {
     return { kind: "state", collection: "state", importedState: copy(parsed.importedState), records: [], relatedRecords: { leads: [] }, rejected: [], format: parsed.format };
   }
+  if (options.collection === "all") return buildWorkbookPlan(parsed, options);
   const rows = Array.isArray(parsed?.rows) ? parsed.rows : [];
   const collection = options.collection && options.collection !== "auto" ? options.collection : detectImportCollection(rows);
   if (!collections.includes(collection)) throw new Error("กรุณาเลือกประเภทข้อมูลที่จะนำเข้า");
   const profile = options.businessProfile || {};
   const currentState = options.state || {};
+  // แถวแรกของข้อมูลอยู่บรรทัดไหนในไฟล์จริง ใช้รายงานเลขแถวให้ตรงกับที่ผู้ใช้เห็นใน Excel
+  const firstDataRow = Number(options.firstDataRow) || 2;
   const records = [];
   const leads = [];
   const rejected = [];
 
   rows.forEach((row, index) => {
     const fields = fieldLookup(row, collection);
+    const rowNumber = index + firstDataRow;
     if (collection === "customers") {
-      if (!fields.fullName) return rejected.push({ row: index + 2, reason: "ไม่พบชื่อลูกค้า" });
+      if (!fields.fullName) return rejected.push({ row: rowNumber, reason: "ไม่พบชื่อลูกค้า" });
       const id = importedId("c", index);
       const offer = (currentState.products || []).find((item) => normalizeKey(item.name) === normalizeKey(fields.solutionPackage));
       records.push({
@@ -314,30 +456,90 @@ export function buildImportPlan(parsed, options = {}) {
       });
       leads.push({ id: importedId("l", index), customerId: id, status: normalizeLeadStatus(fields.leadStatus), assignedTo: "Sales Team", leadScore: 50, nextFollowUp: dateValue(Date.now() + 2 * 86400000) });
     } else if (collection === "products") {
-      if (!fields.name) return rejected.push({ row: index + 2, reason: "ไม่พบชื่อสินค้า/Package" });
+      if (!fields.name) return rejected.push({ row: rowNumber, reason: "ไม่พบชื่อสินค้า/Package" });
       const businessMode = normalizeBusinessMode(fields.businessMode, profile.businessMode);
       const pipelineStage = normalizePipelineStage(fields.pipelineStage);
       records.push({
-        id: importedId("p", index), name: String(fields.name), category: normalizeProductCategory(fields.category),
+        id: importedId("p", index), name: String(fields.name), category: normalizeOfferCategory(fields.category),
         price: Math.max(0, numberValue(fields.price)), cost: Math.max(0, numberValue(fields.cost)), status: normalizeKey(fields.status) === "inactive" ? "inactive" : "active",
         businessMode, businessCategory: String(fields.businessCategory || profile.businessCategory || "service"), pipelineStage,
         description: String(fields.description || `ข้อเสนอที่นำเข้าสำหรับธุรกิจ ${businessMode}`),
         recommendationReason: String(fields.recommendationReason || `ใช้ในขั้น ${pipelineStage}`)
       });
+    } else if (collection === "leads") {
+      const customer = findCustomer(currentState, fields);
+      if (!customer) return rejected.push({ row: rowNumber, reason: "ไม่พบลูกค้าที่ตรงกับ Lead นี้" });
+      records.push({
+        id: importedId("l", index), customerId: customer.id, status: normalizeLeadStatus(fields.status),
+        assignedTo: String(fields.assignedTo || "Sales Team"),
+        leadScore: Math.min(100, Math.max(0, numberValue(fields.leadScore, 50))),
+        nextFollowUp: dateValue(fields.nextFollowUp)
+      });
     } else if (collection === "deals") {
-      const customer = (currentState.customers || []).find((item) => item.id === fields.customerId || normalizeKey(item.fullName) === normalizeKey(fields.customerName));
-      if (!fields.name || !customer) return rejected.push({ row: index + 2, reason: !fields.name ? "ไม่พบชื่อดีล" : "ไม่พบลูกค้าที่ตรงกับดีล" });
+      const customer = findCustomer(currentState, fields);
+      if (!fields.name || !customer) return rejected.push({ row: rowNumber, reason: !fields.name ? "ไม่พบชื่อดีล" : "ไม่พบลูกค้าที่ตรงกับดีล" });
       const offer = (currentState.products || []).find((item) => normalizeKey(item.name) === normalizeKey(fields.offerName));
       const stage = normalizePipelineStage(fields.stage, "New");
       records.push({ id: importedId("d", index), customerId: customer.id, productId: offer?.id || "", offerName: offer?.name || String(fields.offerName || ""), name: String(fields.name), value: Math.max(0, numberValue(fields.value)), stage, probability: stage === "Won" ? 100 : stage === "Lost" ? 0 : Math.min(100, Math.max(0, numberValue(fields.probability, 50))) });
     } else {
-      if (!fields.title) return rejected.push({ row: index + 2, reason: "ไม่พบชื่องาน" });
+      if (!fields.title) return rejected.push({ row: rowNumber, reason: "ไม่พบชื่องาน" });
       const offer = (currentState.products || []).find((item) => normalizeKey(item.name) === normalizeKey(fields.offerName));
-      records.push({ id: importedId("t", index), title: String(fields.title), owner: String(fields.owner || "ทีมงาน"), dueDate: dateValue(fields.dueDate), priority: ["High", "Medium", "Low"].includes(fields.priority) ? fields.priority : "Medium", status: normalizeTaskStatus(fields.status), productId: offer?.id || "", offerName: offer?.name || String(fields.offerName || "") });
+      records.push({ id: importedId("t", index), title: String(fields.title), owner: String(fields.owner || "ทีมงาน"), dueDate: dateValue(fields.dueDate), priority: normalizePriority(fields.priority), status: normalizeTaskStatus(fields.status), productId: offer?.id || "", offerName: offer?.name || String(fields.offerName || "") });
     }
   });
 
   return { kind: "rows", collection, records, relatedRecords: { leads }, rejected, sourceRows: rows, format: parsed?.format || "unknown" };
+}
+
+// นำเข้าทั้งไฟล์: จัดเส้นทางทุกชีตก่อน แล้วค่อยเรียงลำดับตาม dependency
+// การ dry-run ตรงนี้ทำให้ตัวเลขที่โชว์ใน Preview เท่ากับผลจริงตอนกดยืนยัน
+// ไม่ใช่ตัวเลขที่คำนวณจาก state เก่าซึ่งจะต่ำกว่าความจริงเสมอ
+export function buildWorkbookPlan(parsed, options = {}) {
+  const sheets = Array.isArray(parsed?.sheets) ? parsed.sheets : [];
+  const steps = [];
+  const skipped = [];
+  for (const [index, sheet] of sheets.entries()) {
+    const route = routeSheet(sheet);
+    if (!route.collection) {
+      skipped.push({ index, name: sheet.name, reason: route.reason });
+      continue;
+    }
+    steps.push({ index, name: sheet.name, collection: route.collection, rows: sheet.rows || [], firstDataRow: sheet.firstDataRow || 2 });
+  }
+  steps.sort((left, right) => collections.indexOf(left.collection) - collections.indexOf(right.collection));
+
+  const businessProfile = options.businessProfile || {};
+  const dryRun = runWorkbookImport(options.state || {}, { steps, businessProfile });
+  return {
+    kind: "workbook", collection: "all", steps, skipped, businessProfile,
+    sheetResults: dryRun.sheetResults, records: [], relatedRecords: { leads: [] },
+    rejected: dryRun.rejected, format: parsed?.format || "unknown"
+  };
+}
+
+function runWorkbookImport(inputState, plan) {
+  let state = copy(inputState);
+  for (const key of ["customers", "leads", "products", "deals", "tasks"]) if (!Array.isArray(state[key])) state[key] = [];
+  const sheetResults = [];
+  const rejected = [];
+  let created = 0;
+  let updated = 0;
+  for (const step of plan.steps) {
+    const subPlan = buildImportPlan(
+      { kind: "rows", rows: step.rows, format: "workbook" },
+      { collection: step.collection, businessProfile: plan.businessProfile, state, firstDataRow: step.firstDataRow }
+    );
+    const applied = applyImportPlan(state, subPlan);
+    state = applied.state;
+    created += applied.stats.created;
+    updated += applied.stats.updated;
+    for (const item of subPlan.rejected) rejected.push({ ...item, sheet: step.name });
+    sheetResults.push({
+      name: step.name, collection: step.collection,
+      created: applied.stats.created, updated: applied.stats.updated, rejected: subPlan.rejected.length
+    });
+  }
+  return { state, sheetResults, rejected, stats: { created, updated, rejected: rejected.length, replacedState: false } };
 }
 
 function recordMatch(collection, existing, incoming) {
@@ -347,6 +549,7 @@ function recordMatch(collection, existing, incoming) {
     return incomingPhone && incomingPhone !== "-" ? normalizeKey(existing.phone) === incomingPhone : normalizeKey(existing.fullName) === normalizeKey(incoming.fullName);
   }
   if (collection === "products") return normalizeKey(existing.name) === normalizeKey(incoming.name);
+  if (collection === "leads") return existing.customerId === incoming.customerId;
   if (collection === "deals") return normalizeKey(existing.name) === normalizeKey(incoming.name) && existing.customerId === incoming.customerId;
   if (collection === "tasks") return normalizeKey(existing.title) === normalizeKey(incoming.title)
     && normalizeKey(existing.owner) === normalizeKey(incoming.owner)
@@ -356,6 +559,10 @@ function recordMatch(collection, existing, incoming) {
 
 export function applyImportPlan(inputState, plan) {
   if (plan.kind === "state") return { state: copy(plan.importedState), stats: { created: 0, updated: 0, rejected: 0, replacedState: true } };
+  if (plan.kind === "workbook") {
+    const result = runWorkbookImport(inputState, plan);
+    return { state: result.state, stats: { ...result.stats, sheetResults: result.sheetResults } };
+  }
   const state = copy(inputState);
   for (const key of ["customers", "leads", "products", "deals", "tasks"]) if (!Array.isArray(state[key])) state[key] = [];
   let created = 0;

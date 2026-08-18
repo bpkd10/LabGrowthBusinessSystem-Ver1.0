@@ -1368,6 +1368,9 @@ tbody tr:hover {
 .import-plan-summary strong { font-size: 13px; }
 .import-preview { max-height: 300px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
 .import-preview table { margin: 0; }
+/* ชีตที่ระบบไม่นำเข้ายังต้องแสดงไว้ ผู้ใช้จะได้รู้ว่าระบบ "เห็นแล้วตั้งใจข้าม"
+   ไม่ใช่ "อ่านไม่เจอ" แต่ต้องจางกว่าแถวที่นำเข้าจริงเพื่อไม่ให้แย่งสายตา */
+.import-preview .import-row-muted td { color: var(--muted); background: var(--surface-muted, #f7f8fa); }
 
 .import-state-grid { display: grid; grid-template-columns: repeat(5, minmax(110px, 1fr)); gap: 1px; background: var(--line); }
 .import-state-grid span { display: grid; gap: 6px; padding: 15px; background: #fff; color: var(--muted); font-size: 11px; }

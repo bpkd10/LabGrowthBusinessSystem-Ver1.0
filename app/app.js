@@ -2356,11 +2356,27 @@ document.querySelector("#exportData").addEventListener("click", exportStateData)
 
 const importCollectionLabels = {
   state: "ข้อมูลสำรองทั้งระบบ",
+  all: "ทุกชีตในไฟล์",
   customers: "ลูกค้าและ Lead",
+  leads: "สถานะ Lead",
   products: "สินค้า / Package / ข้อเสนอ",
   deals: "ดีลและ Pipeline",
   tasks: "งานติดตาม"
 };
+
+// ปลายทางที่ควรพาผู้ใช้ไปดูหลังนำเข้าเสร็จ ต้องเป็น view ที่มีอยู่จริงในเมนู
+// leads ไม่มีหน้าของตัวเอง สถานะ Lead แสดงอยู่ในหน้า CRM
+const importLandingViews = { customers: "customers", leads: "crm", products: "products", deals: "deals", tasks: "tasks" };
+
+function workbookPreviewMarkup(plan) {
+  const routed = (plan.sheetResults || []).map((sheet) =>
+    `<tr><td>${escapeHTML(sheet.name)}</td><td>${escapeHTML(importCollectionLabels[sheet.collection] || sheet.collection)}</td><td>${escapeHTML(`${sheet.created + sheet.updated} รายการ`)}</td><td>${sheet.rejected ? escapeHTML(`ข้าม ${sheet.rejected} แถว`) : "ครบทุกแถว"}</td></tr>`);
+  const ignored = (plan.skipped || []).map((sheet) =>
+    `<tr class="import-row-muted"><td>${escapeHTML(sheet.name)}</td><td>ไม่นำเข้า</td><td>-</td><td>${escapeHTML(sheet.reason)}</td></tr>`);
+  if (!routed.length && !ignored.length) return '<div class="empty-state">ไฟล์นี้ไม่มีชีตที่อ่านได้</div>';
+  if (!routed.length) return `<div class="empty-state">ไม่พบชีตที่นำเข้าได้ในไฟล์นี้</div>${table(["ชีต", "นำเข้าเป็น", "จำนวน", "หมายเหตุ"], ignored)}`;
+  return table(["ชีต", "นำเข้าเป็น", "จำนวน", "หมายเหตุ"], [...routed, ...ignored]);
+}
 
 function importPreviewMarkup(plan) {
   if (plan.kind === "state") {
@@ -2369,6 +2385,7 @@ function importPreviewMarkup(plan) {
       `<span><strong>${escapeHTML(importCollectionLabels[key] || key)}</strong><b>${escapeHTML(imported[key].length)}</b> รายการ</span>`
     ).join("")}</div>`;
   }
+  if (plan.kind === "workbook") return workbookPreviewMarkup(plan);
   if (!plan.records.length) return '<div class="empty-state">ยังไม่มีแถวที่พร้อมนำเข้า กรุณาเลือกประเภทข้อมูลอื่นหรือตรวจหัวตาราง</div>';
   const hiddenFields = new Set(["id", "avatar", "solutionPackageId", "productId", "customerId", "businessCategory"]);
   const headers = Object.keys(plan.records[0]).filter((key) => !hiddenFields.has(key)).slice(0, 6);
@@ -2380,26 +2397,39 @@ function refreshImportPlan() {
   if (!importSession) return;
   const collectionSelect = document.querySelector("#importCollection");
   const sheetSelect = document.querySelector("#importSheet");
+  const wholeWorkbook = sheetSelect.value === "all";
   let parsed = importSession.parsed;
-  if (parsed.kind === "rows") {
+  if (parsed.kind === "rows" && !wholeWorkbook) {
     const sheet = parsed.sheets[Number(sheetSelect.value) || 0] || parsed.sheets[0];
-    parsed = { ...parsed, rows: sheet?.rows || [] };
+    parsed = { ...parsed, rows: sheet?.rows || [], firstDataRow: sheet?.firstDataRow || 2 };
   }
+  // เลือก "ทุกชีต" แล้ว ระบบจัดเส้นทางเองรายชีต ช่องประเภทข้อมูลจึงไม่มีความหมาย
+  collectionSelect.disabled = parsed.kind === "state" || wholeWorkbook;
   const plan = buildImportPlan(parsed, {
-    collection: parsed.kind === "state" ? "auto" : collectionSelect.value,
+    collection: parsed.kind === "state" ? "auto" : wholeWorkbook ? "all" : collectionSelect.value,
     businessProfile: state.businessProfile,
+    firstDataRow: parsed.firstDataRow,
     state
   });
   importSession.plan = plan;
-  const detectedText = parsed.kind === "state" ? "ระบบจะใช้ข้อมูลชุดนี้แทนข้อมูลปัจจุบัน" : collectionSelect.value === "auto" ? "ตรวจจับอัตโนมัติ" : "เลือกโดยผู้ใช้";
-  document.querySelector("#importPlanSummary").innerHTML = `<div><span>รูปแบบที่พบ</span><strong>${escapeHTML(importCollectionLabels[plan.collection])}</strong></div><div><span>พร้อมนำเข้า</span><strong>${plan.kind === "state" ? "ทั้งระบบ" : `${plan.records.length} รายการ`}</strong></div><div><span>วิธี Mapping</span><strong>${escapeHTML(detectedText)}</strong></div>`;
+  const readyCount = plan.kind === "workbook"
+    ? (plan.sheetResults || []).reduce((total, sheet) => total + sheet.created + sheet.updated, 0)
+    : plan.records.length;
+  const detectedText = parsed.kind === "state"
+    ? "ระบบจะใช้ข้อมูลชุดนี้แทนข้อมูลปัจจุบัน"
+    : plan.kind === "workbook" ? "จัดเส้นทางรายชีตอัตโนมัติ" : collectionSelect.value === "auto" ? "ตรวจจับอัตโนมัติ" : "เลือกโดยผู้ใช้";
+  document.querySelector("#importPlanSummary").innerHTML = `<div><span>รูปแบบที่พบ</span><strong>${escapeHTML(importCollectionLabels[plan.collection] || plan.collection)}</strong></div><div><span>พร้อมนำเข้า</span><strong>${plan.kind === "state" ? "ทั้งระบบ" : `${readyCount} รายการ`}</strong></div><div><span>วิธี Mapping</span><strong>${escapeHTML(detectedText)}</strong></div>`;
   document.querySelector("#importPreview").innerHTML = importPreviewMarkup(plan);
   const warnings = [
     ...(importSession.parsed.warnings || []).map((warning) => typeof warning === "string" ? warning : warning.message).filter(Boolean),
-    ...(plan.rejected || []).slice(0, 3).map((item) => `แถว ${item.row}: ${item.reason}`)
+    ...(plan.rejected || []).slice(0, 3).map((item) => `${item.sheet ? `ชีต ${item.sheet} ` : ""}แถว ${item.row}: ${item.reason}`)
   ];
-  document.querySelector("#importWarning").textContent = warnings.length ? warnings.join(" · ") : "ระบบจะรวมข้อมูลซ้ำด้วยเบอร์โทรลูกค้าหรือชื่อ Package และอัปเดต Dashboard หลังยืนยัน";
-  document.querySelector("#importConfirm").disabled = plan.kind !== "state" && plan.records.length === 0;
+  document.querySelector("#importWarning").textContent = warnings.length
+    ? warnings.join(" · ")
+    : plan.kind === "workbook"
+      ? "ระบบจะนำเข้าตามลำดับ ข้อเสนอ → ลูกค้า → Lead → ดีล → งาน เพื่อให้ทุกรายการเชื่อมกันถูกตัว และรวมข้อมูลซ้ำแทนการสร้างใหม่"
+      : "ระบบจะรวมข้อมูลซ้ำด้วยเบอร์โทรลูกค้าหรือชื่อ Package และอัปเดต Dashboard หลังยืนยัน";
+  document.querySelector("#importConfirm").disabled = plan.kind !== "state" && readyCount === 0;
 }
 
 function openImportReview(parsed, file) {
@@ -2408,9 +2438,16 @@ function openImportReview(parsed, file) {
   const sheetSelect = document.querySelector("#importSheet");
   collectionSelect.value = "auto";
   collectionSelect.disabled = parsed.kind === "state";
-  sheetSelect.innerHTML = parsed.kind === "state"
+  // ไฟล์หลายชีตให้เริ่มที่ "ทุกชีต" เสมอ เพราะรายงานที่ระบบออกให้แยกข้อมูลไว้คนละชีต
+  // ถ้าเปิดมาที่ชีตแรก ผู้ใช้จะเจอชีตสรุปที่นำเข้าไม่ได้ แล้วเข้าใจว่าระบบพัง
+  const manySheets = parsed.kind === "rows" && parsed.sheets.length > 1;
+  const sheetOptions = parsed.kind === "state"
     ? '<option value="0">ข้อมูลสำรองทั้งระบบ</option>'
     : parsed.sheets.map((sheet, index) => `<option value="${index}">${escapeHTML(sheet.name)} · ${sheet.rows.length} แถว</option>`).join("");
+  sheetSelect.innerHTML = manySheets
+    ? `<option value="all">ทุกชีตในไฟล์ · ${parsed.sheets.length} ชีต (แนะนำ)</option>${sheetOptions}`
+    : sheetOptions;
+  sheetSelect.value = manySheets ? "all" : sheetSelect.value;
   sheetSelect.disabled = parsed.kind === "state" || parsed.sheets.length <= 1;
   document.querySelector("#importFileSummary").innerHTML = `<span><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=23#clipboard"></use></svg><strong>${escapeHTML(file.name)}</strong></span><span>${escapeHTML(parsed.format.toUpperCase())}</span><span>${escapeHTML(`${Math.max(1, Math.ceil(file.size / 1024))} KB`)}</span>`;
   refreshImportPlan();
@@ -2453,11 +2490,12 @@ document.querySelector("#importConfirm").addEventListener("click", () => {
   closeImportDialog();
   renderAll();
   resetCustomerFormDefaults();
-  const target = collection === "state" ? "dashboard" : collection;
+  const target = collection === "state" || collection === "all" ? "dashboard" : importLandingViews[collection] || "dashboard";
   showView(target, { focusHeading: true });
+  const sheetCount = (result.stats.sheetResults || []).length;
   const resultText = result.stats.replacedState
     ? "นำเข้าข้อมูลสำรองทั้งระบบแล้ว"
-    : `นำเข้าแล้ว ${result.stats.created} รายการ อัปเดตข้อมูลเดิม ${result.stats.updated} รายการ${result.stats.rejected ? ` ข้าม ${result.stats.rejected} แถว` : ""}`;
+    : `นำเข้าแล้ว ${result.stats.created} รายการ อัปเดตข้อมูลเดิม ${result.stats.updated} รายการ${sheetCount ? ` จาก ${sheetCount} ชีต` : ""}${result.stats.rejected ? ` ข้าม ${result.stats.rejected} แถว` : ""}`;
   registerUndo(resultText, () => { state = normalizeState(clone(previousState)); });
 });
 

@@ -240,4 +240,17 @@ assert.match(css, /\.ai-workspace-head \{[^}]*display: grid/, "หัวหน�
 assert.match(css, /\.ai-workspace-head \.ai-alternative-note \{[^}]*grid-column: 1 \/ -1/, "ย่อหน้าอธิบายต้องอยู่แถวล่างเต็มความกว้าง");
 assert.match(css, /\.ai-heading \{[^}]*min-width: 0/, "ขาด min-width: 0 หัวเรื่องจะถูกบีบจนตัดคำผิดที่");
 
+// ── นำเข้าไฟล์หลายชีตต้องเริ่มที่ "ทุกชีต" ────────────────────────────────────
+//
+// รายงานที่ระบบออกให้แยกข้อมูลไว้ 11 ชีต โดยชีตแรกคือ "สรุปผู้บริหาร" ซึ่งนำเข้าไม่ได้
+// ถ้ากล่องเลือกเปิดมาที่ชีตแรกตามค่าเริ่มต้นของ <select> ผู้ใช้จะเห็น "0 รายการ"
+// ทันทีที่เปิดหน้าต่าง แล้วสรุปว่าระบบนำเข้าไม่ได้ ทั้งที่ข้อมูลอยู่ในชีตถัดไป
+assert.match(appJs, /value="all">ทุกชีตในไฟล์/, "ไฟล์หลายชีตต้องมีตัวเลือกนำเข้าทั้งไฟล์");
+assert.match(appJs, /sheetSelect\.value = manySheets \? "all"/, "ไฟล์หลายชีตต้องเปิดมาที่ \"ทุกชีต\" ไม่ใช่ชีตแรกที่มักเป็นชีตสรุป");
+// เลือกทุกชีตแล้วระบบจัดเส้นทางเอง ช่องประเภทข้อมูลจึงต้องถูกปิด ไม่ใช่ปล่อยให้กดแล้วไม่มีผล
+assert.match(appJs, /collectionSelect\.disabled = parsed\.kind === "state" \|\| wholeWorkbook/, "เลือกทุกชีตแล้วต้องปิดช่องเลือกประเภทข้อมูล");
+// ชีตที่ระบบข้ามต้องแสดงเหตุผลไว้ ผู้ใช้จะได้รู้ว่าระบบเห็นแล้วตั้งใจข้าม ไม่ใช่อ่านไม่เจอ
+assert.match(appJs, /import-row-muted/, "ต้องแสดงชีตที่ถูกข้ามพร้อมเหตุผล ไม่ใช่เงียบหายไปเฉย ๆ");
+assert.match(css, /\.import-preview \.import-row-muted td/, "CSS ต้องแยกแถวชีตที่ถูกข้ามออกจากแถวที่นำเข้าจริง");
+
 console.log(`UI contract passed: ${requiredHtmlContracts.length} DOM contracts and reversible workflows are present`);
