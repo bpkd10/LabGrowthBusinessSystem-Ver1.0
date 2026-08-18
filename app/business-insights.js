@@ -11,8 +11,8 @@
 // ทุกฟังก์ชันต้องคืน "เหตุผล" ควบคู่กับตัวเลขเสมอ ตัวเลขลอย ๆ ที่ไม่บอกที่มาทำให้
 // เจ้าของธุรกิจตัดสินใจไม่ได้ และตรวจสอบไม่ได้ว่าระบบคิดถูกหรือเปล่า
 
-import { businessModes, dealStages, leadStatusLabels, leadStatuses } from "./business-config.js?v=23";
-import { computeMetrics, revenueTargetOf, todayIso } from "./state-model.js?v=23";
+import { businessModes, dealStages, leadStatusLabels, leadStatuses } from "./business-config.js?v=24";
+import { computeMetrics, revenueTargetOf, todayIso } from "./state-model.js?v=24";
 
 const OPEN_STAGES = dealStages.filter((stage) => !["Won", "Lost"].includes(stage));
 

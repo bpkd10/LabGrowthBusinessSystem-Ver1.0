@@ -39,6 +39,9 @@ const EXPECTED_SHEETS = [
   "ช่องทางการตลาด",
   "Customer Journey",
   "งานค้างและความเสี่ยง",
+  // ชีตข้อมูลดิบ: มีไว้ให้ "นำเข้าข้อมูล" อ่านกลับได้ครบ ไม่ใช่แค่ให้คนอ่าน
+  "ตั้งค่าธุรกิจ",
+  "ข้อมูลข้อเสนอ",
   "ข้อมูลลูกค้า",
   "Lead",
   "ดีล",
@@ -48,6 +51,28 @@ const EXPECTED_SHEETS = [
 check("มีชีตครบทุกหัวข้อตามที่ออกแบบไว้", () => {
   const names = workbook.worksheets.map((sheet) => sheet.name);
   assert.deepEqual(names, EXPECTED_SHEETS);
+});
+
+// หน่วยผิดบนหน้าแรกของรายงานอันตรายกว่าตัวเลขที่หายไป เพราะมันยังดูน่าเชื่อถือ
+// ก่อนหน้านี้ getColumn(2).numFmt = MONEY กินทั้งคอลัมน์ ทำให้ "ทำได้แล้วคิดเป็น 5.9%"
+// กลายเป็น "6 บาท" และจำนวน Lead กับจำนวนงานถูกติดหน่วยบาททั้งที่เป็นการนับ
+check("ชีตสรุปผู้บริหารต้องไม่ติดหน่วยบาทให้เปอร์เซ็นต์หรือจำนวนนับ", () => {
+  const summary = workbook.getWorksheet("สรุปผู้บริหาร");
+  const cellFor = (label) => {
+    for (let row = 1; row <= summary.rowCount; row += 1) {
+      if (String(summary.getRow(row).getCell(1).value) === label) return summary.getRow(row).getCell(2);
+    }
+    return null;
+  };
+  const percentCell = cellFor("ทำได้แล้วคิดเป็น");
+  assert.ok(percentCell, "ไม่พบแถวเปอร์เซ็นต์ความคืบหน้า");
+  assert.match(String(percentCell.numFmt), /%/, "ความคืบหน้าเป็นเปอร์เซ็นต์ ไม่ใช่จำนวนเงิน");
+  for (const label of ["Lead ทั้งหมด", "Lead ที่เลยนัดติดตาม", "งานค้างทั้งหมด", "งานที่เลยกำหนด"]) {
+    const cell = cellFor(label);
+    assert.ok(cell, `ไม่พบแถว ${label}`);
+    assert.doesNotMatch(String(cell.numFmt ?? ""), /บาท/, `"${label}" เป็นจำนวนนับ ต้องไม่มีหน่วยบาท`);
+  }
+  assert.match(String(cellFor("เป้ารายได้").numFmt), /บาท/, "เป้ารายได้เป็นจำนวนเงิน ต้องคงหน่วยบาทไว้");
 });
 
 check("ทุกชีตมีเนื้อหาจริง ไม่ใช่ชีตเปล่า", () => {

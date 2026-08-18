@@ -6,12 +6,12 @@ import {
   updateProductAcrossState,
   detachProductRelations,
   createZeroState
-} from "./business-workflows.js?v=23";
+} from "./business-workflows.js?v=24";
 import {
   parseImportFile,
   buildImportPlan,
   applyImportPlan
-} from "./data-import.js?v=23";
+} from "./data-import.js?v=24";
 import {
   DEFAULT_MODEL,
   DEFAULT_PROVIDER_ID,
@@ -20,7 +20,7 @@ import {
   maskApiKey,
   providerErrorMessage,
   validateKeyFormat
-} from "./ai-provider.js?v=23";
+} from "./ai-provider.js?v=24";
 // ข้อมูลโดเมนและค่าคงที่ย้ายไป business-config.js ส่วนตรรกะ state ย้ายไป state-model.js
 // เพื่อให้ทั้งสองส่วนทดสอบได้ใน Node โดยไม่ต้องมี DOM (scripts/check-app-model.mjs)
 import {
@@ -52,9 +52,9 @@ import {
   seedData,
   taskStatusLabels,
   taskStatuses
-} from "./business-config.js?v=23";
-import { buildInsightReport } from "./business-insights.js?v=23";
-import { downloadReport } from "./report-export.js?v=23";
+} from "./business-config.js?v=24";
+import { buildInsightReport } from "./business-insights.js?v=24";
+import { downloadReport } from "./report-export.js?v=24";
 import {
   alignCustomerType,
   clone,
@@ -76,7 +76,7 @@ import {
   todayIso as today,
   uid,
   validIsoDate
-} from "./state-model.js?v=23";
+} from "./state-model.js?v=24";
 
 let state = loadStateFrom(localStorage, STORAGE_KEY);
 
@@ -358,7 +358,7 @@ function customerOffer(customer) {
 }
 
 function iconMarkup(name, className = "ui-icon") {
-  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=23#${escapeHTML(name)}"></use></svg>`;
+  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=24#${escapeHTML(name)}"></use></svg>`;
 }
 
 document.querySelector("#toastUndo").addEventListener("click", () => {
@@ -2357,6 +2357,7 @@ document.querySelector("#exportData").addEventListener("click", exportStateData)
 const importCollectionLabels = {
   state: "ข้อมูลสำรองทั้งระบบ",
   all: "ทุกชีตในไฟล์",
+  profile: "ตั้งค่าธุรกิจ",
   customers: "ลูกค้าและ Lead",
   leads: "สถานะ Lead",
   products: "สินค้า / Package / ข้อเสนอ",
@@ -2366,7 +2367,7 @@ const importCollectionLabels = {
 
 // ปลายทางที่ควรพาผู้ใช้ไปดูหลังนำเข้าเสร็จ ต้องเป็น view ที่มีอยู่จริงในเมนู
 // leads ไม่มีหน้าของตัวเอง สถานะ Lead แสดงอยู่ในหน้า CRM
-const importLandingViews = { customers: "customers", leads: "crm", products: "products", deals: "deals", tasks: "tasks" };
+const importLandingViews = { profile: "dashboard", customers: "customers", leads: "crm", products: "products", deals: "deals", tasks: "tasks" };
 
 function workbookPreviewMarkup(plan) {
   const routed = (plan.sheetResults || []).map((sheet) =>
@@ -2449,7 +2450,7 @@ function openImportReview(parsed, file) {
     : sheetOptions;
   sheetSelect.value = manySheets ? "all" : sheetSelect.value;
   sheetSelect.disabled = parsed.kind === "state" || parsed.sheets.length <= 1;
-  document.querySelector("#importFileSummary").innerHTML = `<span><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=23#clipboard"></use></svg><strong>${escapeHTML(file.name)}</strong></span><span>${escapeHTML(parsed.format.toUpperCase())}</span><span>${escapeHTML(`${Math.max(1, Math.ceil(file.size / 1024))} KB`)}</span>`;
+  document.querySelector("#importFileSummary").innerHTML = `<span><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=24#clipboard"></use></svg><strong>${escapeHTML(file.name)}</strong></span><span>${escapeHTML(parsed.format.toUpperCase())}</span><span>${escapeHTML(`${Math.max(1, Math.ceil(file.size / 1024))} KB`)}</span>`;
   refreshImportPlan();
   document.querySelector("#importDialog").showModal();
 }

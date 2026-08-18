@@ -199,8 +199,8 @@ const workbookPlan = buildImportPlan(parsedReport, { collection: "all", business
 assert.equal(workbookPlan.kind, "workbook", "เลือกนำเข้าทั้งไฟล์ต้องได้แผนแบบหลายชีต");
 assert.deepEqual(
   workbookPlan.steps.map((step) => step.collection),
-  ["products", "customers", "leads", "deals", "tasks"],
-  "ต้องเรียงลำดับนำเข้าตาม dependency ไม่งั้นดีลจะหาลูกค้าในไฟล์เดียวกันไม่เจอ"
+  ["profile", "products", "customers", "leads", "deals", "tasks"],
+  "ต้องเรียงลำดับนำเข้าตาม dependency ไม่งั้นดีลจะหาลูกค้าในไฟล์เดียวกันไม่เจอ และข้อเสนอจะยืมโปรไฟล์เปล่า"
 );
 
 const workbookApplied = applyImportPlan(blankState, workbookPlan);
@@ -230,4 +230,56 @@ assert.equal(workbookAgain.state.customers.length, seeded.customers.length, "น
 assert.equal(workbookAgain.state.deals.length, seeded.deals.length, "นำเข้าไฟล์เดิมซ้ำต้องไม่สร้างดีลซ้ำ");
 assert.equal(workbookAgain.stats.created, 0, "นำเข้าไฟล์เดิมซ้ำต้องเป็นการอัปเดตล้วน");
 
-console.log(`Data import passed: JSON, CSV, XLS/XLSX, Markdown, DOC/DOCX, header detection and full-workbook round trip (${parsedReport.sheets.length} sheets)`);
+// ── Set Zero แล้วนำเข้ากลับ ต้องได้ค่าเดิมทุกช่อง ────────────────────────────
+//
+// นี่คือเส้นทางที่ผู้ใช้เดินจริงตอนกู้ข้อมูล: ล้างระบบ แล้วนำไฟล์รายงานกลับเข้ามา
+// จำนวนรายการเท่าเดิมยังไม่พอ ถ้าเป้ารายได้กลายเป็น 0 หรือข้อเสนอ Onsite กลายเป็น Online
+// ผู้ใช้จะเห็นตัวเลขครบแต่ตัดสินใจผิด ซึ่งแย่กว่าเห็นว่าข้อมูลหายไปตรง ๆ
+const { createZeroState } = await import("../app/business-workflows.js");
+const { normalizeState } = await import("../app/state-model.js");
+
+let restored = normalizeState(createZeroState());
+assert.equal(restored.customers.length, 0, "Set Zero ต้องล้างข้อมูลจริง");
+assert.equal(restored.businessProfile.revenueTarget, 0, "Set Zero ต้องล้างเป้ารายได้ด้วย");
+
+const restorePlan = buildImportPlan(parsedReport, { collection: "all", businessProfile: restored.businessProfile, state: restored });
+restored = normalizeState(applyImportPlan(restored, restorePlan).state);
+
+for (const key of ["businessName", "businessMode", "businessCategory", "businessAvatar", "revenueTarget"]) {
+  assert.deepEqual(restored.businessProfile[key], seeded.businessProfile[key],
+    `โปรไฟล์ธุรกิจช่อง ${key} ต้องกลับมาเหมือนเดิมหลัง Set Zero แล้วนำเข้าไฟล์รายงาน`);
+}
+for (const product of seeded.products) {
+  const match = restored.products.find((item) => item.name === product.name);
+  assert.ok(match, `ข้อเสนอ ${product.name} ต้องกลับมา`);
+  for (const key of ["price", "cost", "category", "pipelineStage", "businessMode", "businessCategory", "status"]) {
+    assert.deepEqual(match[key], product[key], `ข้อเสนอ ${product.name} ช่อง ${key} ต้องกลับมาเหมือนเดิม`);
+  }
+}
+for (const customer of seeded.customers) {
+  const match = restored.customers.find((item) => item.fullName === customer.fullName);
+  assert.equal(match?.createdAt, customer.createdAt, `วันที่เริ่มเป็นลูกค้าของ ${customer.fullName} ต้องไม่ถูกแทนด้วยวันที่กดนำเข้า`);
+}
+for (const deal of seeded.deals) {
+  const match = restored.deals.find((item) => item.name === deal.name);
+  assert.deepEqual([match?.value, match?.stage, match?.probability], [deal.value, deal.stage, deal.probability], `ดีล ${deal.name} ต้องกลับมาเหมือนเดิม`);
+}
+
+// ไฟล์ที่ผู้ใช้ export ไปแล้วก่อนมีชีตข้อมูลดิบของข้อเสนอ ต้องยังนำเข้าได้อยู่
+// ลิงก์และไฟล์ที่ส่งออกไปแล้วอยู่ในมือคนอื่น การทำให้มันใช้ไม่ได้คือความเสียหายที่มองไม่เห็น
+const legacySheets = parsedReport.sheets.filter((sheet) => sheet.name !== "ข้อมูลข้อเสนอ" && sheet.name !== "ตั้งค่าธุรกิจ");
+const legacyPlan = buildImportPlan({ kind: "rows", sheets: legacySheets, format: "xlsx" }, {
+  collection: "all", businessProfile: seeded.businessProfile, state: blankState
+});
+const legacyRoutes = Object.fromEntries(legacyPlan.steps.map((step) => [step.name, step.collection]));
+assert.equal(legacyRoutes["ข้อเสนอและกำไร"], "products", "ไฟล์รุ่นเก่าที่ไม่มีชีตข้อมูลข้อเสนอ ต้องยังอ่านข้อเสนอจากชีตวิเคราะห์ได้");
+const legacyApplied = applyImportPlan(blankState, legacyPlan);
+assert.equal(legacyApplied.state.products.length, seeded.products.length, "ไฟล์รุ่นเก่าต้องยังนำเข้าข้อเสนอได้ครบ");
+assert.equal(legacyApplied.state.deals.length, seeded.deals.length, "ไฟล์รุ่นเก่าต้องยังนำเข้าดีลได้ครบ");
+// แต่พอมีชีตใหม่แล้ว ชีตวิเคราะห์ต้องถูกข้าม ไม่งั้นข้อเสนอชุดเดียวจะถูกนำเข้าสองรอบ
+assert.equal(
+  workbookPlan.skipped.some((sheet) => sheet.name === "ข้อเสนอและกำไร"), true,
+  "เมื่อไฟล์มีชีตข้อมูลข้อเสนอแล้ว ชีตวิเคราะห์ต้องถูกข้ามเพื่อไม่ให้นำเข้าซ้ำ"
+);
+
+console.log(`Data import passed: JSON, CSV, XLS/XLSX, Markdown, DOC/DOCX, header detection, Set Zero restore fidelity and legacy-file compatibility (${parsedReport.sheets.length} sheets)`);

@@ -10,16 +10,18 @@
 
 import {
   buildInsightReport
-} from "./business-insights.js?v=23";
+} from "./business-insights.js?v=24";
 import {
   dealStageLabels,
   leadStatusLabels,
-  taskStatusLabels
-} from "./business-config.js?v=23";
+  taskStatusLabels,
+  businessCategories,
+  businessModes
+} from "./business-config.js?v=24";
 import {
   compareToPrevious,
   thaiMonthLabel
-} from "./state-model.js?v=23";
+} from "./state-model.js?v=24";
 
 // สีจาก CI เดียวกับ app/styles.css — ExcelJS ใช้รูปแบบ ARGB จึงต้องเติม FF นำหน้า
 const BRAND = {
@@ -66,7 +68,7 @@ function loadExcelJS() {
 
   excelJsLoader = new Promise((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = "/vendor/exceljs.min.js?v=23";
+    script.src = "/vendor/exceljs.min.js?v=24";
     script.onload = () => {
       if (globalThis.ExcelJS?.Workbook) resolve(globalThis.ExcelJS);
       else reject(new Error("โหลดตัวสร้างไฟล์ Excel ได้ แต่ไลบรารีไม่พร้อมใช้งาน กรุณารีเฟรชหน้าเว็บแล้วลองใหม่"));
@@ -201,6 +203,8 @@ export async function buildReportWorkbook(state, referenceDate) {
 
   summary.addRow([]);
   summary.addRow(["ช่วงคาดการณ์รายได้"]).font = { name: "Tahoma", size: 12, bold: true, color: { argb: BRAND.orangeDeep } };
+  // จำแถวไว้ก่อน เพราะหน่วยเงินต้องลงเฉพาะตารางคาดการณ์นี้เท่านั้น
+  const forecastFirstRow = summary.rowCount + 2;
   addTable(
     summary,
     ["มุมมอง", "ยอดคาดการณ์", "ความหมาย"],
@@ -212,7 +216,11 @@ export async function buildReportWorkbook(state, referenceDate) {
     ],
     [42, 26, 60]
   );
-  summary.getColumn(2).numFmt = MONEY;
+  // ห้ามใช้ getColumn(2).numFmt ที่นี่ เพราะคอลัมน์นี้กินบล็อกตัวเลขหลักด้านบนด้วย
+  // ผลคือ "ทำได้แล้วคิดเป็น 5.9%" ถูกเขียนทับเป็น "6 บาท" และจำนวน Lead กับจำนวนงาน
+  // ก็ถูกติดหน่วยบาททั้งที่เป็นการนับ — ตัวเลขผิดหน่วยบนหน้าแรกของรายงานที่เจ้าของ
+  // เอาไปคุยกับธนาคาร อันตรายกว่าตัวเลขที่หายไปเสียอีก เพราะมันดูน่าเชื่อถือ
+  for (let row = forecastFirstRow; row <= summary.rowCount; row += 1) summary.getRow(row).getCell(2).numFmt = MONEY;
 
   summary.addRow([]);
   const noteRow = summary.addRow([`ที่มาของตัวเลข: ${report.revenueGap.reason} · ${report.forecast.reason}`]);
@@ -361,17 +369,58 @@ export async function buildReportWorkbook(state, referenceDate) {
   tasks.addRow(["ภาระงานที่ยังไม่เสร็จ แยกตามผู้รับผิดชอบ"]).font = { name: "Tahoma", size: 12, bold: true, color: { argb: BRAND.orangeDeep } };
   addTable(tasks, ["ผู้รับผิดชอบ", "จำนวนงานค้าง"], report.tasks.workload.map((item) => [item.owner, item.count]), [46, 22]);
 
-  // ---------- ชีต 7-10: ข้อมูลดิบ ----------
+  // ---------- ชีตข้อมูลดิบ ----------
+  //
+  // ชีตกลุ่มนี้มีไว้ให้ "นำเข้าข้อมูล" อ่านกลับเข้าระบบได้ ต่างจากชีตวิเคราะห์ด้านบน
+  // ที่มีไว้ให้คนอ่าน จึงต้องเก็บ field ที่ระบบใช้จริงให้ครบ แม้บาง field จะดูไม่สวย
+  // ในสายตาคนอ่าน เช่น ขั้น Pipeline ของข้อเสนอ — ถ้าไม่เก็บ พอ Set Zero แล้วนำเข้ากลับ
+  // ข้อเสนอทุกตัวจะกองอยู่ขั้นเดียวกันหมด และ Journey ก็จะคำนวณผิดตาม
+
+  const settings = workbook.addWorksheet("ตั้งค่าธุรกิจ", { properties: { tabColor: { argb: BRAND.ink } } });
+  styleTitle(settings, "ตั้งค่าธุรกิจที่บันทึกไว้", "ใช้กู้คืนโปรไฟล์ธุรกิจเมื่อนำไฟล์นี้กลับเข้าระบบ", 4);
+  addTable(
+    settings,
+    ["ชื่อธุรกิจ", "รูปแบบธุรกิจ", "หมวดธุรกิจ", "เป้ารายได้"],
+    [[
+      state.businessProfile.businessName || "",
+      businessModes[state.businessProfile.businessMode]?.label || state.businessProfile.businessMode || "",
+      businessCategories[state.businessProfile.businessCategory] || state.businessProfile.businessCategory || "",
+      Number(state.businessProfile.revenueTarget) || 0
+    ]],
+    [34, 20, 28, 20]
+  );
+  settings.getColumn(4).numFmt = MONEY;
+
+  const rawProducts = workbook.addWorksheet("ข้อมูลข้อเสนอ", { properties: { tabColor: { argb: BRAND.ink } } });
+  styleTitle(rawProducts, "ข้อเสนอทั้งหมดในระบบ", `รวม ${state.products.length} รายการ · เก็บครบทุกช่องที่ระบบใช้`, 9);
+  addTable(
+    rawProducts,
+    ["ชื่อข้อเสนอ", "หมวด", "ราคาขาย", "ต้นทุน", "รูปแบบธุรกิจ", "ขั้น Pipeline", "สถานะ", "คำอธิบาย", "เหตุผลแนะนำ"],
+    state.products.map((product) => [
+      product.name,
+      product.category || "",
+      Number(product.price) || 0,
+      Number(product.cost) || 0,
+      businessModes[product.businessMode]?.label || product.businessMode || "",
+      dealStageLabels[product.pipelineStage] || product.pipelineStage || "",
+      product.status === "inactive" ? "ปิดขาย" : "เปิดขาย",
+      product.description || "",
+      product.recommendationReason || ""
+    ]),
+    [34, 16, 16, 16, 16, 26, 12, 44, 34]
+  );
+  for (const index of [3, 4]) rawProducts.getColumn(index).numFmt = MONEY;
+
   const rawCustomers = workbook.addWorksheet("ข้อมูลลูกค้า", { properties: { tabColor: { argb: BRAND.ink } } });
-  styleTitle(rawCustomers, "ข้อมูลลูกค้าทั้งหมดในระบบ", `รวม ${state.customers.length} รายการ · ไม่รวมรูปโปรไฟล์`, 6);
+  styleTitle(rawCustomers, "ข้อมูลลูกค้าทั้งหมดในระบบ", `รวม ${state.customers.length} รายการ · ไม่รวมรูปโปรไฟล์`, 7);
   addTable(
     rawCustomers,
-    ["ชื่อลูกค้า", "เบอร์โทร", "ช่องทางที่มา", "ประเภทลูกค้า", "ข้อเสนอที่สนใจ", "ความต้องการ"],
+    ["ชื่อลูกค้า", "เบอร์โทร", "ช่องทางที่มา", "ประเภทลูกค้า", "ข้อเสนอที่สนใจ", "ความต้องการ", "วันที่เริ่มเป็นลูกค้า"],
     state.customers.map((customer) => [
       customer.fullName, customer.phone || "", customer.source || "", customer.customerType || "",
-      customer.solutionPackage || "", customer.interest || ""
+      customer.solutionPackage || "", customer.interest || "", customer.createdAt || ""
     ]),
-    [28, 16, 18, 20, 32, 44]
+    [28, 16, 18, 20, 32, 44, 20]
   );
 
   const rawLeads = workbook.addWorksheet("Lead", { properties: { tabColor: { argb: BRAND.ink } } });

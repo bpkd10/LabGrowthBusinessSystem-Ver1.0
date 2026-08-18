@@ -12,7 +12,7 @@ import {
   buildProfileCatalog,
   mergeCatalogWithProducts,
   normalizeOfferRelations
-} from "./business-workflows.js?v=23";
+} from "./business-workflows.js?v=24";
 import {
   businessCatalogs,
   businessModes,
@@ -23,7 +23,7 @@ import {
   seedData,
   SCHEMA_VERSION,
   thaiMonthLabels
-} from "./business-config.js?v=23";
+} from "./business-config.js?v=24";
 
 export function clone(value) {
   return typeof structuredClone === "function"

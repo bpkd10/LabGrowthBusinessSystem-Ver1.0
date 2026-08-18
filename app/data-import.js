@@ -1,4 +1,4 @@
-import { dealStageLabels, leadStatusLabels, taskStatusLabels, priorityLabels } from "./business-config.js";
+import { dealStageLabels, leadStatusLabels, taskStatusLabels, priorityLabels, businessCategories } from "./business-config.js";
 import { normalizeOfferCategory } from "./state-model.js";
 
 export const supportedImportExtensions = ["json", "csv", "cvs", "tsv", "xls", "xlsx", "md", "txt", "doc", "docx"];
@@ -9,9 +9,17 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024;
 // products ต้องมาก่อน customers เพราะลูกค้าอ้างชื่อข้อเสนอ, customers ต้องมาก่อน
 // leads/deals เพราะทั้งสองอย่างผูกกับ customerId ถ้าสลับลำดับ ดีลจะถูกตีตกว่า
 // "ไม่พบลูกค้าที่ตรงกับดีล" ทั้งที่ลูกค้าอยู่ในไฟล์เดียวกัน
-const collections = ["products", "customers", "leads", "deals", "tasks"];
+// profile ต้องมาก่อนทุกอย่าง เพราะลูกค้าและข้อเสนอที่ไม่ได้ระบุรูปแบบธุรกิจมาเอง
+// จะยืมค่าจากโปรไฟล์ ถ้ายังไม่ได้กู้โปรไฟล์คืนก่อน ทุกรายการจะไปกองอยู่ที่ค่า default
+const collections = ["profile", "products", "customers", "leads", "deals", "tasks"];
 
 const fieldAliases = {
+  profile: {
+    businessName: ["businessname", "ชื่อธุรกิจ", "ชื่อบริษัท", "ชื่อกิจการ"],
+    businessMode: ["businessmode", "รูปแบบธุรกิจ", "รูปแบบการขาย"],
+    businessCategory: ["businesscategory", "หมวดธุรกิจ", "ประเภทธุรกิจ"],
+    revenueTarget: ["revenuetarget", "เป้ารายได้", "เป้าหมายรายได้"]
+  },
   customers: {
     fullName: ["fullname", "name", "customer", "customername", "ชื่อลูกค้า", "ชื่อนามสกุล", "ชื่อ"],
     phone: ["phone", "tel", "telephone", "mobile", "เบอร์โทร", "โทรศัพท์", "มือถือ"],
@@ -19,7 +27,8 @@ const fieldAliases = {
     solutionPackage: ["solutionpackage", "package", "offer", "product", "แพ็กเกจ", "packageoffer", "ข้อเสนอ", "สินค้า", "ข้อเสนอที่สนใจ", "แพ็กเกจที่สนใจ"],
     interest: ["interest", "need", "needs", "requirement", "ความสนใจ", "ความต้องการ", "โจทย์ธุรกิจ"],
     customerType: ["customertype", "segment", "type", "ประเภทลูกค้า", "กลุ่มลูกค้า"],
-    leadStatus: ["leadstatus", "crmstatus", "สถานะlead", "สถานะลูกค้า"]
+    leadStatus: ["leadstatus", "crmstatus", "สถานะlead", "สถานะลูกค้า"],
+    createdAt: ["createdat", "วันที่เริ่มเป็นลูกค้า", "วันที่สร้าง", "วันที่รู้จัก"]
   },
   products: {
     name: ["name", "product", "productname", "package", "packagename", "offer", "offername", "ชื่อสินค้า", "ชื่อแพ็กเกจ", "ชื่อข้อเสนอ", "สินค้า", "ข้อเสนอ"],
@@ -315,6 +324,7 @@ function fieldLookup(row, collection) {
 }
 
 const collectionWeights = {
+  profile: { businessName: 5, revenueTarget: 4, businessCategory: 3, businessMode: 1 },
   customers: { fullName: 5, phone: 4, source: 2, interest: 2, solutionPackage: 1 },
   products: { name: 5, price: 4, cost: 3, businessMode: 2, category: 2, description: 1 },
   leads: { leadScore: 5, nextFollowUp: 4, customerName: 3, status: 2, assignedTo: 1 },
@@ -349,11 +359,12 @@ export function detectImportCollection(rows) {
 // เพราะชีตวิเคราะห์หลายใบใช้หัวคอลัมน์ซ้ำกับชีตข้อมูลดิบ (เช่น "งานค้างและความเสี่ยง"
 // มีคอลัมน์เหมือน "งานติดตาม") ถ้าเดาแล้วนำเข้าทั้งคู่ ข้อมูลชุดเดียวจะถูกนับสองรอบ
 const sheetRoutes = new Map([
+  ["ตั้งค่าธุรกิจ", "profile"],
+  ["ข้อมูลข้อเสนอ", "products"],
   ["ข้อมูลลูกค้า", "customers"],
   ["lead", "leads"],
   ["ดีล", "deals"],
   ["งานติดตาม", "tasks"],
-  ["ข้อเสนอและกำไร", "products"],
   ["สินค้าและข้อเสนอ", "products"]
 ]);
 
@@ -366,8 +377,21 @@ const skippedSheets = new Map([
   ["งานค้างและความเสี่ยง", "เป็นมุมมองซ้ำของชีตงานติดตาม ระบบใช้ชีตงานติดตามแทน"]
 ]);
 
-export function routeSheet(sheet) {
+// "ข้อเสนอและกำไร" เป็นชีตวิเคราะห์ ไม่ได้เก็บขั้น Pipeline หรือรูปแบบธุรกิจของข้อเสนอ
+// รายงานรุ่นใหม่จึงมีชีต "ข้อมูลข้อเสนอ" ที่เก็บครบให้แทน แต่ไฟล์ที่ผู้ใช้ export ไปแล้ว
+// ก่อนหน้านี้ไม่มีชีตนั้น ถ้าตัดทิ้งเลยไฟล์เก่าจะนำเข้าข้อเสนอไม่ได้เลย จึงยังใช้เป็น
+// ตัวสำรองเมื่อไฟล์ไม่มีชีตข้อมูลดิบของข้อเสนอ
+const OFFER_ANALYSIS_SHEET = "ข้อเสนอและกำไร";
+const OFFER_RAW_SHEET = "ข้อมูลข้อเสนอ";
+
+export function routeSheet(sheet, workbookSheetNames = []) {
   const key = normalizeKey(sheet?.name);
+  const names = workbookSheetNames.map(normalizeKey);
+  if (key === normalizeKey(OFFER_ANALYSIS_SHEET)) {
+    return names.includes(normalizeKey(OFFER_RAW_SHEET))
+      ? { collection: null, reason: "ไฟล์นี้มีชีตข้อมูลข้อเสนอที่ครบกว่าแล้ว ระบบใช้ชีตนั้นแทน", source: "name" }
+      : { collection: "products", reason: "", source: "name" };
+  }
   const skipReason = skippedSheets.get(key);
   if (skipReason) return { collection: null, reason: skipReason, source: "name" };
   const named = sheetRoutes.get(key);
@@ -386,6 +410,17 @@ function normalizeBusinessMode(value, fallback) {
   const normalized = normalizeKey(value);
   const values = { online: "online", onsite: "onsite", wholesale: "wholesale", retail: "retail", ออนไลน์: "online", ออนไซต์: "onsite", ขายส่ง: "wholesale", ค้าปลีก: "retail" };
   return values[normalized] || fallback || "online";
+}
+
+// รายงานเขียนหมวดธุรกิจเป็นป้ายที่คนอ่าน ("Creator / ธุรกิจออนไลน์") ไม่ใช่คีย์ ("creator")
+// คืนค่าว่างเมื่อจับคู่ไม่ได้ เพื่อให้ผู้เรียกเลือกได้ว่าจะคงค่าเดิมไว้ ดีกว่าเดาผิดแล้วเปลี่ยน
+// หมวดธุรกิจของผู้ใช้ทิ้งโดยที่เจ้าตัวไม่ได้สั่ง
+function normalizeBusinessCategory(value) {
+  const normalized = normalizeKey(value);
+  if (!normalized) return "";
+  if (businessCategories[normalized]) return normalized;
+  const matched = Object.entries(businessCategories).find(([, label]) => normalizeKey(label) === normalized);
+  return matched ? matched[0] : "";
 }
 
 function normalizePipelineStage(value, fallback = "Proposal") {
@@ -443,7 +478,23 @@ export function buildImportPlan(parsed, options = {}) {
   rows.forEach((row, index) => {
     const fields = fieldLookup(row, collection);
     const rowNumber = index + firstDataRow;
-    if (collection === "customers") {
+    if (collection === "profile") {
+      // แถวเดียวพอ ถ้ามีหลายแถวให้ใช้แถวแรกที่มีชื่อธุรกิจ เพื่อไม่ให้โปรไฟล์ถูกเขียนทับไปมา
+      if (records.length) return;
+      const name = String(fields.businessName || "").trim();
+      const target = numberValue(fields.revenueTarget, -1);
+      if (!name && target < 0) return rejected.push({ row: rowNumber, reason: "ไม่พบชื่อธุรกิจหรือเป้ารายได้" });
+      const nextProfile = {};
+      if (name) nextProfile.businessName = name;
+      if (fields.businessMode) nextProfile.businessMode = normalizeBusinessMode(fields.businessMode, profile.businessMode);
+      const category = normalizeBusinessCategory(fields.businessCategory);
+      if (category) {
+        nextProfile.businessCategory = category;
+        nextProfile.businessAvatar = category;
+      }
+      if (target >= 0) nextProfile.revenueTarget = target;
+      records.push(nextProfile);
+    } else if (collection === "customers") {
       if (!fields.fullName) return rejected.push({ row: rowNumber, reason: "ไม่พบชื่อลูกค้า" });
       const id = importedId("c", index);
       const offer = (currentState.products || []).find((item) => normalizeKey(item.name) === normalizeKey(fields.solutionPackage));
@@ -452,7 +503,9 @@ export function buildImportPlan(parsed, options = {}) {
         solutionPackageId: offer?.id || "", solutionPackage: offer?.name || String(fields.solutionPackage || ""),
         interest: String(fields.interest || "นำเข้าจากไฟล์"), customerType: String(fields.customerType || "ยังไม่จัดกลุ่ม"),
         businessMode: offer?.businessMode || profile.businessMode || "online", businessCategory: offer?.businessCategory || profile.businessCategory || "service",
-        avatar: "", avatarPreset: profile.businessCategory || "service", createdAt: new Date().toISOString().slice(0, 10)
+        avatar: "", avatarPreset: profile.businessCategory || "service",
+        // วันที่รู้จักลูกค้าเป็นข้อมูลของธุรกิจ ไม่ใช่วันที่กดนำเข้า ถ้าไฟล์บอกมาต้องใช้ตามนั้น
+        createdAt: fields.createdAt ? dateValue(fields.createdAt) : new Date().toISOString().slice(0, 10)
       });
       leads.push({ id: importedId("l", index), customerId: id, status: normalizeLeadStatus(fields.leadStatus), assignedTo: "Sales Team", leadScore: 50, nextFollowUp: dateValue(Date.now() + 2 * 86400000) });
     } else if (collection === "products") {
@@ -461,7 +514,7 @@ export function buildImportPlan(parsed, options = {}) {
       const pipelineStage = normalizePipelineStage(fields.pipelineStage);
       records.push({
         id: importedId("p", index), name: String(fields.name), category: normalizeOfferCategory(fields.category),
-        price: Math.max(0, numberValue(fields.price)), cost: Math.max(0, numberValue(fields.cost)), status: normalizeKey(fields.status) === "inactive" ? "inactive" : "active",
+        price: Math.max(0, numberValue(fields.price)), cost: Math.max(0, numberValue(fields.cost)), status: ["inactive", "ปิดขาย", "ปิด"].includes(normalizeKey(fields.status)) ? "inactive" : "active",
         businessMode, businessCategory: String(fields.businessCategory || profile.businessCategory || "service"), pipelineStage,
         description: String(fields.description || `ข้อเสนอที่นำเข้าสำหรับธุรกิจ ${businessMode}`),
         recommendationReason: String(fields.recommendationReason || `ใช้ในขั้น ${pipelineStage}`)
@@ -496,10 +549,11 @@ export function buildImportPlan(parsed, options = {}) {
 // ไม่ใช่ตัวเลขที่คำนวณจาก state เก่าซึ่งจะต่ำกว่าความจริงเสมอ
 export function buildWorkbookPlan(parsed, options = {}) {
   const sheets = Array.isArray(parsed?.sheets) ? parsed.sheets : [];
+  const sheetNames = sheets.map((sheet) => sheet.name);
   const steps = [];
   const skipped = [];
   for (const [index, sheet] of sheets.entries()) {
-    const route = routeSheet(sheet);
+    const route = routeSheet(sheet, sheetNames);
     if (!route.collection) {
       skipped.push({ index, name: sheet.name, reason: route.reason });
       continue;
@@ -527,7 +581,15 @@ function runWorkbookImport(inputState, plan) {
   for (const step of plan.steps) {
     const subPlan = buildImportPlan(
       { kind: "rows", rows: step.rows, format: "workbook" },
-      { collection: step.collection, businessProfile: plan.businessProfile, state, firstDataRow: step.firstDataRow }
+      {
+        collection: step.collection,
+        // ต้องอ่านโปรไฟล์จาก state ที่กำลังเดินอยู่ ไม่ใช่ค่าที่ล็อกไว้ตอนสร้างแผน
+        // เพราะชีตตั้งค่าธุรกิจถูกนำเข้าไปแล้วในรอบก่อนหน้า ข้อเสนอและลูกค้าที่ตามมา
+        // ต้องยืมค่าจากโปรไฟล์ที่กู้คืนแล้ว ไม่ใช่โปรไฟล์เปล่าหลัง Set Zero
+        businessProfile: state.businessProfile || plan.businessProfile,
+        state,
+        firstDataRow: step.firstDataRow
+      }
     );
     const applied = applyImportPlan(state, subPlan);
     state = applied.state;
@@ -565,6 +627,13 @@ export function applyImportPlan(inputState, plan) {
   }
   const state = copy(inputState);
   for (const key of ["customers", "leads", "products", "deals", "tasks"]) if (!Array.isArray(state[key])) state[key] = [];
+  if (plan.collection === "profile") {
+    // ทับเฉพาะช่องที่ไฟล์บอกมาจริง ช่องที่ไฟล์ไม่มีต้องคงของเดิมไว้
+    const patch = plan.records[0];
+    if (!patch) return { state, stats: { created: 0, updated: 0, rejected: plan.rejected?.length || 0, replacedState: false } };
+    state.businessProfile = { ...(state.businessProfile || {}), ...patch };
+    return { state, stats: { created: 0, updated: 1, rejected: plan.rejected?.length || 0, replacedState: false } };
+  }
   let created = 0;
   let updated = 0;
   const idMap = new Map();
