@@ -2371,7 +2371,7 @@ const importLandingViews = { profile: "dashboard", customers: "customers", leads
 
 function workbookPreviewMarkup(plan) {
   const routed = (plan.sheetResults || []).map((sheet) =>
-    `<tr><td>${escapeHTML(sheet.name)}</td><td>${escapeHTML(importCollectionLabels[sheet.collection] || sheet.collection)}</td><td>${escapeHTML(`${sheet.created + sheet.updated} รายการ`)}</td><td>${sheet.rejected ? escapeHTML(`ข้าม ${sheet.rejected} แถว`) : "ครบทุกแถว"}</td></tr>`);
+    `<tr><td>${escapeHTML(sheet.name)}</td><td>${escapeHTML(importCollectionLabels[sheet.collection] || sheet.collection)}</td><td>${escapeHTML(sheet.recovered ? "กู้จากหัวรายงาน" : `${sheet.created + sheet.updated} รายการ`)}</td><td>${sheet.rejected ? escapeHTML(`ข้าม ${sheet.rejected} แถว`) : "ครบทุกแถว"}</td></tr>`);
   const ignored = (plan.skipped || []).map((sheet) =>
     `<tr class="import-row-muted"><td>${escapeHTML(sheet.name)}</td><td>ไม่นำเข้า</td><td>-</td><td>${escapeHTML(sheet.reason)}</td></tr>`);
   if (!routed.length && !ignored.length) return '<div class="empty-state">ไฟล์นี้ไม่มีชีตที่อ่านได้</div>';
@@ -2423,6 +2423,12 @@ function refreshImportPlan() {
   document.querySelector("#importPreview").innerHTML = importPreviewMarkup(plan);
   const warnings = [
     ...(importSession.parsed.warnings || []).map((warning) => typeof warning === "string" ? warning : warning.message).filter(Boolean),
+    // เตือนเรื่องโปรไฟล์ที่กู้ไม่ครบก่อนเสมอ เพราะเป็นสิ่งที่ผู้ใช้จะไม่รู้ตัวว่าหาย
+    // จำนวนรายการครบแต่เป้ารายได้เป็น 0 ทำให้แถบความคืบหน้าอ่านผิดทั้งหน้า Dashboard
+    ...(plan.profileNotice ? [plan.profileNotice] : []),
+    ...(plan.kind === "workbook" && !(plan.sheetResults || []).some((sheet) => sheet.collection === "profile")
+      ? ["ไฟล์นี้ไม่มีข้อมูลโปรไฟล์ธุรกิจ ชื่อธุรกิจและเป้ารายได้จะไม่ถูกกู้คืน ต้องกรอกเองที่หน้าภาพรวมธุรกิจ"]
+      : []),
     ...(plan.rejected || []).slice(0, 3).map((item) => `${item.sheet ? `ชีต ${item.sheet} ` : ""}แถว ${item.row}: ${item.reason}`)
   ];
   document.querySelector("#importWarning").textContent = warnings.length

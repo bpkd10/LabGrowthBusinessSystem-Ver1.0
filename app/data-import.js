@@ -293,7 +293,9 @@ export async function parseImportFile(file, adapters = {}) {
     const sheets = workbook.SheetNames.map((name) => {
       const matrix = xlsx.utils.sheet_to_json(workbook.Sheets[name], { header: 1, defval: "", raw: true, blankrows: true });
       const { rows, headerRow, firstDataRow } = matrixToRows(matrix);
-      return { name, rows, headerRow, firstDataRow };
+      // เก็บตารางดิบไว้ด้วย เพราะชีตสรุปเขียนแบบ "ป้าย | ค่า" ทีละบรรทัด ไม่ใช่ตารางที่มีหัวคอลัมน์
+      // การอ่านโปรไฟล์ธุรกิจจากไฟล์รุ่นเก่าต้องไล่ดูตารางดิบเท่านั้น
+      return { name, rows, headerRow, firstDataRow, matrix };
     });
     const firstSheet = sheets.find((sheet) => sheet.rows.length) || sheets[0] || { name: "Sheet 1", rows: [], firstDataRow: 2 };
     return { kind: "rows", format: extension, fileName: file.name, rows: firstSheet.rows, sheets };
@@ -547,6 +549,39 @@ export function buildImportPlan(parsed, options = {}) {
 // นำเข้าทั้งไฟล์: จัดเส้นทางทุกชีตก่อน แล้วค่อยเรียงลำดับตาม dependency
 // การ dry-run ตรงนี้ทำให้ตัวเลขที่โชว์ใน Preview เท่ากับผลจริงตอนกดยืนยัน
 // ไม่ใช่ตัวเลขที่คำนวณจาก state เก่าซึ่งจะต่ำกว่าความจริงเสมอ
+// กู้โปรไฟล์ธุรกิจจากชีตสรุปผู้บริหารของไฟล์รุ่นเก่า
+//
+// ไฟล์ที่ export ก่อนมีชีต "ตั้งค่าธุรกิจ" ไม่ได้เก็บโปรไฟล์ไว้เป็นตาราง แต่ชื่อธุรกิจ
+// อยู่ในหัวรายงาน ("<ชื่อธุรกิจ> · รายงานวิเคราะห์ธุรกิจ") และเป้ารายได้อยู่ในบล็อกตัวเลขหลัก
+// ข้อมูลอยู่ในไฟล์อยู่แล้ว แค่ไม่ได้อยู่ในรูปตาราง — การไม่อ่านมันคือการทิ้งของที่มี
+// หมวดธุรกิจไม่มีอยู่ในไฟล์รุ่นนั้นเลย จึงกู้คืนไม่ได้ ต้องบอกผู้ใช้ตรง ๆ ไม่ใช่เดาแทน
+const SUMMARY_SHEET = "สรุปผู้บริหาร";
+const REPORT_TITLE_SUFFIX = "รายงานวิเคราะห์ธุรกิจ";
+
+export function recoverProfileFromSummary(sheet) {
+  const matrix = Array.isArray(sheet?.matrix) ? sheet.matrix : [];
+  const profile = {};
+  const missing = [];
+  for (const row of matrix.slice(0, 20)) {
+    const first = String(row?.[0] ?? "").trim();
+    if (!first) continue;
+    if (!profile.businessName && first.includes(REPORT_TITLE_SUFFIX)) {
+      const name = first.split("·")[0].trim();
+      if (name && name !== REPORT_TITLE_SUFFIX) profile.businessName = name;
+      continue;
+    }
+    if (profile.revenueTarget === undefined && normalizeKey(first) === normalizeKey("เป้ารายได้")) {
+      const target = numberValue(row?.[1], -1);
+      if (target >= 0) profile.revenueTarget = target;
+    }
+  }
+  if (!profile.businessName) missing.push("ชื่อธุรกิจ");
+  if (profile.revenueTarget === undefined) missing.push("เป้ารายได้");
+  // ไฟล์รุ่นเก่าไม่เคยเก็บหมวดธุรกิจไว้ที่ไหนเลย
+  missing.push("หมวดธุรกิจ");
+  return { profile, missing };
+}
+
 export function buildWorkbookPlan(parsed, options = {}) {
   const sheets = Array.isArray(parsed?.sheets) ? parsed.sheets : [];
   const sheetNames = sheets.map((sheet) => sheet.name);
@@ -560,12 +595,31 @@ export function buildWorkbookPlan(parsed, options = {}) {
     }
     steps.push({ index, name: sheet.name, collection: route.collection, rows: sheet.rows || [], firstDataRow: sheet.firstDataRow || 2 });
   }
+
+  // ไม่มีชีตตั้งค่าธุรกิจ = ไฟล์รุ่นเก่า ให้ไปกู้เท่าที่กู้ได้จากชีตสรุปแทนการปล่อยว่าง
+  let profileNotice = "";
+  if (!steps.some((step) => step.collection === "profile")) {
+    const summarySheet = sheets.find((sheet) => normalizeKey(sheet.name) === normalizeKey(SUMMARY_SHEET));
+    if (summarySheet) {
+      const { profile: recovered, missing } = recoverProfileFromSummary(summarySheet);
+      if (Object.keys(recovered).length) {
+        steps.push({
+          index: -1, name: SUMMARY_SHEET, collection: "profile", recoveredProfile: recovered,
+          rows: [], firstDataRow: 2
+        });
+        profileNotice = missing.length
+          ? `กู้โปรไฟล์ธุรกิจจากชีตสรุปได้บางส่วน (${missing.join(" และ ")} ไม่มีอยู่ในไฟล์รุ่นนี้ ต้องกรอกเอง)`
+          : "";
+      }
+    }
+  }
+
   steps.sort((left, right) => collections.indexOf(left.collection) - collections.indexOf(right.collection));
 
   const businessProfile = options.businessProfile || {};
   const dryRun = runWorkbookImport(options.state || {}, { steps, businessProfile });
   return {
-    kind: "workbook", collection: "all", steps, skipped, businessProfile,
+    kind: "workbook", collection: "all", steps, skipped, businessProfile, profileNotice,
     sheetResults: dryRun.sheetResults, records: [], relatedRecords: { leads: [] },
     rejected: dryRun.rejected, format: parsed?.format || "unknown"
   };
@@ -579,6 +633,15 @@ function runWorkbookImport(inputState, plan) {
   let created = 0;
   let updated = 0;
   for (const step of plan.steps) {
+    // โปรไฟล์ที่กู้มาจากชีตสรุปไม่ได้มาในรูปตาราง จึงข้ามขั้นตอน mapping ไปใช้ค่าที่อ่านได้เลย
+    if (step.recoveredProfile) {
+      const before = JSON.stringify(state.businessProfile || {});
+      state = { ...state, businessProfile: { ...(state.businessProfile || {}), ...step.recoveredProfile } };
+      const changed = JSON.stringify(state.businessProfile) !== before;
+      if (changed) updated += 1;
+      sheetResults.push({ name: step.name, collection: "profile", created: 0, updated: changed ? 1 : 0, rejected: 0, recovered: true });
+      continue;
+    }
     const subPlan = buildImportPlan(
       { kind: "rows", rows: step.rows, format: "workbook" },
       {

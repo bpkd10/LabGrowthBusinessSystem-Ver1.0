@@ -282,4 +282,24 @@ assert.equal(
   "เมื่อไฟล์มีชีตข้อมูลข้อเสนอแล้ว ชีตวิเคราะห์ต้องถูกข้ามเพื่อไม่ให้นำเข้าซ้ำ"
 );
 
-console.log(`Data import passed: JSON, CSV, XLS/XLSX, Markdown, DOC/DOCX, header detection, Set Zero restore fidelity and legacy-file compatibility (${parsedReport.sheets.length} sheets)`);
+// ── ไฟล์รุ่นเก่าต้องกู้โปรไฟล์เท่าที่มีอยู่จริงในไฟล์ ────────────────────────
+//
+// ไฟล์ที่ export ก่อนมีชีต "ตั้งค่าธุรกิจ" ยังมีชื่อธุรกิจอยู่ในหัวรายงาน และเป้ารายได้
+// อยู่ในบล็อกตัวเลขหลัก การไม่อ่านสองค่านั้นทำให้ผู้ใช้ที่ Set Zero แล้วนำเข้ากลับ
+// เจอ "฿5,900 / ฿0" บนแถบเป้าหมาย ทั้งที่ตัวเลขอยู่ในไฟล์ตรงหน้า
+const legacyRestoreState = normalizeState(createZeroState());
+const legacyRestorePlan = buildImportPlan({ kind: "rows", sheets: legacySheets, format: "xlsx" }, {
+  collection: "all", businessProfile: legacyRestoreState.businessProfile, state: legacyRestoreState
+});
+const legacyRestored = normalizeState(applyImportPlan(legacyRestoreState, legacyRestorePlan).state);
+assert.equal(legacyRestored.businessProfile.businessName, seeded.businessProfile.businessName,
+  "ไฟล์รุ่นเก่าต้องกู้ชื่อธุรกิจจากหัวรายงานได้");
+assert.equal(legacyRestored.businessProfile.revenueTarget, seeded.businessProfile.revenueTarget,
+  "ไฟล์รุ่นเก่าต้องกู้เป้ารายได้จากบล็อกตัวเลขหลักได้ ไม่ใช่ปล่อยเป็น 0");
+// สิ่งที่กู้ไม่ได้ต้องบอกผู้ใช้ ไม่ใช่เดาแทนแล้วเงียบ
+assert.match(legacyRestorePlan.profileNotice, /หมวดธุรกิจ/,
+  "ต้องบอกผู้ใช้ว่าหมวดธุรกิจกู้คืนไม่ได้จากไฟล์รุ่นนี้");
+// ไฟล์รุ่นใหม่มีครบ จึงไม่ควรมีคำเตือนค้างไว้ให้ผู้ใช้กังวลเปล่า ๆ
+assert.equal(workbookPlan.profileNotice || "", "", "ไฟล์รุ่นใหม่ที่มีชีตตั้งค่าธุรกิจต้องไม่ต้องเตือนเรื่องกู้ไม่ครบ");
+
+console.log(`Data import passed: JSON, CSV, XLS/XLSX, Markdown, DOC/DOCX, header detection, Set Zero restore fidelity, legacy profile recovery (${parsedReport.sheets.length} sheets)`);
