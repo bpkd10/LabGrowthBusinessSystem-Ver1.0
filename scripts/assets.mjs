@@ -1,4 +1,4 @@
-export const ASSET_VERSION = "27";
+export const ASSET_VERSION = "28";
 
 export const ASSET_FILES = Object.freeze({
   "/": ["app/index.html", "text/html; charset=utf-8"],

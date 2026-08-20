@@ -28,6 +28,7 @@ const requiredHtmlContracts = [
   "resetBack",
   "resetNext",
   "resetExport",
+  "dropZone",
   "resetConfirm",
   "resetProgress",
   "productBusinessMode",
@@ -298,5 +299,54 @@ assert.match(sidebarBlock, /overflow-y:\s*auto/, "เมนูข้างตร
 // ปุ่มที่ชื่อ "ลิงก์หน้าหลัก" จึงพาไปหน้าอื่นได้ ซึ่งขัดกับสิ่งที่ปุ่มสัญญาไว้
 const copyHomeBlock = appJs.match(/#copyHomeLink"\)\.addEventListener\("click",[\s\S]*?\n}\);/)?.[0] || "";
 assert.match(copyHomeBlock, /#dashboard\/owner/, "ลิงก์หน้าหลักต้องระบุหน้าปลายทาง ไม่งั้นจะถูกพาไปหน้าที่เปิดค้างไว้ล่าสุดแทน");
+
+// ── ชั้นรับไฟล์ลากวางต้องไม่รบกวน UI เดิม ──────────────────────────────────
+//
+// feature นี้ถูกเพิ่มทีหลังเพื่อแก้ทางตันตอนหน้าต่างเลือกไฟล์ของ OS เปิดไม่ขึ้น
+// เงื่อนไขคือห้ามขยับหรือบังของเดิมแม้แต่นิดเดียว ทั้งสามกฎด้านล่างคือสิ่งที่ทำให้
+// เงื่อนไขนั้นเป็นจริง ถ้ากฎใดหลุด หน้าเว็บจะพังแบบที่ผู้ใช้แก้เองไม่ได้
+const dropZoneBlock = css.match(/^\.drop-zone \{[\s\S]*?\n\}/m)?.[0] || "";
+assert.ok(dropZoneBlock, "ไม่พบกฎ .drop-zone ใน styles.css");
+assert.match(
+  dropZoneBlock,
+  /position:\s*fixed/,
+  "ชั้นรับไฟล์ต้องเป็น fixed เพื่ออยู่นอกกระแสเอกสาร ไม่งั้นจะดัน layout เดิมให้เลื่อน"
+);
+assert.match(
+  dropZoneBlock,
+  /pointer-events:\s*none/,
+  "ชั้นรับไฟล์ต้องปล่อย event ทะลุผ่าน ไม่งั้นจะดักคลิกจนปุ่มทั้งหน้ากดไม่ได้"
+);
+
+// display: grid ใน .drop-zone ชนะกฎ hidden ของ browser ถ้าไม่ประกาศทับตรง ๆ
+// ชั้นนี้จะค้างเต็มจอตั้งแต่เปิดหน้าเว็บ และผู้ใช้จะใช้ระบบไม่ได้เลยทั้งหน้า
+assert.match(
+  css,
+  /\.drop-zone\[hidden\]\s*\{[^}]*display:\s*none/,
+  "ต้องบังคับ .drop-zone[hidden] { display: none } ไม่งั้นชั้นรับไฟล์จะค้างเต็มจอตลอดเวลา"
+);
+
+const dropHandler = appJs.match(/window\.addEventListener\("drop",[\s\S]*?\n {2}\}\);/)?.[0] || "";
+assert.ok(dropHandler, "ไม่พบตัวรับเหตุการณ์ drop ใน app.js");
+assert.match(
+  dropHandler,
+  /event\.preventDefault\(\)/,
+  "ตัวรับ drop ต้อง preventDefault ไม่งั้น browser จะเปิดไฟล์ทับหน้าเว็บและงานที่ยังไม่บันทึกจะหายทันที"
+);
+
+// ทั้งปุ่มเลือกไฟล์และการลากวางต้องวิ่งผ่านฟังก์ชันเดียวกัน ถ้าแยกโค้ดกัน สองทาง
+// จะค่อย ๆ ทำงานไม่เหมือนกัน แล้วผู้ใช้จะเจอผลลัพธ์ต่างกันโดยไม่มีใครรู้ว่าทำไม
+assert.equal(
+  (appJs.match(/await handleImportFile\(/g) || []).length,
+  2,
+  "ทั้งปุ่มนำเข้าและการลากไฟล์มาวางต้องเรียก handleImportFile ตัวเดียวกัน ห้ามเขียนโค้ดอ่านไฟล์ซ้ำสองชุด"
+);
+
+// ลากข้อความหรือลิงก์ในหน้าเว็บต้องไม่ทำให้ชั้นนี้โผล่ขึ้นมาบังหน้าจอ
+assert.match(
+  appJs,
+  /includes\("Files"\)/,
+  "ต้องตรวจ dataTransfer.types ว่ามีไฟล์จริง ไม่งั้นการลากข้อความธรรมดาจะทำให้ชั้นรับไฟล์โผล่มาบังหน้าจอ"
+);
 
 console.log(`UI contract passed: ${requiredHtmlContracts.length} DOM contracts and reversible workflows are present`);

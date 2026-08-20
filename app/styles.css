@@ -3551,3 +3551,62 @@ body[data-business-mode="retail"] .journey-icon { background: #fff0d7; color: #9
   .alert-banner p { grid-column: 2; }
   .alert-banner .small-button { grid-column: 2; justify-self: start; }
 }
+
+/* ชั้นรับไฟล์ลากวาง — ออกแบบให้ "ไม่มีตัวตน" จนกว่าจะมีไฟล์ถูกลากเข้ามาจริง
+   เพราะ feature นี้ถูกเพิ่มทีหลัง และต้องไม่ขยับ UI เดิมแม้แต่พิกเซลเดียว
+
+   สามอย่างที่ทำให้ปลอดภัย:
+   1. position: fixed — อยู่นอกกระแสเอกสาร ไม่ดันหรือบีบอะไรเลย
+   2. pointer-events: none — ทุก event ทะลุผ่านไปหา window listener เสมอ
+      ถ้าชั้นนี้ดักคลิกเมื่อไร ปุ่มทั้งหน้าจะกดไม่ได้ทันที ห้ามแก้เป็นค่าอื่น
+   3. [hidden] ต้องบังคับ display: none ซ้ำ เพราะ display: grid ด้านล่างจะชนะ
+      กฎ hidden ของ browser ทำให้ชั้นนี้ค้างเต็มจอตลอดเวลา */
+.drop-zone {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(23, 23, 31, 0.55);
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+}
+
+.drop-zone[hidden] {
+  display: none;
+}
+
+.drop-zone-card {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  max-width: min(420px, 100%);
+  padding: 32px 28px;
+  border: 2px dashed var(--brand-orange);
+  border-radius: 16px;
+  background: #fff;
+  text-align: center;
+  box-shadow: 0 18px 48px rgba(23, 23, 31, 0.28);
+}
+
+.drop-zone-card strong {
+  font-size: 1.05rem;
+  color: var(--ink);
+}
+
+.drop-zone-card span {
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.drop-zone-icon {
+  width: 34px;
+  height: 34px;
+  color: var(--brand-orange);
+}
+
+/* ผู้ใช้ที่ตั้งค่าลดการเคลื่อนไหวไว้ ไม่ควรเจอ blur ที่กินแรงเครื่องโดยไม่จำเป็น */
+@media (prefers-reduced-motion: reduce) {
+  .drop-zone { backdrop-filter: none; }
+}

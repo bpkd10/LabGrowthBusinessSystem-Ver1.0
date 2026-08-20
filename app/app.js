@@ -6,12 +6,12 @@ import {
   updateProductAcrossState,
   detachProductRelations,
   createZeroState
-} from "./business-workflows.js?v=27";
+} from "./business-workflows.js?v=28";
 import {
   parseImportFile,
   buildImportPlan,
   applyImportPlan
-} from "./data-import.js?v=27";
+} from "./data-import.js?v=28";
 import {
   DEFAULT_MODEL,
   DEFAULT_PROVIDER_ID,
@@ -20,7 +20,7 @@ import {
   maskApiKey,
   providerErrorMessage,
   validateKeyFormat
-} from "./ai-provider.js?v=27";
+} from "./ai-provider.js?v=28";
 // ข้อมูลโดเมนและค่าคงที่ย้ายไป business-config.js ส่วนตรรกะ state ย้ายไป state-model.js
 // เพื่อให้ทั้งสองส่วนทดสอบได้ใน Node โดยไม่ต้องมี DOM (scripts/check-app-model.mjs)
 import {
@@ -52,9 +52,9 @@ import {
   seedData,
   taskStatusLabels,
   taskStatuses
-} from "./business-config.js?v=27";
-import { buildInsightReport } from "./business-insights.js?v=27";
-import { downloadReport } from "./report-export.js?v=27";
+} from "./business-config.js?v=28";
+import { buildInsightReport } from "./business-insights.js?v=28";
+import { downloadReport } from "./report-export.js?v=28";
 import {
   alignCustomerType,
   clone,
@@ -76,7 +76,7 @@ import {
   todayIso as today,
   uid,
   validIsoDate
-} from "./state-model.js?v=27";
+} from "./state-model.js?v=28";
 
 let state = loadStateFrom(localStorage, STORAGE_KEY);
 
@@ -361,7 +361,7 @@ function customerOffer(customer) {
 }
 
 function iconMarkup(name, className = "ui-icon") {
-  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=27#${escapeHTML(name)}"></use></svg>`;
+  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=28#${escapeHTML(name)}"></use></svg>`;
 }
 
 document.querySelector("#toastUndo").addEventListener("click", () => {
@@ -2504,7 +2504,7 @@ function openImportReview(parsed, file) {
     : sheetOptions;
   sheetSelect.value = manySheets ? "all" : sheetSelect.value;
   sheetSelect.disabled = parsed.kind === "state" || parsed.sheets.length <= 1;
-  document.querySelector("#importFileSummary").innerHTML = `<span><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=27#clipboard"></use></svg><strong>${escapeHTML(file.name)}</strong></span><span>${escapeHTML(parsed.format.toUpperCase())}</span><span>${escapeHTML(`${Math.max(1, Math.ceil(file.size / 1024))} KB`)}</span>`;
+  document.querySelector("#importFileSummary").innerHTML = `<span><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=28#clipboard"></use></svg><strong>${escapeHTML(file.name)}</strong></span><span>${escapeHTML(parsed.format.toUpperCase())}</span><span>${escapeHTML(`${Math.max(1, Math.ceil(file.size / 1024))} KB`)}</span>`;
   refreshImportPlan();
   document.querySelector("#importDialog").showModal();
 }
@@ -2514,8 +2514,11 @@ function closeImportDialog() {
   importSession = null;
 }
 
-document.querySelector("#importData").addEventListener("change", async (event) => {
-  const [file] = event.target.files;
+// ทางเข้าเดียวของการนำเข้าไฟล์
+//
+// ทั้งปุ่มเลือกไฟล์และการลากไฟล์มาวางต้องวิ่งผ่านฟังก์ชันนี้เท่านั้น ห้ามแยกโค้ดอ่านไฟล์
+// ไปเขียนซ้ำอีกชุด ไม่งั้นสองทางจะค่อย ๆ ทำงานไม่เหมือนกันโดยไม่มีใครสังเกต
+async function handleImportFile(file) {
   if (!file) return;
 
   try {
@@ -2525,10 +2528,83 @@ document.querySelector("#importData").addEventListener("change", async (event) =
     openImportReview(parsed, file);
   } catch (error) {
     notify(`นำเข้าไม่สำเร็จ: ${error.message || "รูปแบบไฟล์ไม่ถูกต้อง"}`);
+  }
+}
+
+document.querySelector("#importData").addEventListener("change", async (event) => {
+  const [file] = event.target.files;
+  try {
+    await handleImportFile(file);
   } finally {
+    // ล้างค่าเสมอ ไม่งั้นเลือกไฟล์เดิมซ้ำครั้งที่สองจะไม่เกิด change event
     event.target.value = "";
   }
 });
+
+// ลากไฟล์มาวางเพื่อนำเข้า
+//
+// เหตุผลที่ต้องมี: หน้าต่างเลือกไฟล์ของระบบปฏิบัติการเปิดไม่ขึ้นได้จริง (เปิดค้างซ่อนอยู่
+// หลังหน้าต่างอื่น หรือไปโผล่อีกจอ) แล้วผู้ใช้จะกดปุ่มเท่าไรก็ไม่มีอะไรเกิดขึ้นและหา
+// สาเหตุเองไม่ได้เลย ทางนี้ไม่ต้องพึ่งหน้าต่างนั้น จึงไม่มีวันตันแบบเดียวกัน
+{
+  const dropZone = document.querySelector("#dropZone");
+
+  // dragenter/dragleave ยิงซ้ำทุกครั้งที่เมาส์ข้ามขอบ element ลูกภายในหน้า การนับ
+  // เข้า-ออกเป็นคู่จึงจำเป็น ไม่งั้นชั้นนี้จะกะพริบรัวตอนลากผ่านตาราง
+  let dragDepth = 0;
+
+  // ลากข้อความ ลิงก์ หรือรูปในหน้าเว็บ ต้องไม่ทำให้ชั้นนี้โผล่ ดูจาก types ว่ามีไฟล์จริง
+  const carriesFiles = (event) => [...(event.dataTransfer?.types || [])].includes("Files");
+
+  // ระหว่างที่มี dialog เปิดอยู่ หน้าเบื้องหลังถูกทำให้ inert ไปแล้ว การแทรกกล่องนำเข้า
+  // ซ้อนขึ้นมาอีกชั้นจะทำให้ผู้ใช้งงว่ากล่องไหนคือกล่องจริง จึงไม่รับไฟล์ในจังหวะนั้น
+  const dialogOpen = () => Boolean(document.querySelector("dialog[open]"));
+
+  const setVisible = (visible) => {
+    dropZone.hidden = !visible;
+  };
+
+  const reset = () => {
+    dragDepth = 0;
+    setVisible(false);
+  };
+
+  window.addEventListener("dragenter", (event) => {
+    if (!carriesFiles(event) || dialogOpen()) return;
+    event.preventDefault();
+    dragDepth += 1;
+    setVisible(true);
+  });
+
+  // ต้อง preventDefault ที่ dragover ด้วย ไม่งั้น browser จะไม่ยอมให้ drop เกิดขึ้นเลย
+  window.addEventListener("dragover", (event) => {
+    if (!carriesFiles(event) || dialogOpen()) return;
+    event.preventDefault();
+  });
+
+  window.addEventListener("dragleave", (event) => {
+    if (!carriesFiles(event)) return;
+    dragDepth -= 1;
+    if (dragDepth <= 0) reset();
+  });
+
+  window.addEventListener("drop", async (event) => {
+    if (!carriesFiles(event)) return;
+    // กันพฤติกรรมเริ่มต้นของ browser ที่จะเปิดไฟล์ทับหน้าเว็บทิ้งไป
+    // ถ้าพลาดตรงนี้ ผู้ใช้จะเสียงานที่ยังไม่ได้บันทึกทันทีที่ลากไฟล์มาวางผิดที่
+    event.preventDefault();
+    reset();
+    if (dialogOpen()) return;
+
+    const [file] = event.dataTransfer?.files || [];
+    if (!file) return;
+    await handleImportFile(file);
+  });
+
+  // ลากออกนอกหน้าต่างไปเลย หรือกด Esc ระหว่างลาก ต้องไม่ทิ้งชั้นนี้ค้างเต็มจอ
+  window.addEventListener("dragend", reset);
+  window.addEventListener("blur", reset);
+}
 
 document.querySelector("#importCollection").addEventListener("change", refreshImportPlan);
 document.querySelector("#importSheet").addEventListener("change", refreshImportPlan);
