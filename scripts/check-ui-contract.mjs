@@ -349,4 +349,24 @@ assert.match(
   "ต้องตรวจ dataTransfer.types ว่ามีไฟล์จริง ไม่งั้นการลากข้อความธรรมดาจะทำให้ชั้นรับไฟล์โผล่มาบังหน้าจอ"
 );
 
+// ── ปุ่มนำเข้าห้ามเงียบเมื่อหน้าต่างเลือกไฟล์ไม่โผล่ ────────────────────────
+//
+// หน้าต่างเลือกไฟล์เป็นของ OS หน้าเว็บสั่งให้มันโผล่ไม่ได้ สิ่งเดียวที่ทำได้คือไม่ปล่อย
+// ให้ผู้ใช้ยืนงงหน้าจอนิ่ง ๆ โดยไม่รู้ว่าเกิดอะไรขึ้นและต้องทำอะไรต่อ
+const cancelHandler = appJs.match(/#importData"\)\.addEventListener\("cancel",[\s\S]*?\n\}\);/)?.[0] || "";
+assert.ok(
+  cancelHandler,
+  "ต้องดักเหตุการณ์ cancel ของช่องนำเข้าไฟล์ ไม่งั้นผู้ใช้จะกดปุ่มแล้วหน้าจอเงียบสนิทโดยไม่รู้สาเหตุ"
+);
+assert.match(
+  cancelHandler,
+  /notify\(/,
+  "ตัวดัก cancel ต้องขึ้นข้อความบอกผู้ใช้ ไม่ใช่เงียบไปเฉย ๆ"
+);
+assert.match(
+  cancelHandler,
+  /ลากไฟล์/,
+  "ข้อความตอน cancel ต้องชี้ทางออกที่ใช้ได้จริง (ลากไฟล์มาวาง) ไม่ใช่แค่บอกว่าไม่สำเร็จ"
+);
+
 console.log(`UI contract passed: ${requiredHtmlContracts.length} DOM contracts and reversible workflows are present`);
