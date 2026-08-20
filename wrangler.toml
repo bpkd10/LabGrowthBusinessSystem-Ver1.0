@@ -7,8 +7,8 @@
 #
 # ตรวจกับเอกสาร Cloudflare แล้ว (https://developers.cloudflare.com/workers/wrangler/configuration/):
 # name, main, compatibility_date เป็น field ที่จำเป็นขั้นต่ำในการ deploy Worker
-# workers_dev เป็น field ที่ไม่บังคับ ค่า default อยู่แล้วคือ true — ใส่ไว้ตรง ๆ
-# เพื่อให้อ่านง่ายว่าตั้งใจให้ใช้ *.workers.dev subdomain
+# workers_dev เป็น field ที่ไม่บังคับ ค่า default คือ true — ต้องเขียน false ไว้ตรง ๆ
+# เพราะถ้าปล่อยว่าง Cloudflare จะเปิด URL *.workers.dev ให้เองโดยไม่มีใครสั่ง
 
 # ชื่อนี้กลายเป็น subdomain ของ URL สาธารณะ: utai-business-growth-system.<บัญชี>.workers.dev
 #
@@ -16,7 +16,7 @@
 # www.uncletungai.site เป็นเว็บธุรกิจจริงที่ให้บริการอยู่บน Netlify การใส่ route ครอบ
 # โดเมนนั้นจะทำให้ Worker ดัก traffic ของเว็บจริงทั้งหมดทันทีที่ deploy
 # scripts/check-deploy-target.mjs บังคับกฎนี้ไว้แล้ว ถ้าจะผูกโดเมนเองให้ใช้ subdomain
-# ที่ยังว่าง เช่น crm.uncletungai.site แล้วรัน npm run check ก่อนเสมอ
+# ที่ยังว่าง (ตรวจด้วย `dig +short <ชื่อ>.uncletungai.site` ก่อน) แล้วรัน npm run check เสมอ
 name = "utai-business-growth-system"
 main = "dist/server/index.js"
 
@@ -26,23 +26,40 @@ main = "dist/server/index.js"
 # ยืนยันกับ Wrangler เวอร์ชันที่ใช้จริงตอน deploy อีกครั้ง (ADR-001 ข้อ 10.4)
 compatibility_date = "2026-08-08"
 
-workers_dev = true
+# ปิด URL แถมของ Cloudflare (2026-08-20)
+#
+# เปิดไว้จะได้ URL สาธารณะเพิ่มอีกสองตัวที่เสิร์ฟไฟล์ชุดเดียวกัน:
+#   utai-business-growth-system.<บัญชี>.workers.dev            (Production)
+#   *-utai-business-growth-system.<บัญชี>.workers.dev          (Preview)
+# ทั้งคู่ "ใครมีลิงก์ก็เข้าได้" และแต่ละตัวเป็นคลังข้อมูลแยกของตัวเอง ด้วยเหตุผล
+# เดียวกับที่ถอด crm.uncletungai.site ออก (ADR-001 ภาคผนวก ง.1)
+#
+# ถ้าวันหนึ่ง labgrowth.uncletungai.site มีปัญหา DNS หรือใบรับรอง เปิดค่านี้กลับเป็น
+# true แล้ว deploy ใหม่จะได้ทางเข้าสำรองคืนภายในไม่กี่นาที — เป็นทางออกฉุกเฉินที่
+# ตั้งใจแลกไว้ ไม่ใช่ของที่ควรเปิดค้างไว้ตลอด
+workers_dev = false
 
 # โดเมนสาธารณะของระบบนี้
 #
-# custom_domain = true สั่งให้ Wrangler สร้าง DNS record ใหม่ชื่อ crm ใน zone
+# custom_domain = true สั่งให้ Wrangler สร้าง DNS record ใหม่ชื่อ labgrowth ใน zone
 # uncletungai.site แล้วออกใบรับรองให้ เป็นการ "เพิ่ม" record ไม่ใช่แก้ของเดิม
 # record ของ apex (@ ชี้ไป Netlify 75.2.60.5) และ www จึงไม่ถูกแตะต้อง
 # เว็บธุรกิจที่ uncletungai.site และ www.uncletungai.site ยังทำงานตามปกติ
 #
-# ตรวจแล้วว่าทั้งสองชื่อยังไม่มี DNS record ใด ๆ อยู่ก่อนผูก
+# ตรวจแล้วว่าชื่อนี้ยังไม่มี DNS record ใด ๆ อยู่ก่อนผูก
 # ถ้าจะเพิ่มชื่ออื่น ให้ตรวจว่ายังว่างก่อนด้วย `dig +short <ชื่อ>.uncletungai.site`
 # และห้ามใส่ apex หรือ www ลงไปเด็ดขาด — scripts/check-deploy-target.mjs จะหยุดให้
 #
-# labgrowth คือชื่อหลักที่ใช้จริง ตรงกับชื่อธุรกิจในระบบ (Uncle Tung Business Lab)
-# ส่วน crm เก็บไว้ต่อโดยเจตนา เพราะลิงก์นั้นถูกส่งออกไปแล้ว การถอดทิ้งจะทำให้
-# ลิงก์ที่อยู่ในมือคนอื่นตายทันทีโดยที่เจ้าของลิงก์ไม่รู้ตัว
+# labgrowth คือชื่อทางการเพียงชื่อเดียว ตรงกับชื่อธุรกิจในระบบ (Uncle Tung Business Lab)
+#
+# ห้ามผูกชื่อที่สองให้เสิร์ฟไฟล์ชุดเดียวกันซ้ำอีก (เคยมี crm.uncletungai.site
+# ถอดออกเมื่อ 2026-08-20) เหตุผลไม่ใช่เรื่องความสวยงามแต่เป็นเรื่องข้อมูลหาย:
+# แอปเก็บข้อมูลผู้ใช้ไว้ใน localStorage ซึ่งผูกกับ "ชื่อโดเมน" ไม่ใช่กับเครื่อง
+# สองชื่อจึงเท่ากับคลังข้อมูลสองใบที่มองไม่เห็นกัน คนที่กรอกงานไว้ที่ชื่อหนึ่ง
+# แล้ววันหนึ่งเปิดอีกชื่อจะเจอแอปเปล่าและเข้าใจว่าข้อมูลหาย โดยไม่มีอะไรบนหน้าจอ
+# อธิบายให้ scripts/check-deploy-target.mjs บังคับกฎนี้ไว้แล้ว
+#
+# ถ้าวันหนึ่งต้องเปลี่ยนชื่อโดเมนจริง ๆ ให้ชื่อเก่าตอบ 301 ไปชื่อใหม่ อย่าเสิร์ฟไฟล์ซ้ำ
 routes = [
-  { pattern = "labgrowth.uncletungai.site", custom_domain = true },
-  { pattern = "crm.uncletungai.site", custom_domain = true }
+  { pattern = "labgrowth.uncletungai.site", custom_domain = true }
 ]
