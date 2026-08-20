@@ -10,18 +10,18 @@
 
 import {
   buildInsightReport
-} from "./business-insights.js?v=25";
+} from "./business-insights.js?v=26";
 import {
   dealStageLabels,
   leadStatusLabels,
   taskStatusLabels,
   businessCategories,
   businessModes
-} from "./business-config.js?v=25";
+} from "./business-config.js?v=26";
 import {
   compareToPrevious,
   thaiMonthLabel
-} from "./state-model.js?v=25";
+} from "./state-model.js?v=26";
 
 // สีจาก CI เดียวกับ app/styles.css — ExcelJS ใช้รูปแบบ ARGB จึงต้องเติม FF นำหน้า
 const BRAND = {
@@ -68,7 +68,7 @@ function loadExcelJS() {
 
   excelJsLoader = new Promise((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = "/vendor/exceljs.min.js?v=25";
+    script.src = "/vendor/exceljs.min.js?v=26";
     script.onload = () => {
       if (globalThis.ExcelJS?.Workbook) resolve(globalThis.ExcelJS);
       else reject(new Error("โหลดตัวสร้างไฟล์ Excel ได้ แต่ไลบรารีไม่พร้อมใช้งาน กรุณารีเฟรชหน้าเว็บแล้วลองใหม่"));

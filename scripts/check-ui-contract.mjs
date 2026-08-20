@@ -48,6 +48,10 @@ const requiredHtmlContracts = [
   ,"aiKeyStatus"
   ,"aiKeyWarning"
   ,"aiModelInput"
+  ,"welcomeDialog"
+  ,"welcomeTitle"
+  ,"welcomeSample"
+  ,"welcomeFresh"
 ];
 
 for (const id of requiredHtmlContracts) {
@@ -252,5 +256,36 @@ assert.match(appJs, /collectionSelect\.disabled = parsed\.kind === "state" \|\| 
 // ชีตที่ระบบข้ามต้องแสดงเหตุผลไว้ ผู้ใช้จะได้รู้ว่าระบบเห็นแล้วตั้งใจข้าม ไม่ใช่อ่านไม่เจอ
 assert.match(appJs, /import-row-muted/, "ต้องแสดงชีตที่ถูกข้ามพร้อมเหตุผล ไม่ใช่เงียบหายไปเฉย ๆ");
 assert.match(css, /\.import-preview \.import-row-muted td/, "CSS ต้องแยกแถวชีตที่ถูกข้ามออกจากแถวที่นำเข้าจริง");
+
+// ── หน้าจอต้อนรับครั้งแรกต้องไม่กลายเป็นกับดัก ──────────────────────────────
+//
+// ระบบเปิดมาพร้อมข้อมูลตัวอย่างที่หน้าตาเหมือนข้อมูลจริง คนที่ได้รับลิงก์ต่อจึง
+// เข้าใจผิดว่ากำลังเห็นงานของคนที่ส่งลิงก์มา ทั้งที่ข้อมูลแยกตามเบราว์เซอร์
+// หน้าจอนี้จึงมีไว้ให้ผู้ใช้เลือกเองว่าจะลองข้อมูลตัวอย่างหรือเริ่มที่ศูนย์
+assert.match(appJs, /const isFirstVisit = lastKnownStorageValue === null;/, "ไม่พบการตรวจว่าเป็นการเปิดครั้งแรก");
+// ต้องอ่านค่าก่อนโค้ดส่วนใดเขียน storage ไม่งั้นจะเป็นเท็จเสมอและหน้าจอนี้จะไม่เคยขึ้น
+assert.ok(
+  appJs.indexOf("const isFirstVisit") < appJs.indexOf("function saveState()"),
+  "isFirstVisit ต้องถูกอ่านก่อน saveState() ถูกประกาศใช้งาน ไม่งั้นค่าอาจถูกเขียนทับไปแล้ว"
+);
+assert.match(appJs, /if \(isFirstVisit\) \{[\s\S]{0,160}welcomeDialog"\)\.showModal\(\)/, "หน้าจอต้อนรับยังไม่ถูกแสดงเมื่อเปิดครั้งแรก");
+// ทั้งสองทางต้องบันทึกลงเครื่อง ไม่งั้นผู้ใช้จะโดนถามซ้ำทุกครั้งที่เปิดหน้าใหม่
+const welcomeSampleBlock = appJs.match(/#welcomeSample"\)\.addEventListener\("click",[\s\S]*?\n}\);/)?.[0] || "";
+const welcomeFreshBlock = appJs.match(/#welcomeFresh"\)\.addEventListener\("click",[\s\S]*?\n}\);/)?.[0] || "";
+assert.match(welcomeSampleBlock, /saveState\(\)/, "เลือกข้อมูลตัวอย่างแล้วต้องบันทึกลงเครื่อง ไม่งั้นจะถูกถามซ้ำทุกครั้ง");
+assert.match(welcomeFreshBlock, /createZeroState\(\)/, "เลือกเริ่มด้วยข้อมูลตัวเองแล้วต้องล้างข้อมูลตัวอย่างจริง");
+assert.match(welcomeFreshBlock, /saveState\(\)/, "เลือกเริ่มที่ศูนย์แล้วต้องบันทึกลงเครื่อง ไม่งั้นจะถูกถามซ้ำทุกครั้ง");
+// เครื่องที่ปิด storage จะบันทึกไม่สำเร็จ ถ้าผูกการปิดหน้าต่างไว้กับผลบันทึก
+// ผู้ใช้จะติดอยู่ในหน้าต่างนี้โดยไม่มีทางออกและใช้แอปไม่ได้เลย
+for (const [name, block] of [["welcomeSample", welcomeSampleBlock], ["welcomeFresh", welcomeFreshBlock]]) {
+  assert.doesNotMatch(block, /if \(!saveState\(\)\) return;/, `${name} ต้องไม่ปิดทางออกเมื่อบันทึกไม่สำเร็จ ผู้ใช้จะติดอยู่ในหน้าต่างต้อนรับ`);
+  assert.match(block, /closeWelcome\(/, `${name} ต้องปิดหน้าต่างต้อนรับเสมอ`);
+}
+
+// ปุ่มคัดลอกลิงก์หน้าหลักต้องระบุปลายทางไว้ในลิงก์ ไม่ใช่คัดลอกลิงก์เปล่า
+// เพราะลิงก์เปล่าจะถูก rememberedRoute() พาไปยังหน้าที่เครื่องนั้นเปิดค้างไว้ล่าสุด
+// ปุ่มที่ชื่อ "ลิงก์หน้าหลัก" จึงพาไปหน้าอื่นได้ ซึ่งขัดกับสิ่งที่ปุ่มสัญญาไว้
+const copyHomeBlock = appJs.match(/#copyHomeLink"\)\.addEventListener\("click",[\s\S]*?\n}\);/)?.[0] || "";
+assert.match(copyHomeBlock, /#dashboard\/owner/, "ลิงก์หน้าหลักต้องระบุหน้าปลายทาง ไม่งั้นจะถูกพาไปหน้าที่เปิดค้างไว้ล่าสุดแทน");
 
 console.log(`UI contract passed: ${requiredHtmlContracts.length} DOM contracts and reversible workflows are present`);

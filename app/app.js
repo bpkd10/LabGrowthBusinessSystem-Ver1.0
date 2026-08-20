@@ -6,12 +6,12 @@ import {
   updateProductAcrossState,
   detachProductRelations,
   createZeroState
-} from "./business-workflows.js?v=25";
+} from "./business-workflows.js?v=26";
 import {
   parseImportFile,
   buildImportPlan,
   applyImportPlan
-} from "./data-import.js?v=25";
+} from "./data-import.js?v=26";
 import {
   DEFAULT_MODEL,
   DEFAULT_PROVIDER_ID,
@@ -20,7 +20,7 @@ import {
   maskApiKey,
   providerErrorMessage,
   validateKeyFormat
-} from "./ai-provider.js?v=25";
+} from "./ai-provider.js?v=26";
 // ข้อมูลโดเมนและค่าคงที่ย้ายไป business-config.js ส่วนตรรกะ state ย้ายไป state-model.js
 // เพื่อให้ทั้งสองส่วนทดสอบได้ใน Node โดยไม่ต้องมี DOM (scripts/check-app-model.mjs)
 import {
@@ -52,9 +52,9 @@ import {
   seedData,
   taskStatusLabels,
   taskStatuses
-} from "./business-config.js?v=25";
-import { buildInsightReport } from "./business-insights.js?v=25";
-import { downloadReport } from "./report-export.js?v=25";
+} from "./business-config.js?v=26";
+import { buildInsightReport } from "./business-insights.js?v=26";
+import { downloadReport } from "./report-export.js?v=26";
 import {
   alignCustomerType,
   clone,
@@ -76,7 +76,7 @@ import {
   todayIso as today,
   uid,
   validIsoDate
-} from "./state-model.js?v=25";
+} from "./state-model.js?v=26";
 
 let state = loadStateFrom(localStorage, STORAGE_KEY);
 
@@ -93,6 +93,9 @@ let importSession = null;
 // สำเนาข้อความดิบที่เราเป็นคนเขียนลง localStorage ล่าสุด ใช้เทียบตอนแท็บอื่นแก้ข้อมูล
 // เพื่อแยกให้ออกว่า event ที่ได้รับมาจากการแก้จริง หรือเป็นเสียงสะท้อนของเราเอง
 let lastKnownStorageValue = localStorage.getItem(STORAGE_KEY);
+// เบราว์เซอร์ที่ยังไม่เคยบันทึกอะไรลงเครื่อง = เพิ่งเปิดลิงก์นี้ครั้งแรก
+// ต้องอ่านตรงนี้ก่อนที่โค้ดส่วนใดจะเขียน storage ไม่งั้นค่าจะกลายเป็นเท็จเสมอ
+const isFirstVisit = lastKnownStorageValue === null;
 let staleTabWarned = false;
 // ชื่อโมเดลที่ผู้ให้บริการใช้จริงในรอบล่าสุด ต่างจากชื่อที่ผู้ใช้พิมพ์ได้
 // เพราะ OpenAI แปลงชื่อย่อเป็นรุ่นลงวันที่ เช่น gpt-5.6-sol → gpt-5.6-sol-2026-05-14
@@ -358,7 +361,7 @@ function customerOffer(customer) {
 }
 
 function iconMarkup(name, className = "ui-icon") {
-  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=25#${escapeHTML(name)}"></use></svg>`;
+  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=26#${escapeHTML(name)}"></use></svg>`;
 }
 
 document.querySelector("#toastUndo").addEventListener("click", () => {
@@ -2354,8 +2357,41 @@ document.querySelector("#resetConfirm").addEventListener("click", () => {
 
 document.querySelector("#brandHome").addEventListener("click", () => showView("dashboard/owner", { focusHeading: true }));
 
+// หน้าจอต้อนรับครั้งแรก
+//
+// ทั้งสองทางต้องบันทึกลงเครื่องทันที เพราะ "เคยเลือกแล้ว" ถูกตัดสินจากการมีข้อมูล
+// ใน storage ถ้าไม่บันทึก ผู้ใช้จะโดนถามซ้ำทุกครั้งที่เปิดหน้าใหม่
+// และต้องปิดหน้าต่างก่อนเสมอ ไม่ผูกกับผลการบันทึก ไม่งั้นเครื่องที่ปิด storage
+// จะติดอยู่ในหน้าต่างนี้โดยไม่มีทางออก
+function closeWelcome(message) {
+  document.querySelector("#welcomeDialog").close();
+  showView("dashboard/owner", { focusHeading: true });
+  notify(message);
+}
+
+document.querySelector("#welcomeSample").addEventListener("click", () => {
+  const saved = saveState();
+  closeWelcome(saved
+    ? "เริ่มด้วยข้อมูลตัวอย่างแล้ว กด Set Zero เมื่อพร้อมใช้ข้อมูลจริงของคุณ"
+    : "บันทึกลงเครื่องไม่สำเร็จ ระบบจะถามใหม่ครั้งหน้า แต่ตอนนี้ใช้งานต่อได้ตามปกติ");
+});
+
+document.querySelector("#welcomeFresh").addEventListener("click", () => {
+  state = createZeroState();
+  const saved = saveState();
+  selectedLeadIds.clear();
+  renderAll();
+  resetCustomerFormDefaults();
+  closeWelcome(saved
+    ? "เริ่มที่ศูนย์แล้ว กรอกข้อมูลธุรกิจของคุณได้เลย"
+    : "ล้างข้อมูลตัวอย่างแล้ว แต่บันทึกลงเครื่องไม่สำเร็จ พื้นที่จัดเก็บของ browser อาจเต็ม");
+});
+
 document.querySelector("#copyHomeLink").addEventListener("click", async () => {
-  const homeUrl = `${location.origin}${location.pathname}`;
+  // ระบุหน้าปลายทางไว้ในลิงก์ตรง ๆ เพราะลิงก์เปล่าจะถูกพาไปยังหน้าที่เปิดค้างไว้
+  // ล่าสุดของเครื่องนั้น (rememberedRoute) ปุ่มที่ชื่อ "ลิงก์หน้าหลัก" จึงต้องพาไป
+  // หน้าหลักจริง ไม่ใช่หน้าที่บังเอิญเปิดค้างอยู่
+  const homeUrl = `${location.origin}${location.pathname}#dashboard/owner`;
   try {
     await navigator.clipboard.writeText(homeUrl);
     notify("คัดลอกลิงก์หน้าหลักแล้ว พร้อมส่งต่อได้เลย");
@@ -2468,7 +2504,7 @@ function openImportReview(parsed, file) {
     : sheetOptions;
   sheetSelect.value = manySheets ? "all" : sheetSelect.value;
   sheetSelect.disabled = parsed.kind === "state" || parsed.sheets.length <= 1;
-  document.querySelector("#importFileSummary").innerHTML = `<span><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=25#clipboard"></use></svg><strong>${escapeHTML(file.name)}</strong></span><span>${escapeHTML(parsed.format.toUpperCase())}</span><span>${escapeHTML(`${Math.max(1, Math.ceil(file.size / 1024))} KB`)}</span>`;
+  document.querySelector("#importFileSummary").innerHTML = `<span><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=26#clipboard"></use></svg><strong>${escapeHTML(file.name)}</strong></span><span>${escapeHTML(parsed.format.toUpperCase())}</span><span>${escapeHTML(`${Math.max(1, Math.ceil(file.size / 1024))} KB`)}</span>`;
   refreshImportPlan();
   document.querySelector("#importDialog").showModal();
 }
@@ -2560,3 +2596,10 @@ renderAll();
 refreshScrollHints();
 renderAiKeyState();
 showView(rememberedRoute(), { historyMode: "replace" });
+
+// ถามก่อนว่าจะลองข้อมูลตัวอย่างหรือเริ่มด้วยข้อมูลจริง แสดงหลัง showView เสมอ
+// เพื่อให้หน้าจอด้านหลังเป็นภาพรวมที่สมบูรณ์แล้ว ไม่ใช่หน้าเปล่าที่ยังไม่ render
+if (isFirstVisit) {
+  document.querySelector("#welcomeDialog").showModal();
+  requestAnimationFrame(() => document.querySelector("#welcomeTitle").focus({ preventScroll: true }));
+}

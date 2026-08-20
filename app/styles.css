@@ -1475,6 +1475,101 @@ tbody tr:hover {
   .import-state-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .offer-description-field, .offer-reason-field { grid-column: auto; }
 }
+.welcome-dialog {
+  width: min(660px, calc(100vw - 30px));
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 28px 80px rgba(23, 23, 31, .28);
+}
+
+.welcome-dialog::backdrop { background: rgba(23, 23, 31, .62); }
+
+.welcome-content { padding: 24px; }
+
+.welcome-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 14px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.welcome-brand img { width: 32px; height: 32px; border-radius: 50%; }
+
+.welcome-content h2 {
+  margin: 0 0 9px;
+  font-size: 23px;
+  line-height: 1.35;
+  text-wrap: balance;
+}
+
+.welcome-lead {
+  margin: 0 0 20px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.welcome-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.welcome-choice {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 44px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .16s ease, background .16s ease;
+}
+
+.welcome-choice strong { font-size: 16px; line-height: 1.4; }
+
+.welcome-choice-note {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.welcome-choice-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.welcome-choice-icon .ui-icon { width: 21px; height: 21px; }
+
+.welcome-choice:hover { border-color: var(--accent); background: var(--accent-soft); }
+
+.welcome-choice--primary { border-color: var(--accent); }
+
+.welcome-footnote {
+  margin: 18px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+
+@media (max-width: 560px) {
+  .welcome-choices { grid-template-columns: 1fr; }
+}
+
 .record-form { padding: 22px; background: #fff; }
 .dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
 .dialog-close { width: 34px; height: 34px; border: 0; border-radius: 50%; background: #edf3f1; color: var(--ink); font-size: 22px; cursor: pointer; }
