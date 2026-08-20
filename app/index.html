@@ -6,33 +6,36 @@
     <meta name="description" content="Business Growth CRM สำหรับธุรกิจ Online, Onsite, Wholesale และ Retail">
     <meta name="theme-color" content="#17171f">
     <title>Business Growth Command Center | Uncle Tung AI</title>
-    <link rel="icon" href="/brand/icon-favicon.svg?v=24" type="image/svg+xml">
-    <link rel="preload" href="/brand/logo-wordmark.svg?v=24" as="image" type="image/svg+xml">
-    <link rel="preload" href="/icons.svg?v=24" as="image" type="image/svg+xml">
-    <link rel="stylesheet" href="styles.css?v=24">
+    <link rel="icon" href="/brand/icon-favicon.svg?v=25" type="image/svg+xml">
+    <link rel="preload" href="/brand/logo-wordmark.svg?v=25" as="image" type="image/svg+xml">
+    <link rel="preload" href="/icons.svg?v=25" as="image" type="image/svg+xml">
+    <link rel="stylesheet" href="styles.css?v=25">
   </head>
   <body>
     <a class="skip-link" href="#mainContent">ข้ามไปยังเนื้อหาหลัก</a>
     <div class="app-shell">
       <aside class="sidebar">
         <div class="brand">
-          <img class="brand-logo" src="/brand/logo-wordmark.svg?v=24" alt="Uncle Tung AI — AI ที่เข้าใจง่าย ใช้ได้จริง">
+          <button type="button" class="brand-logo-button" id="brandHome" aria-label="กลับหน้าภาพรวมธุรกิจ">
+            <img class="brand-logo" src="/brand/logo-wordmark.svg?v=25" alt="Uncle Tung AI — AI ที่เข้าใจง่าย ใช้ได้จริง">
+          </button>
           <div class="brand-business">
             <strong id="sidebarBusinessName">ระบบเติบโตธุรกิจ</strong>
             <span id="sidebarBusinessMode">CRM สำหรับทุกธุรกิจ</span>
           </div>
         </div>
         <nav class="nav" aria-label="เมนูหลัก">
-          <button class="nav-item active" data-view="dashboard"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=24#chart"></use></svg><span>ภาพรวมธุรกิจ</span></button>
-          <button class="nav-item" data-view="customers"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=24#users"></use></svg><span>ข้อมูลลูกค้า</span></button>
-          <button class="nav-item" data-view="crm"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=24#handshake"></use></svg><span>CRM งานขาย</span></button>
-          <button class="nav-item" data-view="products"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=24#shopping-bag"></use></svg><span>สินค้าและข้อเสนอ</span></button>
-          <button class="nav-item" data-view="deals"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=24#target"></use></svg><span>Pipeline ธุรกิจ</span></button>
-          <button class="nav-item" data-view="tasks"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=24#clipboard"></use></svg><span>งานติดตาม</span></button>
-          <button class="nav-item" data-view="insights"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=24#chart"></use></svg><span>ศูนย์วิเคราะห์</span></button>
-          <button class="nav-item ai-nav" data-view="ai"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=24#sparkles"></use></svg><span>วิเคราะห์ด้วย AI</span></button>
+          <button class="nav-item active" data-view="dashboard"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=25#chart"></use></svg><span>ภาพรวมธุรกิจ</span></button>
+          <button class="nav-item" data-view="customers"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=25#users"></use></svg><span>ข้อมูลลูกค้า</span></button>
+          <button class="nav-item" data-view="crm"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=25#handshake"></use></svg><span>CRM งานขาย</span></button>
+          <button class="nav-item" data-view="products"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=25#shopping-bag"></use></svg><span>สินค้าและข้อเสนอ</span></button>
+          <button class="nav-item" data-view="deals"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=25#target"></use></svg><span>Pipeline ธุรกิจ</span></button>
+          <button class="nav-item" data-view="tasks"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=25#clipboard"></use></svg><span>งานติดตาม</span></button>
+          <button class="nav-item" data-view="insights"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=25#chart"></use></svg><span>ศูนย์วิเคราะห์</span></button>
+          <button class="nav-item ai-nav" data-view="ai"><svg class="nav-vector" aria-hidden="true"><use href="/icons.svg?v=25#sparkles"></use></svg><span>วิเคราะห์ด้วย AI</span></button>
         </nav>
         <div class="sidebar-tools">
+          <button id="copyHomeLink" class="ghost-button"><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=25#globe"></use></svg> คัดลอกลิงก์หน้าหลัก</button>
           <button id="exportData" class="ghost-button">ส่งออกข้อมูล</button>
           <label class="ghost-button file-button">นำเข้าข้อมูล<input id="importData" type="file" accept=".json,.csv,.cvs,.tsv,.xls,.xlsx,.md,.txt,.doc,.docx,application/json,text/csv,text/markdown"></label>
           <button id="resetDemo" class="ghost-button danger-button">Set Zero ข้อมูลทั้งหมด</button>
@@ -42,7 +45,7 @@
       <main class="main" id="mainContent">
         <header class="topbar">
           <div>
-            <p class="eyebrow brand-kicker"><img src="/brand/icon-favicon.svg?v=24" alt="" aria-hidden="true"> Business Growth System</p>
+            <p class="eyebrow brand-kicker"><img src="/brand/icon-favicon.svg?v=25" alt="" aria-hidden="true"> Business Growth System</p>
             <h1 id="viewTitle" tabindex="-1">ภาพรวมธุรกิจ</h1>
             <p id="viewDescription" class="view-description">ภาพรวมรายได้ งานขาย และสิ่งที่ต้องทำวันนี้</p>
           </div>
@@ -61,13 +64,13 @@
         <!-- ข้อมูลอยู่ใน localStorage ของเครื่องผู้ใช้เท่านั้น ไม่มีเซิร์ฟเวอร์สำรองให้
              สองแบนเนอร์นี้จึงไม่ใช่ของประดับ แต่เป็นสองความเสี่ยงเดียวที่ทำให้ข้อมูลหายจริง -->
         <div id="staleTabWarning" class="alert-banner alert-banner--danger" role="alert" hidden>
-          <span class="alert-banner-icon"><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=24#alert"></use></svg></span>
+          <span class="alert-banner-icon"><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=25#alert"></use></svg></span>
           <p>ข้อมูลถูกแก้ไขจากแท็บหรือหน้าต่างอื่น หน้านี้ไม่ใช่ข้อมูลล่าสุดแล้ว ถ้าบันทึกต่อจากหน้านี้ งานของอีกแท็บจะถูกเขียนทับ</p>
           <button id="staleTabReload" type="button" class="small-button">โหลดข้อมูลใหม่</button>
         </div>
 
         <div id="backupReminder" class="alert-banner alert-banner--warn" role="status" hidden>
-          <span class="alert-banner-icon"><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=24#clipboard"></use></svg></span>
+          <span class="alert-banner-icon"><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=25#clipboard"></use></svg></span>
           <p id="backupReminderText"></p>
           <button id="backupReminderExport" type="button" class="small-button">ส่งออกไฟล์สำรอง</button>
         </div>
@@ -122,7 +125,7 @@
           <section class="journey-panel owner-journey" aria-labelledby="journeyTitle">
             <div class="panel-head">
               <div><p class="eyebrow">Owner customer journey</p><h2 id="journeyTitle">สรุปเส้นทางลูกค้าสำหรับ Owner</h2></div>
-              <div class="journey-head-actions"><img class="journey-brand-logo" src="/brand/logo-wordmark-light.svg?v=24" alt="Uncle Tung AI"><button class="small-button" data-jump="crm">เปิด CRM Board</button></div>
+              <div class="journey-head-actions"><img class="journey-brand-logo" src="/brand/logo-wordmark-light.svg?v=25" alt="Uncle Tung AI"><button class="small-button" data-jump="crm">เปิด CRM Board</button></div>
             </div>
             <p id="journeyContext" class="panel-context">อ่าน Conversion, มูลค่า และคอขวดจากภาพเดียว</p>
             <div class="journey-overview">
@@ -166,7 +169,7 @@
             </div>
           </details>
           <details id="dashboardSecondary" class="dashboard-secondary">
-            <summary><span class="secondary-summary-icon"><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=24#chart"></use></svg></span><strong>ข้อมูลประกอบการตัดสินใจ</strong><small>Business health, ลูกค้าล่าสุด และงานติดตาม</small></summary>
+            <summary><span class="secondary-summary-icon"><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=25#chart"></use></svg></span><strong>ข้อมูลประกอบการตัดสินใจ</strong><small>Business health, ลูกค้าล่าสุด และงานติดตาม</small></summary>
             <div class="dashboard-grid dashboard-grid--insight">
               <section class="panel insight-panel">
                 <div class="panel-head">
@@ -347,17 +350,17 @@
           <section class="ai-workspace">
             <header class="ai-workspace-head">
               <div class="ai-heading">
-                <img class="ai-brand-logo" src="/brand/logo-wordmark-dark.svg?v=24" alt="Uncle Tung AI — AI ที่เข้าใจง่าย ใช้ได้จริง">
+                <img class="ai-brand-logo" src="/brand/logo-wordmark-dark.svg?v=25" alt="Uncle Tung AI — AI ที่เข้าใจง่าย ใช้ได้จริง">
                 <div><p class="eyebrow">AI Business Analyst</p><h2>ถามข้อมูลธุรกิจของคุณด้วยภาษาปกติ</h2></div>
               </div>
-              <span class="ai-scope-note"><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=24#sparkles"></use></svg>AI สำหรับวิเคราะห์เฉพาะข้อมูลในระบบเท่านั้น</span>
+              <span class="ai-scope-note"><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=25#sparkles"></use></svg>AI สำหรับวิเคราะห์เฉพาะข้อมูลในระบบเท่านั้น</span>
               <p class="ai-alternative-note">หน้านี้เป็นส่วนเสริมที่ต้องใช้ API key ของคุณเอง · ถ้ายังไม่มี key <button class="link-button" type="button" data-jump="insights">เปิดศูนย์วิเคราะห์ธุรกิจ</button> ได้เลย ที่นั่นคำนวณตัวเลขชุดเดียวกันจากข้อมูลในระบบโดยตรง และดาวน์โหลดเป็นรายงาน Excel ได้</p>
             </header>
 
             <div class="ai-layout">
               <aside class="ai-control-card" aria-label="ชุดคำถามวิเคราะห์">
                 <form id="aiKeyForm" class="ai-key-form" novalidate>
-                  <p class="ai-step"><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=24#settings"></use></svg>1. ตั้งค่า API key ของคุณ</p>
+                  <p class="ai-step"><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=25#settings"></use></svg>1. ตั้งค่า API key ของคุณ</p>
                   <div class="ai-key-field">
                     <label for="aiKeyInput">API key ของคุณ (OpenAI)</label>
                     <div class="ai-key-input-row">
@@ -396,7 +399,7 @@
                   <p id="aiKeyWarning" class="ai-key-warning">key ที่เก็บไว้ในเบราว์เซอร์อ่านได้โดย JavaScript ทุกตัวที่รันบนหน้านี้ รวมถึงส่วนขยายของเบราว์เซอร์ แนะนำให้สร้าง Project API key แยกสำหรับแอปนี้ และตั้ง spend limit ไว้ใน OpenAI dashboard ถ้าใช้เครื่องร่วมกับคนอื่น อย่าติ๊ก “จำ key ไว้ในเครื่องนี้” และกดลบ key ก่อนออกจากเครื่อง</p>
                 </form>
                 <div>
-                  <p class="ai-step"><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=24#target"></use></svg>2. เลือกมิติที่ต้องการวิเคราะห์</p>
+                  <p class="ai-step"><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=25#target"></use></svg>2. เลือกมิติที่ต้องการวิเคราะห์</p>
                   <label class="sr-only" for="analysisFocus">Prompt วิเคราะห์ 10 มิติ</label>
                   <select id="analysisFocus">
                     <option value="executive">1. ภาพรวมสำหรับเจ้าของธุรกิจ</option>
@@ -413,7 +416,7 @@
                 </div>
                 <div id="analysisPromptPreview" class="prompt-preview"></div>
                 <div class="ai-data-scope">
-                  <strong><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=24#clipboard"></use></svg>ข้อมูลที่ AI อ่าน</strong>
+                  <strong><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=25#clipboard"></use></svg>ข้อมูลที่ AI อ่าน</strong>
                   <span>Business Profile</span><span>ลูกค้าและ Lead</span><span>ดีลและ Pipeline</span><span>Package</span><span>งานติดตาม</span>
                 </div>
                 <small id="analysisPrivacy">ข้อมูลที่ส่งไม่มีรูปโปรไฟล์และเบอร์โทรลูกค้า · คำขอถูกส่งต่อผ่าน server ของระบบนี้ไปยัง OpenAI ด้วย API key ของคุณเอง ทั้ง key และข้อมูลธุรกิจผ่าน server แค่ระหว่างส่งต่อ ไม่ถูกบันทึกหรือเก็บไว้ · key ถูกเก็บไว้ในเบราว์เซอร์เครื่องนี้เท่านั้น และ JavaScript ที่รันบนหน้านี้อ่านได้ ค่าใช้จ่ายการเรียก AI เป็นของบัญชีคุณเอง</small>
@@ -421,7 +424,7 @@
 
               <section class="ai-chat-card" aria-label="สนทนากับ AI เกี่ยวกับข้อมูลธุรกิจ">
                 <div class="ai-result-head">
-                  <div><p class="eyebrow"><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=24#message"></use></svg>Business data chat</p><h2 id="analysisTitle">พร้อมช่วยวิเคราะห์</h2></div>
+                  <div><p class="eyebrow"><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=25#message"></use></svg>Business data chat</p><h2 id="analysisTitle">พร้อมช่วยวิเคราะห์</h2></div>
                   <span id="analysisStatus" class="badge">พร้อมใช้งาน</span>
                 </div>
                 <div class="analysis-snapshot" aria-label="ข้อมูลที่ใช้วิเคราะห์">
@@ -485,9 +488,9 @@
     </dialog>
     <dialog id="resetDialog" class="reset-dialog" aria-labelledby="resetDialogTitle">
       <section class="reset-dialog-content">
-        <div class="reset-dialog-brand"><img src="/brand/icon-favicon.svg?v=24" alt="" aria-hidden="true"><span id="resetProgress">ขั้น 1 จาก 3</span></div>
+        <div class="reset-dialog-brand"><img src="/brand/icon-favicon.svg?v=25" alt="" aria-hidden="true"><span id="resetProgress">ขั้น 1 จาก 3</span></div>
         <div id="resetStepCard" class="reset-step-card" aria-live="polite">
-          <span class="reset-step-icon" aria-hidden="true"><svg class="ui-icon"><use href="/icons.svg?v=24#alert"></use></svg></span>
+          <span class="reset-step-icon" aria-hidden="true"><svg class="ui-icon"><use href="/icons.svg?v=25#alert"></use></svg></span>
           <div><p id="resetStepLabel">ตรวจสอบก่อนดำเนินการ</p><h2 id="resetDialogTitle" tabindex="-1">คุณต้องการคืนค่าเริ่มต้นใช่ไหม?</h2><p id="resetStepDescription">ระบบจะพาไปตรวจสอบผลกระทบก่อนเริ่ม Set Zero และเลือกส่งออกข้อมูลได้โดยไม่บังคับ</p></div>
         </div>
         <div class="reset-dialog-actions">
@@ -503,8 +506,8 @@
     <datalist id="sourceOptions"></datalist>
     <datalist id="customerTypeOptions"></datalist>
     <datalist id="productCategoryOptions"></datalist>
-    <script src="/vendor/xlsx.full.min.js?v=24"></script>
-    <script src="/vendor/mammoth.browser.min.js?v=24"></script>
-    <script type="module" src="app.js?v=24"></script>
+    <script src="/vendor/xlsx.full.min.js?v=25"></script>
+    <script src="/vendor/mammoth.browser.min.js?v=25"></script>
+    <script type="module" src="app.js?v=25"></script>
   </body>
 </html>

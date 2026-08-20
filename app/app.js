@@ -6,12 +6,12 @@ import {
   updateProductAcrossState,
   detachProductRelations,
   createZeroState
-} from "./business-workflows.js?v=24";
+} from "./business-workflows.js?v=25";
 import {
   parseImportFile,
   buildImportPlan,
   applyImportPlan
-} from "./data-import.js?v=24";
+} from "./data-import.js?v=25";
 import {
   DEFAULT_MODEL,
   DEFAULT_PROVIDER_ID,
@@ -20,7 +20,7 @@ import {
   maskApiKey,
   providerErrorMessage,
   validateKeyFormat
-} from "./ai-provider.js?v=24";
+} from "./ai-provider.js?v=25";
 // ข้อมูลโดเมนและค่าคงที่ย้ายไป business-config.js ส่วนตรรกะ state ย้ายไป state-model.js
 // เพื่อให้ทั้งสองส่วนทดสอบได้ใน Node โดยไม่ต้องมี DOM (scripts/check-app-model.mjs)
 import {
@@ -52,9 +52,9 @@ import {
   seedData,
   taskStatusLabels,
   taskStatuses
-} from "./business-config.js?v=24";
-import { buildInsightReport } from "./business-insights.js?v=24";
-import { downloadReport } from "./report-export.js?v=24";
+} from "./business-config.js?v=25";
+import { buildInsightReport } from "./business-insights.js?v=25";
+import { downloadReport } from "./report-export.js?v=25";
 import {
   alignCustomerType,
   clone,
@@ -76,7 +76,7 @@ import {
   todayIso as today,
   uid,
   validIsoDate
-} from "./state-model.js?v=24";
+} from "./state-model.js?v=25";
 
 let state = loadStateFrom(localStorage, STORAGE_KEY);
 
@@ -358,7 +358,7 @@ function customerOffer(customer) {
 }
 
 function iconMarkup(name, className = "ui-icon") {
-  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=24#${escapeHTML(name)}"></use></svg>`;
+  return `<svg class="${escapeHTML(className)}" aria-hidden="true" focusable="false"><use href="/icons.svg?v=25#${escapeHTML(name)}"></use></svg>`;
 }
 
 document.querySelector("#toastUndo").addEventListener("click", () => {
@@ -2352,6 +2352,18 @@ document.querySelector("#resetConfirm").addEventListener("click", () => {
   notify("Set Zero เรียบร้อย ข้อมูลธุรกิจทั้งหมดเริ่มต้นที่ศูนย์ และลบ API key ออกจากเครื่องนี้แล้ว");
 });
 
+document.querySelector("#brandHome").addEventListener("click", () => showView("dashboard/owner", { focusHeading: true }));
+
+document.querySelector("#copyHomeLink").addEventListener("click", async () => {
+  const homeUrl = `${location.origin}${location.pathname}`;
+  try {
+    await navigator.clipboard.writeText(homeUrl);
+    notify("คัดลอกลิงก์หน้าหลักแล้ว พร้อมส่งต่อได้เลย");
+  } catch {
+    notify(`คัดลอกอัตโนมัติไม่สำเร็จ นี่คือลิงก์หน้าหลัก: ${homeUrl}`);
+  }
+});
+
 document.querySelector("#exportData").addEventListener("click", exportStateData);
 
 const importCollectionLabels = {
@@ -2456,7 +2468,7 @@ function openImportReview(parsed, file) {
     : sheetOptions;
   sheetSelect.value = manySheets ? "all" : sheetSelect.value;
   sheetSelect.disabled = parsed.kind === "state" || parsed.sheets.length <= 1;
-  document.querySelector("#importFileSummary").innerHTML = `<span><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=24#clipboard"></use></svg><strong>${escapeHTML(file.name)}</strong></span><span>${escapeHTML(parsed.format.toUpperCase())}</span><span>${escapeHTML(`${Math.max(1, Math.ceil(file.size / 1024))} KB`)}</span>`;
+  document.querySelector("#importFileSummary").innerHTML = `<span><svg class="ui-icon" aria-hidden="true"><use href="/icons.svg?v=25#clipboard"></use></svg><strong>${escapeHTML(file.name)}</strong></span><span>${escapeHTML(parsed.format.toUpperCase())}</span><span>${escapeHTML(`${Math.max(1, Math.ceil(file.size / 1024))} KB`)}</span>`;
   refreshImportPlan();
   document.querySelector("#importDialog").showModal();
 }
