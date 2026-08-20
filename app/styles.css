@@ -86,6 +86,9 @@ textarea {
   min-height: 100vh;
 }
 
+/* height: 100vh ตรึงความสูงไว้เท่าจอ ถ้าเนื้อหายาวกว่านั้นส่วนที่เกินจะถูกตัดหาย
+   และผู้ใช้เข้าถึงไม่ได้เลยเพราะไม่มีแถบเลื่อน — ปุ่มล่างสุด (นำเข้าข้อมูล, Set Zero)
+   จึงหายไปเงียบ ๆ บนจอเตี้ยหรือเมื่อมีปุ่มเพิ่ม ต้องให้เลื่อนได้เสมอ */
 .sidebar {
   position: sticky;
   top: 0;
@@ -96,6 +99,8 @@ textarea {
   padding: 22px;
   border-right: 1px solid var(--line);
   background: #f9fbfa;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .brand {
@@ -233,6 +238,9 @@ textarea {
   display: grid;
   gap: 8px;
   margin-top: auto;
+  /* ห้ามถูกบีบให้เตี้ยลงเมื่อเมนูด้านบนยาว ไม่งั้นปุ่มจะซ้อนกันจนกดผิด */
+  flex-shrink: 0;
+  padding-bottom: 2px;
 }
 
 .file-button {
